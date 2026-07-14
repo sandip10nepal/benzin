@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useLocalSearchParams } from 'expo-router';
 import {
   StyleSheet, Text, View, TouchableOpacity, TouchableWithoutFeedback,
   ScrollView, SafeAreaView, StatusBar, Animated, Modal, TextInput,
@@ -534,7 +535,15 @@ function Panel({ children, style }: { children: React.ReactNode; style?: any }) 
 }
 
 export default function App() {
-  const [theme, setTheme] = useState<"dark" | "light">("light");
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  
+  let routeParams: any = {};
+  try {
+    routeParams = useLocalSearchParams();
+  } catch (e) {
+    // fallback
+  }
+
   const COLORS = theme === "dark" ? DARK_COLORS : LIGHT_COLORS;
   const styles = React.useMemo(() => getStyles(COLORS), [theme]);
 
@@ -717,6 +726,23 @@ export default function App() {
     if (selectedFlavor) setHookahQty(1);
   }, [selectedFlavor]);
 
+  // Autofill Table Number from QR URL query parameter
+  useEffect(() => {
+    let table = routeParams?.table;
+    if (!table && typeof window !== "undefined" && window.location) {
+      const urlParams = new URLSearchParams(window.location.search);
+      table = urlParams.get("table");
+    }
+    if (table) {
+      const parsed = parseInt(table, 10);
+      if (!isNaN(parsed) && parsed > 0 && parsed <= 27) {
+        setTableNumInput(String(parsed));
+        setTableNum(parsed);
+        setLoungeName("Cavali");
+      }
+    }
+  }, [routeParams?.table]);
+
   /* ── Init ─────────────────────────────────────────────────── */
   useEffect(() => {
     Animated.loop(Animated.sequence([
@@ -743,6 +769,9 @@ export default function App() {
           setActiveOrder(s.activeOrder  || null);
           setOrderStage(s.orderStage   || 0);
           setScreen(s.screen        || "scan");
+          if (s.screen && s.screen !== "scan" && s.screen !== "loading") {
+            setTheme("light");
+          }
           setLoungeName(s.loungeName   || "");
           setTableNum(s.tableNum     || null);
           if (s.serverRequest) setServerRequest(s.serverRequest);
@@ -869,10 +898,12 @@ export default function App() {
         console.log("[submitPhone] Setting customer and transitioning to dashboard...");
         setCustomer(loadedCustomer);
         setScreen("dashboard");
+        setTheme("light");
       } catch(e) {
         console.log("[submitPhone] ERROR:", e);
         setCustomer({ name: customerName.trim(), hookahCount: 0, history: [] });
         setScreen("dashboard");
+        setTheme("light");
       }
     }, 1300);
     timers.current.push(t);
@@ -939,6 +970,7 @@ export default function App() {
   function restart() {
     timers.current.forEach(clearTimeout);
     setScreen("scan"); setScanState("idle"); setPhoneDigits(""); setCustomerName("");
+    setTheme("dark");
     setCustomer(null); setSelectedFlavor(null); setSessionOrders([]); setActiveOrder(null);
     setOrderStage(0); setRewards([]); setShowRewardModal(false); setServerRequest(null);
     setLoungeName(""); setTableNum(null);
