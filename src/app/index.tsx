@@ -534,7 +534,7 @@ function Panel({ children, style }: { children: React.ReactNode; style?: any }) 
 }
 
 export default function App() {
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [theme, setTheme] = useState<"dark" | "light">("light");
   const COLORS = theme === "dark" ? DARK_COLORS : LIGHT_COLORS;
   const styles = React.useMemo(() => getStyles(COLORS), [theme]);
 
@@ -1016,7 +1016,7 @@ export default function App() {
   const unifiedCartCount  = hookahCart.length + foodCartCount + drinkCartCount;
   const unifiedCartTotal  = hookahCartTotal + foodCartTotal + drinkCartTotal;
 
-  const BACKEND_URL = "http://192.168.1.206:3000/api/orders";
+  const BACKEND_URL = "https://cavali-backend.onrender.com/api/orders";
 
   async function placeUnifiedOrder() {
     if (unifiedCartCount === 0 || !customer) return;
