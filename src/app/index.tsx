@@ -4,14 +4,15 @@ import {
   StyleSheet, Text, View, TouchableOpacity, TouchableWithoutFeedback,
   ScrollView, SafeAreaView, StatusBar, Animated, Modal, TextInput,
   ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Image,
-  PanResponder,
+  PanResponder, Dimensions,
 } from "react-native";
 import {
   Flame, Star, Gift, PartyPopper, QrCode, Check, ChevronRight,
   Sparkles, Coffee, Bell, CreditCard, Trash2, Users, ArrowRight,
   Sliders, Plus, X, Utensils, Minus, ShoppingCart, Sun, Moon,
+  User, Phone, Hash,
 } from "lucide-react-native";
-import Svg, { Circle, Defs, LinearGradient, Stop, Rect, Path, Ellipse, Polygon, ClipPath } from "react-native-svg";
+import Svg, { Circle, Defs, LinearGradient, Stop, Rect, Path, G, Ellipse, Polygon, ClipPath } from "react-native-svg";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { FOOD_MENU, DRINKS_MENU, WING_SAUCES, type MenuItem, type MenuSection } from "../data/menu";
 import { MENU_IMAGES } from "../data/menu_images";
@@ -530,12 +531,91 @@ function getHookahImage(flavorId: string) {
   return MENU_IMAGES.hookah_generic;
 }
 
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+function JaliBackground({ theme, COLORS }: { theme: string; COLORS: any }) {
+  const isDark = theme === "dark";
+  return (
+    <View style={StyleSheet.absoluteFillObject}>
+      <Svg width="100%" height="100%">
+        <Defs>
+          <LinearGradient id="bgGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+            <Stop offset="0%" stopColor={isDark ? "#0E0A08" : "#FAF8F6"} />
+            <Stop offset="40%" stopColor={isDark ? "#1C110E" : "#FFF7F2"} />
+            <Stop offset="70%" stopColor={isDark ? "#281711" : "#F8EFE7"} />
+            <Stop offset="100%" stopColor={isDark ? "#0E0A08" : "#FAF8F6"} />
+          </LinearGradient>
+        </Defs>
+        <Rect width="100%" height="100%" fill="url(#bgGlow)" />
+        
+        {/* Repeating star-mesh pattern */}
+        <G opacity={isDark ? 0.08 : 0.05} stroke={COLORS.gold} strokeWidth={0.5} fill="none">
+          {/* Main Medallion in Center */}
+          <G transform={`translate(${SCREEN_WIDTH / 2}, ${SCREEN_HEIGHT * 0.3})`}>
+            <Circle r={120} strokeWidth={0.5} />
+            <Circle r={100} strokeWidth={0.3} strokeDasharray="3,3" />
+            <Circle r={60} strokeWidth={0.5} />
+            {/* 8-pointed star */}
+            <Path d="M 0 -120 L 35 -35 L 120 0 L 35 35 L 0 120 L -35 35 L -120 0 L -35 -35 Z" />
+            <Path d="M 0 -120 L 35 -35 L 120 0 L 35 35 L 0 120 L -35 35 L -120 0 L -35 -35 Z" transform="rotate(45)" />
+            {/* Floral inner petals */}
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Path key={i} d="M 0 0 C 15 -30, 30 -30, 0 -60 C -30 -30, -15 -30, 0 0" transform={`rotate(${i * 45})`} />
+            ))}
+          </G>
+
+          {/* Secondary Medallion Top Right */}
+          <G transform={`translate(${SCREEN_WIDTH * 0.95}, ${SCREEN_HEIGHT * 0.05})`}>
+            <Circle r={60} strokeWidth={0.5} />
+            <Path d="M 0 -60 L 17 -17 L 60 0 L 17 17 L 0 60 L -17 17 L -60 0 L -17 -17 Z" />
+            <Path d="M 0 -60 L 17 -17 L 60 0 L 17 17 L 0 60 L -17 17 L -60 0 L -17 -17 Z" transform="rotate(45)" />
+          </G>
+
+          {/* Secondary Medallion Bottom Left */}
+          <G transform={`translate(${SCREEN_WIDTH * 0.05}, ${SCREEN_HEIGHT * 0.85})`}>
+            <Circle r={80} strokeWidth={0.5} />
+            <Path d="M 0 -80 L 23 -23 L 80 0 L 23 23 L 0 80 L -23 23 L -80 0 L -23 -23 Z" />
+            <Path d="M 0 -80 L 23 -23 L 80 0 L 23 23 L 0 80 L -23 23 L -80 0 L -23 -23 Z" transform="rotate(45)" />
+          </G>
+
+          {/* Lattice lines */}
+          <Path d={`M 0 0 H ${SCREEN_WIDTH} V ${SCREEN_HEIGHT} H 0 Z`} strokeWidth={1} />
+          {Array.from({ length: 6 }).map((_, i) => {
+            const y = (SCREEN_HEIGHT / 5) * i;
+            return <Path key={`h-${i}`} d={`M 0 ${y} Q ${SCREEN_WIDTH / 2} ${y + 15} ${SCREEN_WIDTH} ${y}`} strokeWidth={0.3} />;
+          })}
+        </G>
+      </Svg>
+    </View>
+  );
+}
+
+function CornerOrnaments({ color }: { color: string }) {
+  const scrollPath = "M 0,0 L 35,0 C 25,12 25,25 15,25 C 25,25 25,35 0,45 Z M 0,0 C 15,0 20,5 20,20 C 5,20 0,15 0,0 M 10,10 C 12,7 16,10 15,13 C 12,16 8,12 10,10 M 15,5 Q 12,18 2,22";
+  return (
+    <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+      <Svg width="45" height="45" viewBox="0 0 45 45" style={{ position: "absolute", top: 12, left: 12 }}>
+        <Path d={scrollPath} fill="none" stroke={color} strokeWidth="1.2" opacity={0.8} />
+      </Svg>
+      <Svg width="45" height="45" viewBox="0 0 45 45" style={{ position: "absolute", top: 12, right: 12, transform: [{ scaleX: -1 }] }}>
+        <Path d={scrollPath} fill="none" stroke={color} strokeWidth="1.2" opacity={0.8} />
+      </Svg>
+      <Svg width="45" height="45" viewBox="0 0 45 45" style={{ position: "absolute", bottom: 12, left: 12, transform: [{ scaleY: -1 }] }}>
+        <Path d={scrollPath} fill="none" stroke={color} strokeWidth="1.2" opacity={0.8} />
+      </Svg>
+      <Svg width="45" height="45" viewBox="0 0 45 45" style={{ position: "absolute", bottom: 12, right: 12, transform: [{ scale: -1 }] }}>
+        <Path d={scrollPath} fill="none" stroke={color} strokeWidth="1.2" opacity={0.8} />
+      </Svg>
+    </View>
+  );
+}
+
 function Panel({ children, style }: { children: React.ReactNode; style?: any }) {
   return <View style={[{ flex: 1, justifyContent: "space-between" }, style]}>{children}</View>;
 }
 
 export default function App() {
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [theme, setTheme] = useState<"dark" | "light">("light");
   
   let routeParams: any = {};
   try {
@@ -603,6 +683,76 @@ export default function App() {
 
   // ── Welcome Screen Fade ──
   const welcomeFade = useRef(new Animated.Value(0)).current;
+
+  // ── Input Focus State ──
+  const [focusedField, setFocusedField] = useState<"name" | "phone" | "table" | null>(null);
+
+  // ── Smoke Particles for Lounge Atmosphere ──
+  const [smokeParticles] = useState(() =>
+    Array.from({ length: 6 }).map((_, i) => ({
+      id: i,
+      x: new Animated.Value(0),
+      y: new Animated.Value(0),
+      opacity: new Animated.Value(0),
+      scale: new Animated.Value(0.5),
+    }))
+  );
+
+  useEffect(() => {
+    if (screen === "scan") {
+      smokeParticles.forEach((p, index) => {
+        const startAnimation = () => {
+          p.x.setValue(0);
+          p.y.setValue(0);
+          p.opacity.setValue(0);
+          p.scale.setValue(0.5);
+
+          const delay = index * 1800; // stagger starting times
+          const duration = 8000 + Math.random() * 3000;
+          const driftX = (Math.random() > 0.5 ? 1 : -1) * (30 + Math.random() * 50);
+
+          Animated.sequence([
+            Animated.delay(delay),
+            Animated.parallel([
+              Animated.timing(p.y, {
+                toValue: -SCREEN_HEIGHT * 0.7,
+                duration: duration,
+                useNativeDriver: true,
+              }),
+              Animated.timing(p.x, {
+                toValue: driftX,
+                duration: duration,
+                useNativeDriver: true,
+              }),
+              Animated.sequence([
+                // Fade in
+                Animated.timing(p.opacity, {
+                  toValue: theme === "dark" ? 0.12 : 0.07,
+                  duration: duration * 0.25,
+                  useNativeDriver: true,
+                }),
+                // Hold and fade out
+                Animated.timing(p.opacity, {
+                  toValue: 0,
+                  duration: duration * 0.75,
+                  useNativeDriver: true,
+                }),
+              ]),
+              Animated.timing(p.scale, {
+                toValue: 2.0 + Math.random() * 2.0,
+                duration: duration,
+                useNativeDriver: true,
+              }),
+            ]),
+          ]).start(() => {
+            // Loop infinitely
+            startAnimation();
+          });
+        };
+        startAnimation();
+      });
+    }
+  }, [screen, theme]);
 
   // ── Tab Transition ──
   const tabFade = useRef(new Animated.Value(1)).current;
@@ -970,7 +1120,7 @@ export default function App() {
   function restart() {
     timers.current.forEach(clearTimeout);
     setScreen("scan"); setScanState("idle"); setPhoneDigits(""); setCustomerName("");
-    setTheme("dark");
+    setTheme("light");
     setCustomer(null); setSelectedFlavor(null); setSessionOrders([]); setActiveOrder(null);
     setOrderStage(0); setRewards([]); setShowRewardModal(false); setServerRequest(null);
     setLoungeName(""); setTableNum(null);
@@ -1180,8 +1330,9 @@ export default function App() {
 
   if (!appReady) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: "#0E0A08" }]}>
         <Animated.View style={[styles.container, styles.loadingWrap, {
+          backgroundColor: "#0E0A08",
           opacity: welcomeFade,
           transform: [{
             translateY: welcomeFade.interpolate({
@@ -1191,28 +1342,7 @@ export default function App() {
           }]
         }]}>
           <Image source={require("../../assets/images/logo.png")} style={{ width: 280, height: 100, marginBottom: 16 }} resizeMode="contain" />
-          {theme === "light" ? (
-            <View style={{
-              borderWidth: 1.5,
-              borderColor: COLORS.gold,
-              borderRadius: 30,
-              paddingHorizontal: 24,
-              paddingVertical: 8,
-              marginTop: 12,
-              backgroundColor: "#FDFCFB",
-              shadowColor: COLORS.gold,
-              shadowOffset: { width: 0, height: 3 },
-              shadowOpacity: 0.15,
-              shadowRadius: 6,
-              elevation: 2
-            }}>
-              <Text style={{ fontSize: 20, fontWeight: "700", color: "#6A4E3E", letterSpacing: 0.5, textAlign: "center" }}>
-                As-salamu alaykum
-              </Text>
-            </View>
-          ) : (
-            <Text style={{ fontSize: 24, fontWeight: "600", color: COLORS.gold, marginTop: 16 }}>As-salamu alaykum</Text>
-          )}
+          <Text style={{ fontSize: 24, fontWeight: "600", color: "#E5B13A", marginTop: 16 }}>As-salamu alaykum</Text>
         </Animated.View>
       </SafeAreaView>
     );
@@ -1247,170 +1377,256 @@ export default function App() {
 
         {/* ════════════════ WELCOME & CHECK-IN ════════════════ */}
         {screen === "scan" && (
-          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={20}>
-            <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-              <Panel>
-                {/* Header row with Theme toggle */}
-                <View style={{ flexDirection: "row", justifyContent: "flex-end", width: "100%", paddingHorizontal: 16, paddingTop: 10 }}>
-                  <TouchableOpacity 
-                    style={{
-                      width: 44, height: 44, borderRadius: 22,
-                      backgroundColor: COLORS.card2, borderColor: COLORS.line, borderWidth: 1,
-                      alignItems: "center", justifyContent: "center"
-                    }} 
-                    onPress={() => setTheme(t => t === "dark" ? "light" : "dark")}
-                    activeOpacity={0.8}
-                  >
-                    {theme === "dark" ? <Sun size={20} color={COLORS.gold} /> : <Moon size={20} color={COLORS.gold} />}
-                  </TouchableOpacity>
-                </View>
+          <View style={{ flex: 1, position: "relative" }}>
+            <JaliBackground theme={theme} COLORS={COLORS} />
+            
+            {/* Rising Smoke Particles */}
+            {smokeParticles.map((p) => (
+              <Animated.View
+                key={p.id}
+                style={{
+                  position: "absolute",
+                  bottom: -40,
+                  left: SCREEN_WIDTH * 0.15 + (p.id * (SCREEN_WIDTH * 0.14)),
+                  width: 90,
+                  height: 90,
+                  borderRadius: 45,
+                  backgroundColor: theme === "dark" ? "#FFAC81" : "#8A6D5E",
+                  transform: [
+                    { translateX: p.x },
+                    { translateY: p.y },
+                    { scale: p.scale },
+                  ],
+                  opacity: p.opacity,
+                  shadowColor: theme === "dark" ? "#FF5A1F" : "#81523E",
+                  shadowOffset: { width: 0, height: 0 },
+                  shadowOpacity: 0.5,
+                  shadowRadius: 25,
+                }}
+              />
+            ))}
 
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 16, paddingBottom: 30 }}>
-                  <View style={{ alignItems: "center", marginTop: 10, marginBottom: 12 }}>
-                    <Text style={styles.eyebrow}>Welcome to</Text>
-                    <Text style={[styles.loungeName, { textAlign: "center", marginTop: 2, marginBottom: 8 }]}>
-                      {LOUNGE.name}
-                    </Text>
-
-                    {theme === "light" ? (
-                      <View style={{
-                        borderWidth: 1.5,
-                        borderColor: COLORS.gold,
-                        borderRadius: 30,
-                        paddingHorizontal: 24,
-                        paddingVertical: 8,
-                        marginTop: 12,
-                        backgroundColor: "#FDFCFB",
-                        shadowColor: COLORS.gold,
-                        shadowOffset: { width: 0, height: 3 },
-                        shadowOpacity: 0.15,
-                        shadowRadius: 6,
-                        elevation: 2
-                      }}>
-                        <Text style={{ fontSize: 20, fontWeight: "700", color: "#6A4E3E", letterSpacing: 0.5, textAlign: "center" }}>
-                          As-salamu alaykum
-                        </Text>
-                      </View>
-                    ) : (
-                      <Text style={{ fontSize: 24, fontWeight: "600", color: COLORS.gold, marginTop: 12 }}>As-salamu alaykum</Text>
-                    )}
+            <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={20}>
+              <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+                <Panel>
+                  {/* Header row with Theme toggle */}
+                  <View style={{ flexDirection: "row", justifyContent: "flex-end", width: "100%", paddingHorizontal: 16, paddingTop: 10, zIndex: 10 }}>
+                    <TouchableOpacity 
+                      style={{
+                        width: 44, height: 44, borderRadius: 22,
+                        backgroundColor: COLORS.card2, borderColor: COLORS.line, borderWidth: 1,
+                        alignItems: "center", justifyContent: "center",
+                        shadowColor: COLORS.gold, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4,
+                      }} 
+                      onPress={() => setTheme(t => t === "dark" ? "light" : "dark")}
+                      activeOpacity={0.8}
+                    >
+                      {theme === "dark" ? <Sun size={20} color={COLORS.gold} /> : <Moon size={20} color={COLORS.gold} />}
+                    </TouchableOpacity>
                   </View>
 
-                  {tableScanMode === "input" ? (
-                    /* Default Mode: Consolidated Check-in Form */
-                    <View style={{ marginTop: 14 }}>
-                      <Text style={[styles.subText, { textAlign: "center", marginBottom: 16, fontSize: 15.12 }]}>
-                        Enter your details below to access the menu and rewards.
+                  <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 16, paddingBottom: 30, justifyContent: "center" }}>
+                    <View style={{ alignItems: "center", marginTop: 5, marginBottom: 16 }}>
+                      <Text style={[styles.eyebrow, { color: COLORS.gold, letterSpacing: 2, fontSize: 14 }]}>Welcome to</Text>
+                      <Text style={[styles.loungeName, { textAlign: "center", marginTop: 2, marginBottom: 4, fontFamily: Platform.OS === "ios" ? "Georgia" : "serif", fontSize: 48, letterSpacing: 1, textShadowColor: COLORS.gold + "40", textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 6 }]}>
+                        {LOUNGE.name}
                       </Text>
 
-                      <View style={styles.inputContainer}>
-                        <Text style={styles.inputLabel}>Your Name</Text>
-                        <TextInput
-                          style={styles.textInput}
-                          placeholder="e.g. John Doe"
-                          placeholderTextColor={COLORS.muted}
-                          value={customerName}
-                          onChangeText={setCustomerName}
-                          autoCapitalize="words"
-                          maxLength={30}
-                        />
-                      </View>
-
-                      <View style={styles.inputContainer}>
-                        <Text style={styles.inputLabel}>Phone Number</Text>
-                        <TextInput
-                          style={styles.textInput}
-                          placeholder="(555) 000-0000"
-                          placeholderTextColor={COLORS.muted}
-                          value={formatPhone(phoneDigits)}
-                          onChangeText={handlePhoneChange}
-                          keyboardType="phone-pad"
-                          maxLength={14}
-                        />
-                      </View>
-
-                      <View style={styles.inputContainer}>
-                        <Text style={styles.inputLabel}>Table Number</Text>
-                        <TextInput
-                          style={styles.textInput}
-                          placeholder="e.g. 7"
-                          placeholderTextColor={COLORS.muted}
-                          value={tableNumInput}
-                          onChangeText={setTableNumInput}
-                          keyboardType="number-pad"
-                          maxLength={4}
-                        />
-                      </View>
-
-                      <TouchableOpacity
-                        style={[styles.btn, styles.btnPrimary, !isRegistrationFormValid && styles.btnDisabled, { marginTop: 16 }]}
-                        disabled={!isRegistrationFormValid}
-                        onPress={submitPhone}
-                      >
-                        <Text style={styles.btnPrimaryText}>Check-in & View Menu</Text>
-                        <ArrowRight size={17} color="#20140C"/>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity style={{ marginTop: 24, alignItems: "center" }} onPress={() => setTableScanMode("qr")}>
-                        <Text style={{ color: COLORS.gold, fontSize: 15.12, fontWeight: "600", textDecorationLine: "underline" }}>
-                          📷 Or Scan Table QR Code Instead
+                      {/* Ornate Urdu Calligraphy Greeting Frame */}
+                      <View style={{ marginVertical: 8, alignItems: "center", justifyContent: "center" }}>
+                        <Svg width="220" height="52" viewBox="0 0 220 52">
+                          <Defs>
+                            <LinearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                              <Stop offset="0%" stopColor={COLORS.gold} stopOpacity={0.4} />
+                              <Stop offset="30%" stopColor="#FFE8A3" />
+                              <Stop offset="70%" stopColor={COLORS.gold} />
+                              <Stop offset="100%" stopColor={COLORS.gold} stopOpacity={0.4} />
+                            </LinearGradient>
+                          </Defs>
+                          {/* Outer Arch Frame */}
+                          <Path d="M 10 26 C 50 6, 170 6, 210 26 C 170 46, 50 46, 10 26 Z" fill="none" stroke="url(#goldGrad)" strokeWidth="1.5" />
+                          <Path d="M 25 26 Q 110 13 195 26 Q 110 39 25 26 Z" fill="none" stroke="url(#goldGrad)" strokeWidth="0.8" opacity={0.6} />
+                          {/* Side motifs */}
+                          <Circle cx="10" cy="26" r="3" fill={COLORS.gold} />
+                          <Circle cx="210" cy="26" r="3" fill={COLORS.gold} />
+                        </Svg>
+                        <Text style={{
+                          position: "absolute",
+                          fontSize: 22,
+                          fontWeight: "700",
+                          color: "#FFE8A3",
+                          textAlign: "center",
+                          letterSpacing: 0.5,
+                          textShadowColor: "rgba(0, 0, 0, 0.5)",
+                          textShadowOffset: { width: 0, height: 1 },
+                          textShadowRadius: 3,
+                          marginTop: -2,
+                        }}>
+                          خوش آمدید
                         </Text>
-                      </TouchableOpacity>
+                      </View>
+                      
+                      <Text style={{ fontSize: 15, color: COLORS.muted, fontWeight: "600", marginTop: 4, letterSpacing: 0.5 }}>As-salamu alaykum</Text>
                     </View>
-                  ) : (
-                    /* Scanner Mode: Simulated QR Scanner Viewfinder */
-                    <View style={{ width: "100%", alignItems: "center", marginTop: 14, gap: 14 }}>
-                      <Text style={[styles.subText, { textAlign: "center", paddingHorizontal: 16, fontSize: 15.12 }]}>
-                        Scan the QR code on your table to automatically fill the table number.
-                      </Text>
 
-                      <View style={styles.qr}>
-                        <View style={styles.viewfinderCornerTopLeft}/>
-                        <View style={styles.viewfinderCornerTopRight}/>
-                        <View style={styles.viewfinderCornerBottomLeft}/>
-                        <View style={styles.viewfinderCornerBottomRight}/>
+                    {tableScanMode === "input" ? (
+                      /* Default Mode: Consolidated Check-in Form */
+                      <View style={[styles.glassCard, { borderColor: COLORS.gold + "50" }]}>
+                        <CornerOrnaments color={COLORS.gold + "70"} />
+                        
+                        <Text style={[styles.subText, { textAlign: "center", marginBottom: 20, fontSize: 14.5, color: COLORS.cream, marginTop: 0 }]}>
+                          Enter your details below to access the menu and rewards.
+                        </Text>
+
+                        <View style={styles.inputContainer}>
+                          <Text style={styles.inputLabel}>Your Name</Text>
+                          <View style={[
+                            styles.inputWrapper,
+                            focusedField === "name" && styles.inputWrapperFocused
+                          ]}>
+                            <View style={styles.inputIcon}>
+                              <User size={18} color={focusedField === "name" ? COLORS.gold : COLORS.muted} />
+                            </View>
+                            <TextInput
+                              style={styles.textInputDecorative}
+                              placeholder="e.g. John Doe"
+                              placeholderTextColor={COLORS.muted}
+                              value={customerName}
+                              onChangeText={setCustomerName}
+                              autoCapitalize="words"
+                              maxLength={30}
+                              onFocus={() => setFocusedField("name")}
+                              onBlur={() => setFocusedField(null)}
+                            />
+                          </View>
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                          <Text style={styles.inputLabel}>Phone Number</Text>
+                          <View style={[
+                            styles.inputWrapper,
+                            focusedField === "phone" && styles.inputWrapperFocused
+                          ]}>
+                            <View style={styles.inputIcon}>
+                              <Phone size={18} color={focusedField === "phone" ? COLORS.gold : COLORS.muted} />
+                            </View>
+                            <TextInput
+                              style={styles.textInputDecorative}
+                              placeholder="(555) 000-0000"
+                              placeholderTextColor={COLORS.muted}
+                              value={formatPhone(phoneDigits)}
+                              onChangeText={handlePhoneChange}
+                              keyboardType="phone-pad"
+                              maxLength={14}
+                              onFocus={() => setFocusedField("phone")}
+                              onBlur={() => setFocusedField(null)}
+                            />
+                          </View>
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                          <Text style={styles.inputLabel}>Table Number</Text>
+                          <View style={[
+                            styles.inputWrapper,
+                            focusedField === "table" && styles.inputWrapperFocused
+                          ]}>
+                            <View style={styles.inputIcon}>
+                              <Hash size={18} color={focusedField === "table" ? COLORS.gold : COLORS.muted} />
+                            </View>
+                            <TextInput
+                              style={styles.textInputDecorative}
+                              placeholder="e.g. 7"
+                              placeholderTextColor={COLORS.muted}
+                              value={tableNumInput}
+                              onChangeText={setTableNumInput}
+                              keyboardType="number-pad"
+                              maxLength={4}
+                              onFocus={() => setFocusedField("table")}
+                              onBlur={() => setFocusedField(null)}
+                            />
+                          </View>
+                        </View>
+
+                        <TouchableOpacity
+                          style={[styles.btnDecorated, !isRegistrationFormValid && styles.btnDecoratedDisabled, { marginTop: 16 }]}
+                          disabled={!isRegistrationFormValid}
+                          onPress={submitPhone}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.btnDecoratedText}>Check-in & View Menu</Text>
+                          <ArrowRight size={18} color="#20140C"/>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity 
+                          style={styles.qrToggleBtn} 
+                          onPress={() => setTableScanMode("qr")}
+                        >
+                          <QrCode size={16} color={COLORS.gold} />
+                          <Text style={styles.qrToggleBtnText}>
+                            Scan Table QR Code Instead
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      /* Scanner Mode: Simulated QR Scanner Viewfinder */
+                      <View style={[styles.glassCard, { borderColor: COLORS.gold + "50", alignItems: "center" }]}>
+                        <CornerOrnaments color={COLORS.gold + "70"} />
+
+                        <Text style={[styles.subText, { textAlign: "center", paddingHorizontal: 16, fontSize: 14.5, color: COLORS.cream, marginTop: 0, marginBottom: 16 }]}>
+                          Scan the QR code on your table to automatically fill the table number.
+                        </Text>
+
+                        <View style={[styles.qr, { borderColor: COLORS.gold + "70", borderWidth: 1.5 }]}>
+                          <View style={[styles.viewfinderCornerTopLeft, { borderColor: COLORS.gold }]}/>
+                          <View style={[styles.viewfinderCornerTopRight, { borderColor: COLORS.gold }]}/>
+                          <View style={[styles.viewfinderCornerBottomLeft, { borderColor: COLORS.gold }]}/>
+                          <View style={[styles.viewfinderCornerBottomRight, { borderColor: COLORS.gold }]}/>
+                          {scanState === "idle" && (
+                            <View style={styles.qrInnerIcon}><QrCode size={56} color={COLORS.gold} opacity={0.6}/></View>
+                          )}
+                          {scanState === "scanning" && (
+                            <View style={styles.qrInnerIcon}>
+                              <ActivityIndicator size="large" color={COLORS.ember}/>
+                              <Animated.View style={[styles.laser, { transform:[{ translateY: laserTranslateY }] }]}/>
+                            </View>
+                          )}
+                          {scanState === "success" && (
+                            <View style={[styles.qrInnerIcon, styles.qrSuccessBadge]}>
+                              <Check size={48} color="#0E0A08"/>
+                            </View>
+                          )}
+                        </View>
+
                         {scanState === "idle" && (
-                          <View style={styles.qrInnerIcon}><QrCode size={56} color={COLORS.muted}/></View>
+                          <TouchableOpacity style={[styles.btnDecorated, { width: "85%", marginTop: 20 }]} onPress={triggerTableScan}>
+                            <QrCode size={18} color="#20140C"/>
+                            <Text style={styles.btnDecoratedText}>Scan Table QR Code</Text>
+                          </TouchableOpacity>
                         )}
                         {scanState === "scanning" && (
-                          <View style={styles.qrInnerIcon}>
-                            <ActivityIndicator size="large" color={COLORS.ember}/>
-                            <Animated.View style={[styles.laser, { transform:[{ translateY: laserTranslateY }] }]}/>
-                          </View>
+                          <Text style={[styles.validationText, { color:COLORS.ember, marginTop: 20, fontWeight: "600" }]}>Connecting to table…</Text>
                         )}
                         {scanState === "success" && (
-                          <View style={[styles.qrInnerIcon, styles.qrSuccessBadge]}>
-                            <Check size={48} color="#0E0A08"/>
-                          </View>
+                          <Text style={[styles.validationText, { color:COLORS.teal, fontSize:18.9, marginTop: 20, fontWeight: "700" }]}>
+                            ✓ Table {tableNum} · {loungeName} synced!
+                          </Text>
                         )}
-                      </View>
 
-                      {scanState === "idle" && (
-                        <TouchableOpacity style={[styles.btn, styles.btnPrimary, { width:"80%" }]} onPress={triggerTableScan}>
-                          <QrCode size={18} color="#20140C"/>
-                          <Text style={styles.btnPrimaryText}>Scan Table QR Code</Text>
+                        <TouchableOpacity 
+                          style={[styles.qrToggleBtn, { marginTop: 20 }]} 
+                          onPress={() => setTableScanMode("input")}
+                        >
+                          <Text style={styles.qrToggleBtnText}>
+                            ⌨️ Enter Table Number Manually
+                          </Text>
                         </TouchableOpacity>
-                      )}
-                      {scanState === "scanning" && (
-                        <Text style={[styles.validationText, { color:COLORS.ember }]}>Connecting to table…</Text>
-                      )}
-                      {scanState === "success" && (
-                        <Text style={[styles.validationText, { color:COLORS.teal, fontSize:18.9 }]}>
-                          ✓ Table {tableNum} · {loungeName} synced!
-                        </Text>
-                      )}
-
-                      <TouchableOpacity style={{ marginTop: 20 }} onPress={() => setTableScanMode("input")}>
-                        <Text style={{ color: COLORS.gold, fontSize: 15.12, fontWeight: "600", textDecorationLine: "underline" }}>
-                          ⌨️ Or Enter Table Number Manually
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </ScrollView>
-              </Panel>
-            </TouchableWithoutFeedback>
-          </KeyboardAvoidingView>
+                      </View>
+                    )}
+                  </ScrollView>
+                </Panel>
+              </TouchableWithoutFeedback>
+            </KeyboardAvoidingView>
+          </View>
         )}
 
         {/* ════════════════ LOADING ════════════════ */}
@@ -2772,6 +2988,108 @@ function getStyles(COLORS: typeof DARK_COLORS) {
   inputContainer: { width:"100%", marginBottom:20 },
   inputLabel: { fontSize:13.86, textTransform:"uppercase", letterSpacing:1.2, color:COLORS.muted, fontWeight:"700", marginBottom:8 },
   textInput:  { width:"100%", height:52, backgroundColor:COLORS.card, borderColor:COLORS.line, borderWidth:1.5, borderRadius:14, paddingHorizontal:16, color:COLORS.cream, fontSize:18.9, fontWeight:"600" },
+  
+  /* Glassmorphic Check-in Card */
+  glassCard: {
+    width: "100%",
+    backgroundColor: COLORS.night === "#FAF8F6" ? "rgba(255, 255, 255, 0.95)" : "rgba(28, 20, 17, 0.85)",
+    borderWidth: 1.5,
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: COLORS.gold,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: COLORS.night === "#FAF8F6" ? 0.15 : 0.4,
+    shadowRadius: 20,
+    elevation: 8,
+    position: "relative",
+    overflow: "hidden",
+    borderTopWidth: 2,
+  },
+
+  /* Enhanced Inputs with Icons & Focus Glows */
+  inputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    height: 52,
+    backgroundColor: COLORS.card2,
+    borderColor: COLORS.line,
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  inputWrapperFocused: {
+    borderColor: COLORS.gold,
+    shadowColor: COLORS.gold,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    backgroundColor: COLORS.card,
+  },
+  inputIcon: {
+    width: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  textInputDecorative: {
+    flex: 1,
+    height: "100%",
+    color: COLORS.cream,
+    fontSize: 17,
+    fontWeight: "600",
+    paddingVertical: 0,
+  },
+
+  /* Glowing Check-in Button */
+  btnDecorated: {
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: COLORS.ember,
+    shadowColor: COLORS.gold,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: COLORS.night === "#FAF8F6" ? 0.25 : 0.45,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  btnDecoratedDisabled: {
+    opacity: 0.35,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  btnDecoratedText: {
+    color: "#20140C",
+    fontWeight: "800",
+    fontSize: 18,
+    letterSpacing: 0.5,
+  },
+
+  /* QR Scanner Mode Toggle Pill Button */
+  qrToggleBtn: {
+    marginTop: 22,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderColor: COLORS.gold + "40",
+    borderWidth: 1,
+    backgroundColor: COLORS.card2,
+    alignSelf: "center",
+  },
+  qrToggleBtnText: {
+    color: COLORS.gold,
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
 
   /* Dashboard */
   topRow:     { flexDirection:"row", justifyContent:"space-between", alignItems:"center", marginBottom:16, marginTop:8 },
