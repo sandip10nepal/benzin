@@ -10,7 +10,7 @@ import {
   Platform,
   ActivityIndicator
 } from 'react-native';
-import { Sparkles, Hash, ArrowRight, User, ShieldCheck, Lock, Building2 } from 'lucide-react-native';
+import { Hash, ArrowRight, User, ShieldCheck, Lock } from 'lucide-react-native';
 import { BenzinLogo } from '../components/ui/BenzinLogo';
 import { useRestaurantTheme } from '../theme/ThemeContext';
 import { TenantApiService, STORAGE_KEYS } from '../services/api';
@@ -25,8 +25,8 @@ export const RestaurantPairing: React.FC<RestaurantPairingProps> = ({ onPairSucc
   const { updateTheme } = useRestaurantTheme();
 
   const [step, setStep] = useState<'auth' | 'table'>('auth');
-  const [floorCode, setFloorCode] = useState<string>('4821-1234');
-  const [tableNumber, setTableNumber] = useState<string>('1');
+  const [floorCode, setFloorCode] = useState<string>('');
+  const [tableNumber, setTableNumber] = useState<string>('');
   const [customerName, setCustomerName] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -45,7 +45,7 @@ export const RestaurantPairing: React.FC<RestaurantPairingProps> = ({ onPairSucc
   const handleVerifyFloorCode = async () => {
     const rawPin = floorCode.replace(/[^0-9]/g, '');
     if (rawPin.length < 4) {
-      setErrorMsg('Please enter a valid 8-digit Restaurant & Floor Code (e.g. 4821-1234)');
+      setErrorMsg('Please enter a valid venue pin code');
       return;
     }
 
@@ -64,7 +64,6 @@ export const RestaurantPairing: React.FC<RestaurantPairingProps> = ({ onPairSucc
       if (res.success && res.restaurant) {
         setPairedRestaurantName(res.restaurant.name);
         
-        // Update dynamic theme colors from backend response or Cavali defaults
         const branding = res.restaurant.branding || {};
         updateTheme({
           name: res.restaurant.name.toUpperCase(),
@@ -84,7 +83,7 @@ export const RestaurantPairing: React.FC<RestaurantPairingProps> = ({ onPairSucc
 
         setStep('table');
       } else {
-        setErrorMsg(res.error || 'Invalid 8-digit Restaurant & Floor Code. Try 4821-1234 for Cavali.');
+        setErrorMsg(res.error || 'Invalid venue code.');
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Could not connect to backend server.');
@@ -136,7 +135,6 @@ export const RestaurantPairing: React.FC<RestaurantPairingProps> = ({ onPairSucc
               </View>
 
               <Text style={styles.title}>Authorize Venue iPad</Text>
-              <Text style={styles.subtitle}>Enter your 8-digit Restaurant & Staff PIN to load your venue menu and branding</Text>
 
               {errorMsg && (
                 <View style={styles.errorBox}>
@@ -144,15 +142,11 @@ export const RestaurantPairing: React.FC<RestaurantPairingProps> = ({ onPairSucc
                 </View>
               )}
 
-              {/* 8-Digit Code Input */}
+              {/* Code Input */}
               <View style={styles.sectionBlock}>
-                <View style={styles.inputLabelRow}>
-                  <Building2 size={16} color="#E5B13A" />
-                  <Text style={styles.inputLabel}>REST. CODE & STAFF PIN (8 DIGITS)</Text>
-                </View>
                 <TextInput
                   style={[styles.textInput, styles.codeInput]}
-                  placeholder="e.g. 4821-1234"
+                  placeholder="Enter Code"
                   placeholderTextColor="#6B5A4E"
                   value={floorCode}
                   onChangeText={setFloorCode}
@@ -162,18 +156,6 @@ export const RestaurantPairing: React.FC<RestaurantPairingProps> = ({ onPairSucc
                   returnKeyType="done"
                   onSubmitEditing={handleVerifyFloorCode}
                 />
-              </View>
-
-              {/* Preset Quick Fill Chip for Cavali */}
-              <View style={styles.presetRow}>
-                <Text style={styles.presetLabel}>Quick Test Venue:</Text>
-                <TouchableOpacity 
-                  onPress={() => setFloorCode('4821-1234')}
-                  style={styles.presetChip}
-                >
-                  <Sparkles size={12} color="#E5B13A" />
-                  <Text style={styles.presetChipText}>Cavali (4821-1234)</Text>
-                </TouchableOpacity>
               </View>
 
               {/* Action Button */}
@@ -205,7 +187,6 @@ export const RestaurantPairing: React.FC<RestaurantPairingProps> = ({ onPairSucc
               </View>
 
               <Text style={styles.title}>Table & Guest Setup</Text>
-              <Text style={styles.subtitle}>Select Table Number and Customer Name for this dining session</Text>
 
               {/* Table Number Input */}
               <View style={styles.sectionBlock}>
@@ -215,7 +196,7 @@ export const RestaurantPairing: React.FC<RestaurantPairingProps> = ({ onPairSucc
                 </View>
                 <TextInput
                   style={[styles.textInput, styles.tableInput]}
-                  placeholder="e.g. 1, 4, 12, 25..."
+                  placeholder="Table #"
                   placeholderTextColor="#6B5A4E"
                   value={tableNumber}
                   onChangeText={setTableNumber}
@@ -233,7 +214,7 @@ export const RestaurantPairing: React.FC<RestaurantPairingProps> = ({ onPairSucc
                 </View>
                 <TextInput
                   style={styles.textInput}
-                  placeholder="e.g. Alex, Sam, VIP Party"
+                  placeholder="Guest Name"
                   placeholderTextColor="#6B5A4E"
                   value={customerName}
                   onChangeText={setCustomerName}
@@ -243,12 +224,12 @@ export const RestaurantPairing: React.FC<RestaurantPairingProps> = ({ onPairSucc
                 />
               </View>
 
-              {/* Re-authenticate Venue Option */}
+              {/* Re-authenticate Option */}
               <TouchableOpacity
                 onPress={() => setStep('auth')}
                 style={styles.changeVenueBtn}
               >
-                <Text style={styles.changeVenueText}>⚙️ Re-authenticate 8-Digit Venue Code</Text>
+                <Text style={styles.changeVenueText}>⚙️ Re-authenticate Venue Code</Text>
               </TouchableOpacity>
 
               {/* Start Ordering Action Button */}
@@ -343,14 +324,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#F8F1EA',
     textAlign: 'center',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#9C8C7E',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 24,
+    marginBottom: 20,
   },
   errorBox: {
     backgroundColor: 'rgba(239, 68, 68, 0.15)',
@@ -404,33 +378,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 2,
     color: '#0099FF',
-  },
-  presetRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 24,
-  },
-  presetLabel: {
-    color: '#9C8C7E',
-    fontSize: 12,
-  },
-  presetChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(229, 177, 58, 0.15)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(229, 177, 58, 0.4)',
-  },
-  presetChipText: {
-    color: '#E5B13A',
-    fontSize: 12,
-    fontWeight: '700',
   },
   changeVenueBtn: {
     alignItems: 'center',
