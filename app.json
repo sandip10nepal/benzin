@@ -3,13 +3,14 @@
     "name": "Cavali",
     "slug": "cavali",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "cavali",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.cavali.lounge"
+      "bundleIdentifier": "com.cavali.lounge",
+      "supportsTablet": true
     },
     "android": {
       "package": "com.cavali.lounge",
