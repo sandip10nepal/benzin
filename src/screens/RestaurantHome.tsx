@@ -6,7 +6,7 @@ import {
   ScrollView,
   TouchableOpacity
 } from 'react-native';
-import { BookOpen, Bot, Bell, ArrowRight, LogOut } from 'lucide-react-native';
+import { BookOpen, Bell, ArrowRight, Bot } from 'lucide-react-native';
 import { useRestaurantTheme } from '../theme/ThemeContext';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { TouchCard } from '../components/ui/TouchCard';
@@ -34,10 +34,11 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-      {/* Persistent Top Header */}
+      {/* Persistent Top Header with AI Host Side Button */}
       <BenzinHeader
         onOpenCart={onOpenCart}
         onOpenCallServer={onCallServer}
+        onOpenHost={onStartOrder}
         onLogOut={onLogOut}
         cartCount={cartCount}
       />
@@ -47,69 +48,37 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
         contentContainerStyle={styles.scrollContent} 
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.cardsContainer, { maxWidth: layout.isTablet ? 840 : 540 }]}>
+        <View style={[styles.cardsContainer, { maxWidth: layout.isTablet ? 840 : 580 }]}>
           
-          {/* Welcome Greeting (Moved up + Font increased by 15%) */}
+          {/* Clean Welcome Greeting */}
           <View style={styles.welcomeBanner}>
             <Text style={[styles.welcomeSubtitle, { color: theme.secondaryColor }]}>WELCOME TO</Text>
             <Text style={[styles.welcomeTitle, { color: theme.textColor }]}>{theme.name || 'LOUNGE'}</Text>
-            <Text style={[styles.tableTag, { color: theme.mutedTextColor }]}>TABLE {theme.tableNumber} • TOUCH A CARD TO BEGIN</Text>
           </View>
 
           {/* Action Cards Container */}
           <View style={styles.cardsGrid}>
             
-            {/* Top Row: 1. START ORDER (Left) & 2. VIEW MENU (Right) */}
+            {/* Top Row: 1. VIEW MENU (Left) & 2. CALL SERVER (Right) */}
             <View style={styles.topCardsRow}>
-              {/* 1. START ORDER */}
-              <View style={styles.topCardWrapper}>
-                <TouchCard 
-                  onPress={onStartOrder} 
-                  style={[
-                    styles.actionCard, 
-                    styles.featuredCard, 
-                    { backgroundColor: theme.cardColor, borderColor: theme.primaryColor }
-                  ]}
-                >
-                  <View style={styles.cardHeaderRow}>
-                    <View style={[styles.cardIconBg, { backgroundColor: 'rgba(74,46,27,0.22)' }]}>
-                      <Bot size={32} color="#A06D44" />
-                    </View>
-                    <View style={[styles.badgeTag, { backgroundColor: '#4A2E1B' }]}>
-                      <Text style={[styles.featuredBadgeText, { color: '#F3E5AB' }]}>AI HOST</Text>
-                    </View>
-                  </View>
-
-                  {/* Text shifted slightly right */}
-                  <View style={styles.cardTextContent}>
-                    <Text style={[styles.cardTitle, { color: theme.textColor }]}>START ORDER</Text>
-                  </View>
-
-                  <View style={styles.cardFooterRow}>
-                    <Text style={[styles.cardActionText, { color: theme.primaryColor }]}>LAUNCH ORDER</Text>
-                    <ArrowRight size={18} color={theme.primaryColor} />
-                  </View>
-                </TouchCard>
-              </View>
-
-              {/* 2. VIEW MENU */}
+              {/* 1. VIEW MENU */}
               <View style={styles.topCardWrapper}>
                 <TouchCard 
                   onPress={onOpenMenu} 
-                  style={[styles.actionCard, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}
+                  style={[styles.actionCard, { backgroundColor: theme.cardColor, borderColor: theme.secondaryColor, borderWidth: 2 }]}
                 >
                   <View style={styles.cardHeaderRow}>
-                    <View style={[styles.cardIconBg, { backgroundColor: 'rgba(229,177,58,0.14)' }]}>
-                      <BookOpen size={30} color={theme.secondaryColor} />
+                    <View style={[styles.cardIconBg, { backgroundColor: 'rgba(229,177,58,0.18)' }]}>
+                      <BookOpen size={34} color={theme.secondaryColor} />
                     </View>
-                    <View style={[styles.badgeTag, { backgroundColor: 'rgba(229,177,58,0.12)' }]}>
+                    <View style={[styles.badgeTag, { backgroundColor: 'rgba(229,177,58,0.15)' }]}>
                       <Text style={[styles.badgeTagText, { color: theme.secondaryColor }]}>CATALOG</Text>
                     </View>
                   </View>
 
-                  {/* Text shifted slightly right */}
                   <View style={styles.cardTextContent}>
                     <Text style={[styles.cardTitle, { color: theme.textColor }]}>VIEW MENU</Text>
+                    <Text style={[styles.cardSubtitle, { color: theme.mutedTextColor }]}>Explore Hookah, Food & Drinks</Text>
                   </View>
 
                   <View style={styles.cardFooterRow}>
@@ -118,27 +87,25 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
                   </View>
                 </TouchCard>
               </View>
-            </View>
 
-            {/* Bottom Row: 3. CALL SERVER CARD (Centered under Start Order & View Menu) */}
-            <View style={styles.bottomCardRow}>
-              <View style={styles.bottomCardWrapper}>
+              {/* 2. CALL SERVER */}
+              <View style={styles.topCardWrapper}>
                 <TouchCard 
                   onPress={onCallServer} 
-                  style={[styles.actionCard, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}
+                  style={[styles.actionCard, { backgroundColor: theme.cardColor, borderColor: theme.accentColor, borderWidth: 2 }]}
                 >
                   <View style={styles.cardHeaderRow}>
-                    <View style={[styles.cardIconBg, { backgroundColor: 'rgba(20,184,166,0.14)' }]}>
-                      <Bell size={30} color={theme.accentColor} />
+                    <View style={[styles.cardIconBg, { backgroundColor: 'rgba(20,184,166,0.18)' }]}>
+                      <Bell size={34} color={theme.accentColor} />
                     </View>
-                    <View style={[styles.badgeTag, { backgroundColor: 'rgba(20,184,166,0.12)' }]}>
+                    <View style={[styles.badgeTag, { backgroundColor: 'rgba(20,184,166,0.15)' }]}>
                       <Text style={[styles.badgeTagText, { color: theme.accentColor }]}>STAFF</Text>
                     </View>
                   </View>
 
-                  {/* Text shifted slightly right */}
                   <View style={styles.cardTextContent}>
                     <Text style={[styles.cardTitle, { color: theme.textColor }]}>CALL SERVER</Text>
+                    <Text style={[styles.cardSubtitle, { color: theme.mutedTextColor }]}>Coals, Water & Assistance</Text>
                   </View>
 
                   <View style={styles.cardFooterRow}>
@@ -152,27 +119,22 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
           </View>
         </View>
 
-        {/* Switch Table & Log Out Session Button */}
-        {onLogOut && (
-          <TouchableOpacity
-            onPress={onLogOut}
-            activeOpacity={0.7}
-            style={[styles.switchTableBtn, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}
-          >
-            <LogOut size={16} color={theme.secondaryColor} />
-            <Text style={[styles.switchTableText, { color: theme.secondaryColor }]}>
-              SWITCH TABLE / START NEW SESSION (TABLE {theme.tableNumber})
-            </Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: theme.mutedTextColor }]}>
-            BENZIN KIOSK PLATFORM ACTIVE • TABLE {theme.tableNumber}
-          </Text>
-        </View>
       </ScrollView>
+
+      {/* Noticeable Floating Digital Host Side Icon Button */}
+      <TouchableOpacity
+        onPress={onStartOrder}
+        activeOpacity={0.88}
+        style={styles.floatingHostFab}
+      >
+        <View style={styles.floatingHostInner}>
+          <Bot size={26} color="#F3E5AB" />
+          <View style={styles.floatingHostTextCol}>
+            <Text style={styles.floatingHostTag}>DIGITAL HOST</Text>
+            <Text style={styles.floatingHostTitle}>Tap to Chat & Order ✨</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -181,28 +143,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  switchTableBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderRadius: 100,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    marginTop: 18,
-    marginBottom: 4,
-  },
-  switchTableText: {
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingTop: 4,
-    paddingBottom: 16,
+    paddingTop: 16,
+    paddingBottom: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -213,26 +158,20 @@ const styles = StyleSheet.create({
   },
   welcomeBanner: {
     alignItems: 'center',
-    marginTop: 0,
-    marginBottom: 16,
+    marginTop: 10,
+    marginBottom: 28,
   },
   welcomeSubtitle: {
-    fontSize: 14, // +15% (was 12)
+    fontSize: 14,
     fontWeight: '900',
     letterSpacing: 3,
     marginBottom: 4,
   },
   welcomeTitle: {
-    fontSize: 37, // +15% (was 32)
+    fontSize: 42,
     fontWeight: '900',
-    letterSpacing: 1.5,
+    letterSpacing: 2,
     textAlign: 'center',
-  },
-  tableTag: {
-    fontSize: 13, // +15% (was 11)
-    fontWeight: '800',
-    letterSpacing: 1.5,
-    marginTop: 6,
   },
   cardsGrid: {
     width: '100%',
@@ -241,32 +180,18 @@ const styles = StyleSheet.create({
   },
   topCardsRow: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 20,
     width: '100%',
   },
   topCardWrapper: {
     flex: 1,
-    height: 155,
-  },
-  bottomCardRow: {
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bottomCardWrapper: {
-    width: '48%',
-    minWidth: 230,
-    maxWidth: 320,
-    height: 155,
+    height: 190,
   },
   actionCard: {
-    borderRadius: 24,
-    borderWidth: 1.5,
+    flex: 1,
     padding: 22,
+    borderRadius: 24,
     justifyContent: 'space-between',
-  },
-  featuredCard: {
-    borderWidth: 2.5,
   },
   cardHeaderRow: {
     flexDirection: 'row',
@@ -274,9 +199,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cardIconBg: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -290,40 +215,64 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 1.2,
   },
-  featuredBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 1.2,
-  },
   cardTextContent: {
-    marginVertical: 4,
-    paddingLeft: 12, // Shift text slightly right
+    marginTop: 10,
   },
   cardTitle: {
-    fontSize: 23,
+    fontSize: 22,
     fontWeight: '900',
-    letterSpacing: 0.8,
+    letterSpacing: 1,
+  },
+  cardSubtitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 3,
   },
   cardFooterRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingLeft: 12, // Shift text slightly right
+    justifyContent: 'space-between',
+    marginTop: 10,
   },
   cardActionText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '900',
-    letterSpacing: 1.2,
+    letterSpacing: 1.5,
   },
-  footer: {
+  floatingHostFab: {
+    position: 'absolute',
+    bottom: 28,
+    right: 28,
+    backgroundColor: '#4A2E1B',
+    borderColor: '#A06D44',
+    borderWidth: 2,
+    borderRadius: 100,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    shadowColor: '#A06D44',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 8,
+    zIndex: 100,
+  },
+  floatingHostInner: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 20,
-    paddingBottom: 8,
+    gap: 10,
   },
-  footerText: {
-    fontSize: 10,
+  floatingHostTextCol: {
+    justifyContent: 'center',
+  },
+  floatingHostTag: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#A06D44',
+    letterSpacing: 1.5,
+  },
+  floatingHostTitle: {
+    fontSize: 13,
     fontWeight: '800',
-    letterSpacing: 2,
+    color: '#F3E5AB',
   },
 });

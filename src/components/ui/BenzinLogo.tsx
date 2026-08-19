@@ -27,25 +27,41 @@ export const BenzinLogo: React.FC<BenzinLogoProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.logoRow}>
-        {/* BENZIN Flame/Crown Emblem */}
+        {/* Authentic Benzene Hexagon Structure Emblem */}
         <Svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none">
           <Defs>
-            <LinearGradient id="benzinGradient" x1="0" y1="0" x2="1" y2="1">
+            <LinearGradient id="benzinBenzeneGrad" x1="0" y1="0" x2="1" y2="1">
               <Stop offset="0%" stopColor="#0099FF" />
               <Stop offset="50%" stopColor="#38BDF8" />
-              <Stop offset="100%" stopColor="#0EA5E9" />
+              <Stop offset="100%" stopColor="#E5B13A" />
             </LinearGradient>
           </Defs>
+          {/* Outer Benzene Hexagon Ring */}
           <Path 
-            d="M12 2C12 2 14.5 5.5 14.5 8C14.5 9.5 13.5 11 12 11C10.5 11 9.5 9.5 9.5 8C9.5 5.5 12 2 12 2Z" 
-            fill="url(#benzinGradient)" 
+            d="M12 2.5 L20.22 7.25 V16.75 L12 21.5 L3.78 16.75 V7.25 Z" 
+            stroke="url(#benzinBenzeneGrad)" 
+            strokeWidth="2.2" 
+            strokeLinejoin="round"
+            fill="rgba(0,153,255,0.06)" 
           />
-          <Path 
-            d="M12 22C16.4183 22 20 18.4183 20 14C20 10.5 17.5 7.5 14.5 6.5C14.5 8.5 13.5 10 12 10C10.5 10 9.5 8.5 9.5 6.5C6.5 7.5 4 10.5 4 14C4 18.4183 7.58172 22 12 22Z" 
-            fill="url(#benzinGradient)" 
-            opacity={0.85}
+          {/* Inner Aromatic Circle */}
+          <Circle 
+            cx="12" 
+            cy="12" 
+            r="5" 
+            stroke="url(#benzinBenzeneGrad)" 
+            strokeWidth="1.8" 
+            fill="none" 
           />
+          {/* Carbon Vertex Nodes */}
+          <Circle cx="12" cy="2.5" r="1.6" fill="#38BDF8" />
+          <Circle cx="20.22" cy="7.25" r="1.6" fill="#38BDF8" />
+          <Circle cx="20.22" cy="16.75" r="1.6" fill="#38BDF8" />
+          <Circle cx="12" cy="21.5" r="1.6" fill="#E5B13A" />
+          <Circle cx="3.78" cy="16.75" r="1.6" fill="#E5B13A" />
+          <Circle cx="3.78" cy="7.25" r="1.6" fill="#38BDF8" />
         </Svg>
+
         <Text style={[
           styles.text, 
           { fontSize, color: textColor }

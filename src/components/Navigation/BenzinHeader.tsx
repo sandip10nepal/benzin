@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Bell, ShoppingBag, ArrowLeft, Bot, Sun, Moon, LogOut } from 'lucide-react-native';
 import { useRestaurantTheme } from '../../theme/ThemeContext';
 import { BenzinLogo } from '../ui/BenzinLogo';
@@ -8,6 +8,7 @@ interface BenzinHeaderProps {
   onGoHome?: () => void;
   onOpenCart?: () => void;
   onOpenCallServer?: () => void;
+  onOpenHost?: () => void;
   onLogOut?: () => void;
   cartCount?: number;
   showBackButton?: boolean;
@@ -20,18 +21,17 @@ export const BenzinHeader: React.FC<BenzinHeaderProps> = ({
   onGoHome,
   onOpenCart,
   onOpenCallServer,
+  onOpenHost,
   onLogOut,
   cartCount = 0,
   showBackButton = false,
   onBack,
-  title,
-  subtitle,
 }) => {
   const { theme, themeMode, toggleThemeMode } = useRestaurantTheme();
 
   return (
     <View style={[styles.headerContainer, { backgroundColor: theme.backgroundColor, borderBottomColor: theme.borderColor }]}>
-      {/* Left side: Back Button OR Switch Table Button */}
+      {/* Left side: Back Button OR Table Indicator */}
       <View style={styles.leftSection}>
         {showBackButton && onBack ? (
           <TouchableOpacity 
@@ -68,13 +68,10 @@ export const BenzinHeader: React.FC<BenzinHeaderProps> = ({
               {theme.name || 'BENZIN'}
             </Text>
           </View>
-          <Text style={[styles.tableSub, { color: theme.mutedTextColor, marginTop: 1, fontSize: 10, letterSpacing: 0.8 }]}>
-            TABLE {theme.tableNumber} • {theme.name || 'MAIN LOUNGE'}
-          </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Right side: Dark/Bright Theme Toggle, Call Server & Cart Trigger */}
+      {/* Right side: Dark/Bright Theme Toggle, AI Digital Host Icon, Call Server & Cart Trigger */}
       <View style={styles.rightSection}>
         <TouchableOpacity
           onPress={toggleThemeMode}
@@ -93,6 +90,20 @@ export const BenzinHeader: React.FC<BenzinHeaderProps> = ({
             </>
           )}
         </TouchableOpacity>
+
+        {/* Noticeable Digital Host Icon Button */}
+        {onOpenHost && (
+          <TouchableOpacity
+            onPress={onOpenHost}
+            activeOpacity={0.8}
+            style={[styles.actionBtn, styles.hostBtn, { borderColor: '#A06D44' }]}
+          >
+            <Bot size={18} color="#F3E5AB" />
+            <Text style={[styles.actionBtnText, { color: '#F3E5AB' }]}>
+              AI HOST
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {onOpenCallServer && (
           <TouchableOpacity 
@@ -142,30 +153,7 @@ const styles = StyleSheet.create({
   leftSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    minWidth: 240,
-  },
-  brandGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  logoBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1.5,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoInitial: {
-    fontSize: 22,
-    fontWeight: '900',
-  },
-  restaurantTitle: {
-    fontSize: 20,
-    fontWeight: '900',
-    letterSpacing: 1.5,
+    minWidth: 140,
   },
   tableSub: {
     fontSize: 10,
@@ -191,47 +179,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  centerTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  centerSubtitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  benzinPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(0,153,255,0.12)',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(0,153,255,0.3)',
-  },
-  benzinPillText: {
-    color: '#0099FF',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 1.2,
-  },
   rightSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    minWidth: 240,
+    gap: 10,
+    minWidth: 320,
     justifyContent: 'flex-end',
   },
   actionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 16,
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 14,
+  },
+  hostBtn: {
+    borderWidth: 1.5,
+    backgroundColor: 'rgba(74,46,27,0.35)',
+    shadowColor: '#A06D44',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 3,
   },
   callServerBtn: {
     borderWidth: 1.5,
@@ -245,8 +215,8 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   actionBtnText: {
-    fontSize: 13,
-    fontWeight: '800',
+    fontSize: 12,
+    fontWeight: '900',
     letterSpacing: 0.8,
   },
   cartBadge: {
