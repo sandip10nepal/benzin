@@ -8,7 +8,7 @@ import {
   Image,
   Animated
 } from 'react-native';
-import { BookOpen, Bell, ArrowRight, Bot, Sparkles, Plus, Check } from 'lucide-react-native';
+import { BookOpen, Bell, ArrowRight, Bot, Sparkles, Plus } from 'lucide-react-native';
 import { useRestaurantTheme } from '../theme/ThemeContext';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { TouchCard } from '../components/ui/TouchCard';
@@ -66,10 +66,10 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
     return () => clearInterval(interval);
   }, [theme.name]);
 
-  // Featured menu items showcase to maximize room for menu cards on home screen
+  // Featured menu items showcase on home screen
   const featuredItems = useMemo(() => {
     if (!allMenuItems || allMenuItems.length === 0) return [];
-    return allMenuItems.slice(0, 10);
+    return allMenuItems;
   }, [allMenuItems]);
 
   return (
@@ -88,7 +88,7 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
         contentContainerStyle={styles.scrollContent} 
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.cardsContainer, { maxWidth: layout.isTablet ? 920 : 640 }]}>
+        <View style={[styles.cardsContainer, { maxWidth: layout.isTablet ? 980 : 680 }]}>
           
           {/* Welcome Greeting Header */}
           <View style={styles.welcomeBanner}>
@@ -96,9 +96,9 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
             <Text style={[styles.welcomeTitle, { color: theme.textColor }]}>{theme.name || 'LOUNGE'}</Text>
           </View>
 
-          {/* Sleek Compact Action Cards Row: START ORDER, VIEW MENU, CALL SERVER */}
+          {/* Prominent Action Cards Row: START ORDER, VIEW MENU, CALL SERVER */}
           <View style={styles.topCardsRow}>
-            {/* 1. START ORDER (RESTORED SLEEK CARD) */}
+            {/* 1. START ORDER (AI HOST CARD) */}
             <View style={styles.topCardWrapper}>
               <TouchCard 
                 onPress={onStartOrder} 
@@ -106,7 +106,7 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
               >
                 <View style={styles.cardHeaderRow}>
                   <View style={[styles.cardIconBg, { backgroundColor: 'rgba(74,46,27,0.25)' }]}>
-                    <Bot size={28} color="#A06D44" />
+                    <Bot size={32} color="#A06D44" />
                   </View>
                   <View style={[styles.badgeTag, { backgroundColor: '#4A2E1B' }]}>
                     <Text style={[styles.badgeTagText, { color: '#F3E5AB' }]}>AI HOST</Text>
@@ -115,11 +115,12 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
 
                 <View style={styles.cardTextContent}>
                   <Text style={[styles.cardTitle, { color: theme.textColor }]}>START ORDER</Text>
+                  <Text style={[styles.cardSubtitle, { color: theme.mutedTextColor }]}>Guided Ordering</Text>
                 </View>
 
                 <View style={styles.cardFooterRow}>
                   <Text style={[styles.cardActionText, { color: theme.primaryColor }]}>LAUNCH ORDER</Text>
-                  <ArrowRight size={16} color={theme.primaryColor} />
+                  <ArrowRight size={18} color={theme.primaryColor} />
                 </View>
               </TouchCard>
             </View>
@@ -132,7 +133,7 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
               >
                 <View style={styles.cardHeaderRow}>
                   <View style={[styles.cardIconBg, { backgroundColor: 'rgba(229,177,58,0.18)' }]}>
-                    <BookOpen size={28} color={theme.secondaryColor} />
+                    <BookOpen size={32} color={theme.secondaryColor} />
                   </View>
                   <View style={[styles.badgeTag, { backgroundColor: 'rgba(229,177,58,0.15)' }]}>
                     <Text style={[styles.badgeTagText, { color: theme.secondaryColor }]}>CATALOG</Text>
@@ -141,11 +142,12 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
 
                 <View style={styles.cardTextContent}>
                   <Text style={[styles.cardTitle, { color: theme.textColor }]}>VIEW MENU</Text>
+                  <Text style={[styles.cardSubtitle, { color: theme.mutedTextColor }]}>Explore Full Menu</Text>
                 </View>
 
                 <View style={styles.cardFooterRow}>
                   <Text style={[styles.cardActionText, { color: theme.secondaryColor }]}>EXPLORE MENU</Text>
-                  <ArrowRight size={16} color={theme.secondaryColor} />
+                  <ArrowRight size={18} color={theme.secondaryColor} />
                 </View>
               </TouchCard>
             </View>
@@ -158,7 +160,7 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
               >
                 <View style={styles.cardHeaderRow}>
                   <View style={[styles.cardIconBg, { backgroundColor: 'rgba(20,184,166,0.18)' }]}>
-                    <Bell size={28} color={theme.accentColor} />
+                    <Bell size={32} color={theme.accentColor} />
                   </View>
                   <View style={[styles.badgeTag, { backgroundColor: 'rgba(20,184,166,0.15)' }]}>
                     <Text style={[styles.badgeTagText, { color: theme.accentColor }]}>STAFF</Text>
@@ -167,11 +169,12 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
 
                 <View style={styles.cardTextContent}>
                   <Text style={[styles.cardTitle, { color: theme.textColor }]}>CALL SERVER</Text>
+                  <Text style={[styles.cardSubtitle, { color: theme.mutedTextColor }]}>Request Staff</Text>
                 </View>
 
                 <View style={styles.cardFooterRow}>
                   <Text style={[styles.cardActionText, { color: theme.accentColor }]}>REQUEST STAFF</Text>
-                  <ArrowRight size={16} color={theme.accentColor} />
+                  <ArrowRight size={18} color={theme.accentColor} />
                 </View>
               </TouchCard>
             </View>
@@ -184,7 +187,7 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Sparkles size={20} color={theme.secondaryColor} />
                   <Text style={[styles.featuredSectionTitle, { color: theme.textColor }]}>
-                    POPULAR SELECTIONS & DISHES
+                    FEATURED MENU & POPULAR DISHES
                   </Text>
                 </View>
                 <TouchableOpacity onPress={onOpenMenu} activeOpacity={0.8} style={styles.seeAllBtn}>
@@ -212,7 +215,7 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
                           <Image source={imageSource} style={styles.homeCardImage} resizeMode="cover" />
                         ) : (
                           <View style={styles.homeCardPlaceholder}>
-                            <Text style={{ fontSize: 36 }}>
+                            <Text style={{ fontSize: 38 }}>
                               {item.category === 'hookah' ? '💨' : item.category === 'drinks' ? '🍹' : '🍔'}
                             </Text>
                           </View>
@@ -240,7 +243,7 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
                           style={[styles.homeCardAddBtn, { backgroundColor: theme.secondaryColor }]}
                         >
                           <Plus size={14} color="#000000" />
-                          <Text style={styles.homeCardAddBtnText}>ADD TO ORDER</Text>
+                          <Text style={styles.homeCardAddBtnText}>+ ADD TO ORDER</Text>
                         </TouchableOpacity>
                       </View>
                     </TouchableOpacity>
@@ -296,13 +299,13 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   welcomeSubtitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '900',
     letterSpacing: 3,
     marginBottom: 4,
   },
   welcomeTitle: {
-    fontSize: 40,
+    fontSize: 42,
     fontWeight: '900',
     letterSpacing: 2,
     textAlign: 'center',
@@ -311,16 +314,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 16,
     width: '100%',
-    marginBottom: 24,
+    marginBottom: 28,
   },
   topCardWrapper: {
     flex: 1,
-    height: 140,
+    height: 165,
   },
   actionCard: {
     flex: 1,
-    padding: 16,
-    borderRadius: 20,
+    padding: 18,
+    borderRadius: 22,
     justifyContent: 'space-between',
   },
   cardHeaderRow: {
@@ -329,9 +332,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cardIconBg: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -349,9 +352,14 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   cardTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '900',
     letterSpacing: 1,
+  },
+  cardSubtitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
   },
   cardFooterRow: {
     flexDirection: 'row',
@@ -360,7 +368,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   cardActionText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '900',
     letterSpacing: 1.2,
   },
@@ -375,7 +383,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   featuredSectionTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '900',
     letterSpacing: 1.2,
   },
@@ -393,14 +401,14 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   homeMenuCard: {
-    width: 210,
+    width: 220,
     borderRadius: 20,
     borderWidth: 1.5,
     overflow: 'hidden',
   },
   homeCardImageWrapper: {
     width: '100%',
-    height: 130,
+    height: 140,
     position: 'relative',
     backgroundColor: '#19120E',
   },
@@ -431,11 +439,11 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   homeCardName: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800',
   },
   homeCardPrice: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '900',
     marginTop: 4,
     marginBottom: 10,
@@ -445,7 +453,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 12,
   },
   homeCardAddBtnText: {
