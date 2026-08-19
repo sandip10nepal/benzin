@@ -1,6 +1,6 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Bell, ShoppingBag, ArrowLeft, Bot, Sun, Moon, LogOut } from 'lucide-react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { Bell, ShoppingBag, ArrowLeft, Bot, Sun, Moon, LogOut, Sparkles } from 'lucide-react-native';
 import { useRestaurantTheme } from '../../theme/ThemeContext';
 import { BenzinLogo } from '../ui/BenzinLogo';
 
@@ -28,6 +28,30 @@ export const BenzinHeader: React.FC<BenzinHeaderProps> = ({
   onBack,
 }) => {
   const { theme, themeMode, toggleThemeMode } = useRestaurantTheme();
+
+  const hostSpeechTexts = [
+    `Welcome to ${theme.name || 'CAVALLI'}! What would you like to start with tonight?`,
+    "Select Hookahs 💨",
+    "Select Gourmet Food 🍔",
+    "Select Craft Drinks 🍹",
+  ];
+
+  const [speechIdx, setSpeechIdx] = useState<number>(0);
+  const [fadeAnim] = useState(new Animated.Value(1));
+
+  useEffect(() => {
+    if (!onOpenHost) return;
+    const interval = setInterval(() => {
+      Animated.sequence([
+        Animated.timing(fadeAnim, { toValue: 0.2, duration: 300, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+      ]).start();
+
+      setSpeechIdx((prev) => (prev + 1) % hostSpeechTexts.length);
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [onOpenHost, theme.name]);
 
   return (
     <View style={[styles.headerContainer, { backgroundColor: theme.backgroundColor, borderBottomColor: theme.borderColor }]}>
@@ -91,17 +115,20 @@ export const BenzinHeader: React.FC<BenzinHeaderProps> = ({
           )}
         </TouchableOpacity>
 
-        {/* Noticeable Digital Host Icon Button */}
+        {/* Persistent AI Digital Host Button with Dynamic Host Speech Text */}
         {onOpenHost && (
           <TouchableOpacity
             onPress={onOpenHost}
             activeOpacity={0.8}
-            style={[styles.actionBtn, styles.hostBtn, { borderColor: '#A06D44' }]}
+            style={[styles.actionBtn, styles.hostBtn, { borderColor: '#E5B13A' }]}
           >
-            <Bot size={18} color="#F3E5AB" />
-            <Text style={[styles.actionBtnText, { color: '#F3E5AB' }]}>
-              AI HOST
-            </Text>
+            <View style={{ position: 'relative' }}>
+              <Bot size={18} color="#F3E5AB" />
+              <Sparkles size={9} color="#E5B13A" style={{ position: 'absolute', top: -3, right: -3 }} />
+            </View>
+            <Animated.Text style={[styles.actionBtnText, { color: '#F3E5AB', maxWidth: 180 }, { opacity: fadeAnim }]} numberOfLines={1}>
+              {hostSpeechTexts[speechIdx]}
+            </Animated.Text>
           </TouchableOpacity>
         )}
 
@@ -155,12 +182,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minWidth: 140,
   },
-  tableSub: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1,
-    marginTop: 1,
-  },
   backBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -196,8 +217,8 @@ const styles = StyleSheet.create({
   },
   hostBtn: {
     borderWidth: 1.5,
-    backgroundColor: 'rgba(74,46,27,0.35)',
-    shadowColor: '#A06D44',
+    backgroundColor: '#3E2413',
+    shadowColor: '#E5B13A',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.4,
     shadowRadius: 6,

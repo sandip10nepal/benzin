@@ -74,6 +74,7 @@ function MainAppContent() {
           onAddToCart={addToCart}
           onOpenCart={() => setIsCartDrawerOpen(true)}
           onCallServer={() => setIsCallServerModalOpen(true)}
+          onOpenHost={() => navigate('start_order')}
           onOpenMixLab={() => setIsMixLabOpen(true)}
           cartCount={totalCartCount}
           cartSubtotal={cartSubtotal}
