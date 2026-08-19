@@ -186,17 +186,14 @@ export const RestaurantPairing: React.FC<RestaurantPairingProps> = ({ onPairSucc
                 </View>
               </View>
 
-              <Text style={styles.title}>Table & Guest Setup</Text>
-
               {/* Table Number Input */}
               <View style={styles.sectionBlock}>
                 <View style={styles.inputLabelRow}>
-                  <Hash size={16} color="#E5B13A" />
                   <Text style={styles.inputLabel}>TABLE NUMBER</Text>
                 </View>
                 <TextInput
                   style={[styles.textInput, styles.tableInput]}
-                  placeholder="Table #"
+                  placeholder="Table Number"
                   placeholderTextColor="#6B5A4E"
                   value={tableNumber}
                   onChangeText={setTableNumber}
