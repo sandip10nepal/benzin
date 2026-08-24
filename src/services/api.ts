@@ -1,12 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 
-export const BACKEND_TUNNEL_URL = 'https://oregon-computing-composed-lead.trycloudflare.com';
+export const BACKEND_TUNNEL_URL = 'https://benzin-backend-833090629754.us-central1.run.app';
 export const LOCAL_LAN_URL = 'http://192.168.1.206:3000';
 
 export const getBaseUrl = (): string => {
   if (typeof window !== 'undefined' && window.location) {
-    if (window.location.protocol === 'https:' || window.location.hostname.includes('exp.direct') || window.location.hostname.includes('ngrok') || window.location.hostname.includes('trycloudflare')) {
+    if (window.location.protocol === 'https:' || window.location.hostname.includes('run.app') || window.location.hostname.includes('exp.direct') || window.location.hostname.includes('ngrok') || window.location.hostname.includes('trycloudflare')) {
       return BACKEND_TUNNEL_URL;
     }
     if (window.location.hostname && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
@@ -114,9 +114,9 @@ export class TenantApiService {
   private static async resilientFetch(path: string, init?: RequestInit): Promise<Response> {
     const candidateBases = Array.from(new Set([
       getBaseUrl(),
-      'http://localhost:3000',
-      'https://oregon-computing-composed-lead.trycloudflare.com',
+      'https://benzin-backend-833090629754.us-central1.run.app',
       BACKEND_TUNNEL_URL,
+      'http://localhost:3000',
     ])).filter(Boolean);
 
     const headers: Record<string, string> = {
