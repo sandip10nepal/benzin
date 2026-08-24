@@ -403,44 +403,106 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
         
         {/* Dynamic Content Interactive Choices */}
         <View style={styles.interactiveArea}>
-          {/* STEP 1: INITIAL CATEGORY CHOICE */}
+          {/* STEP 1: INITIAL CATEGORY CHOICE - ARRANGED LIKE WELCOME PAGE */}
           {step === 'welcome_category' && (
-            <ScrollView contentContainerStyle={[styles.categoryChoicesRow, isMobile && { flexDirection: 'column', gap: 12 }]}>
-              {superCategories.map((superObj) => {
-                const superName = superObj.name.toLowerCase();
-                let targetStep: ConversationalStep = 'select_food';
-                let cardColor = superObj.color || '#E5B13A';
-                let badgeText = 'GOURMET';
-
-                if (superName.includes('hookah')) {
-                  targetStep = 'select_hookah';
-                  cardColor = '#0099FF';
-                  badgeText = 'POPULAR';
-                } else if (superName.includes('beverage') || superName.includes('drink')) {
-                  targetStep = 'select_drink';
-                  cardColor = '#14B8A6';
-                  badgeText = 'REFRESHING';
-                }
-
-                return (
+            <ScrollView contentContainerStyle={styles.welcomeCategoryContainer} showsVerticalScrollIndicator={false}>
+              <View style={[styles.topCardsRow, isMobile && { flexDirection: 'column', gap: 12 }]}>
+                {/* 1. HOOKAH CARD */}
+                <View style={[styles.topCardWrapper, isMobile && { width: '100%' }]}>
                   <TouchableOpacity
-                    key={superObj._id}
                     activeOpacity={0.88}
-                    onPress={() => setStep(targetStep)}
+                    onPress={() => setStep('select_hookah')}
                     style={[
-                      styles.categoryChoiceCard,
-                      { backgroundColor: theme.cardColor, borderColor: cardColor },
-                      isMobile && { padding: 18, width: '100%' }
+                      styles.welcomeCategoryCard,
+                      { backgroundColor: theme.cardColor, borderColor: '#0099FF', borderWidth: 2.5 },
+                      isMobile && { padding: 14 }
                     ]}
                   >
-                    <Text style={[styles.choiceIcon, isMobile && { fontSize: 36, marginBottom: 8 }]}>{superObj.icon || '📋'}</Text>
-                    <Text style={[styles.choiceTitle, { color: theme.textColor }, isMobile && { fontSize: 18 }]}>{superObj.name}</Text>
-                    <View style={[styles.choiceBadge, { backgroundColor: cardColor }]}>
-                      <Text style={styles.choiceBadgeText}>{badgeText}</Text>
+                    <View style={styles.cardHeaderRow}>
+                      <View style={[styles.cardIconBg, { backgroundColor: 'rgba(0,153,255,0.15)' }]}>
+                        <Text style={{ fontSize: isMobile ? 22 : 28 }}>💨</Text>
+                      </View>
+                      <View style={[styles.badgeTag, { backgroundColor: '#0099FF' }]}>
+                        <Text style={[styles.badgeTagText, { color: '#FFFFFF' }]}>POPULAR</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.cardTextContent}>
+                      <Text style={[styles.cardTitle, { color: theme.textColor }, isMobile && { fontSize: 18 }]}>HOOKAH</Text>
+                      <Text style={[styles.cardSubtitle, { color: theme.mutedTextColor }, isMobile && { fontSize: 11 }]}>Smooth Shisha & Custom Mixes</Text>
+                    </View>
+
+                    <View style={styles.cardFooterRow}>
+                      <Text style={[styles.cardActionText, { color: '#0099FF' }, isMobile && { fontSize: 11 }]}>EXPLORE HOOKAH</Text>
+                      <ArrowRight size={isMobile ? 16 : 20} color="#0099FF" />
                     </View>
                   </TouchableOpacity>
-                );
-              })}
+                </View>
+
+                {/* 2. FOOD & DINING CARD */}
+                <View style={[styles.topCardWrapper, isMobile && { width: '100%' }]}>
+                  <TouchableOpacity
+                    activeOpacity={0.88}
+                    onPress={() => setStep('select_food')}
+                    style={[
+                      styles.welcomeCategoryCard,
+                      { backgroundColor: theme.cardColor, borderColor: '#E5B13A', borderWidth: 2.5 },
+                      isMobile && { padding: 14 }
+                    ]}
+                  >
+                    <View style={styles.cardHeaderRow}>
+                      <View style={[styles.cardIconBg, { backgroundColor: 'rgba(229,177,58,0.15)' }]}>
+                        <Text style={{ fontSize: isMobile ? 22 : 28 }}>🍔</Text>
+                      </View>
+                      <View style={[styles.badgeTag, { backgroundColor: '#E5B13A' }]}>
+                        <Text style={[styles.badgeTagText, { color: '#000000' }]}>GOURMET</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.cardTextContent}>
+                      <Text style={[styles.cardTitle, { color: theme.textColor }, isMobile && { fontSize: 18 }]}>FOOD & DINING</Text>
+                      <Text style={[styles.cardSubtitle, { color: theme.mutedTextColor }, isMobile && { fontSize: 11 }]}>Chef Crafted Lounge Plates</Text>
+                    </View>
+
+                    <View style={styles.cardFooterRow}>
+                      <Text style={[styles.cardActionText, { color: '#E5B13A' }, isMobile && { fontSize: 11 }]}>EXPLORE FOOD</Text>
+                      <ArrowRight size={isMobile ? 16 : 20} color="#E5B13A" />
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* 3. BEVERAGES & DRINKS CARD (CENTERED BELOW) */}
+              <View style={[styles.bottomCardWrapper, isMobile && { width: '100%', marginTop: 12 }]}>
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  onPress={() => setStep('select_drink')}
+                  style={[
+                    styles.welcomeCategoryCard,
+                    { backgroundColor: theme.cardColor, borderColor: '#14B8A6', borderWidth: 2.5 },
+                    isMobile && { padding: 14 }
+                  ]}
+                >
+                  <View style={styles.cardHeaderRow}>
+                    <View style={[styles.cardIconBg, { backgroundColor: 'rgba(20,184,166,0.15)' }]}>
+                      <Text style={{ fontSize: isMobile ? 22 : 28 }}>🍹</Text>
+                    </View>
+                    <View style={[styles.badgeTag, { backgroundColor: '#14B8A6' }]}>
+                      <Text style={[styles.badgeTagText, { color: '#FFFFFF' }]}>REFRESHING</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.cardTextContent}>
+                    <Text style={[styles.cardTitle, { color: theme.textColor }, isMobile && { fontSize: 18 }]}>BEVERAGES</Text>
+                    <Text style={[styles.cardSubtitle, { color: theme.mutedTextColor }, isMobile && { fontSize: 11 }]}>Craft Cocktails, Tea & Drinks</Text>
+                  </View>
+
+                  <View style={styles.cardFooterRow}>
+                    <Text style={[styles.cardActionText, { color: '#14B8A6' }, isMobile && { fontSize: 11 }]}>EXPLORE DRINKS</Text>
+                    <ArrowRight size={isMobile ? 16 : 20} color="#14B8A6" />
+                  </View>
+                </TouchableOpacity>
+              </View>
             </ScrollView>
           )}
 
@@ -1074,14 +1136,81 @@ const styles = StyleSheet.create({
   },
   interactiveArea: {
     flex: 1,
-    maxWidth: 1320,
+    maxWidth: 1040,
     alignSelf: 'center',
     width: '100%',
   },
-  categoryChoicesRow: {
+  welcomeCategoryContainer: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    width: '100%',
+  },
+  topCardsRow: {
     flexDirection: 'row',
     gap: 16,
-    paddingBottom: 16,
+    width: '100%',
+  },
+  topCardWrapper: {
+    flex: 1,
+    minHeight: 150,
+  },
+  bottomCardWrapper: {
+    width: '48.8%',
+    minHeight: 150,
+    alignSelf: 'center',
+    marginTop: 16,
+  },
+  welcomeCategoryCard: {
+    flex: 1,
+    padding: 18,
+    borderRadius: 22,
+    justifyContent: 'space-between',
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  cardIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  badgeTagText: {
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  cardTextContent: {
+    marginVertical: 8,
+  },
+  cardTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  cardSubtitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  cardFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  cardActionText: {
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 1,
   },
   categoryChoiceCard: {
     flex: 1,
