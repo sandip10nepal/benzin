@@ -7,12 +7,14 @@ interface BenzinLogoProps {
   size?: 'small' | 'medium' | 'large' | 'hero';
   showSubtitle?: boolean;
   lightMode?: boolean;
+  color?: string;
 }
 
 export const BenzinLogo: React.FC<BenzinLogoProps> = ({ 
   size = 'medium', 
   showSubtitle = true,
   lightMode = false,
+  color = '#0099FF',
 }) => {
   const { theme } = useRestaurantTheme();
   const isHero = size === 'hero';
@@ -22,7 +24,7 @@ export const BenzinLogo: React.FC<BenzinLogoProps> = ({
   const fontSize = isHero ? 48 : isLarge ? 36 : isSmall ? 18 : 26;
   const iconSize = isHero ? 42 : isLarge ? 32 : isSmall ? 18 : 24;
 
-  const textColor = lightMode ? '#0F172A' : (theme?.textColor || '#FFFFFF');
+  const textColor = color;
 
   return (
     <View style={styles.container}>

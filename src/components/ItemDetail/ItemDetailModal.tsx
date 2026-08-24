@@ -239,13 +239,18 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
             />
 
             <TouchableOpacity
-              onPress={handleAdd}
-              activeOpacity={0.85}
-              style={[styles.addBtn, { backgroundColor: 'transparent', borderColor: '#22C55E', borderWidth: 1.5 }]}
+              onPress={item.available !== false ? handleAdd : undefined}
+              activeOpacity={item.available !== false ? 0.85 : 1}
+              style={[
+                styles.addBtn, 
+                item.available !== false 
+                  ? { backgroundColor: 'transparent', borderColor: '#22C55E', borderWidth: 1.5 }
+                  : { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: theme.borderColor, borderWidth: 1, opacity: 0.6 }
+              ]}
             >
-              <Sparkles size={20} color="#22C55E" />
-              <Text style={[styles.addBtnText, { color: '#22C55E' }]}>
-                ADD TO ORDER — ${calculatedPrice.toFixed(2)}
+              <Sparkles size={20} color={item.available !== false ? "#22C55E" : theme.mutedTextColor} />
+              <Text style={[styles.addBtnText, { color: item.available !== false ? '#22C55E' : theme.mutedTextColor }]}>
+                {item.available !== false ? `ADD TO ORDER — $${calculatedPrice.toFixed(2)}` : 'CURRENTLY UNAVAILABLE'}
               </Text>
             </TouchableOpacity>
           </View>

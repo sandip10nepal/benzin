@@ -43,23 +43,31 @@ export const RestaurantPairing: React.FC<RestaurantPairingProps> = ({ onPairSucc
   }, []);
 
   const handleVerifyFloorCode = async () => {
-    const rawPin = floorCode.replace(/[^0-9]/g, '');
-    if (rawPin.length < 4) {
-      setErrorMsg('Please enter a valid venue pin code');
+    const trimmedInput = floorCode.trim();
+    if (!trimmedInput || trimmedInput.length < 3) {
+      setErrorMsg('Please enter a valid venue code or venue name.');
       return;
     }
 
     setLoading(true);
     setErrorMsg(null);
 
-    const formattedPin = rawPin.length === 8 ? `${rawPin.slice(0, 4)}-${rawPin.slice(4)}` : floorCode;
+    const isNumeric = /^[0-9]+$/.test(trimmedInput);
 
     try {
-      const res = await TenantApiService.configureTableDevice({
-        pin: formattedPin,
+      const payload: any = {
         table_number: tableNumber.trim() || '1',
         device_name: `iPad Table Device`,
-      });
+      };
+
+      if (isNumeric) {
+        payload.pin = trimmedInput.length === 8 ? `${trimmedInput.slice(0, 4)}-${trimmedInput.slice(4)}` : trimmedInput;
+      } else {
+        payload.restaurant_name = trimmedInput;
+        payload.pin = '1234';
+      }
+
+      const res = await TenantApiService.configureTableDevice(payload);
 
       if (res.success && res.restaurant) {
         setPairedRestaurantName(res.restaurant.name);
@@ -98,10 +106,16 @@ export const RestaurantPairing: React.FC<RestaurantPairingProps> = ({ onPairSucc
 
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_TABLE_NUMBER, cleanTable);
+      await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_RESTAURANT_NAME, pairedRestaurantName);
       await AsyncStorage.setItem('@saas_customer_name', guestName);
     } catch (err) {
       console.warn('Storage save note:', err);
     }
+
+    updateTheme({
+      name: pairedRestaurantName.toUpperCase(),
+      tableNumber: cleanTable,
+    });
 
     if (onRefreshMenu) {
       onRefreshMenu().catch(() => {});
@@ -146,16 +160,20 @@ export const RestaurantPairing: React.FC<RestaurantPairingProps> = ({ onPairSucc
               <View style={styles.sectionBlock}>
                 <TextInput
                   style={[styles.textInput, styles.codeInput]}
-                  placeholder="Enter Code"
+                  placeholder="Enter Venue Code (e.g. 5505 or safar)"
                   placeholderTextColor="#6B5A4E"
                   value={floorCode}
                   onChangeText={setFloorCode}
-                  keyboardType="number-pad"
-                  maxLength={10}
+                  keyboardType="default"
+                  autoCapitalize="none"
+                  maxLength={20}
                   autoFocus={true}
                   returnKeyType="done"
                   onSubmitEditing={handleVerifyFloorCode}
                 />
+                <Text style={{ color: '#9C8C7E', fontSize: 12, marginTop: 8, textAlign: 'center' }}>
+                  💡 <strong>Cavali Code:</strong> 4821 • <strong>Safar Food Truck:</strong> 5505 • Or type venue name
+                </Text>
               </View>
 
               {/* Action Button */}

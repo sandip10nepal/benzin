@@ -25,6 +25,7 @@ export function useBenzinState() {
   const [draftHookah, setDraftHookah] = useState<MenuItem | null>(null);
   const [draftFood, setDraftFood] = useState<MenuItem | null>(null);
   const [draftDrink, setDraftDrink] = useState<MenuItem | null>(null);
+  const [liveCategories, setLiveCategories] = useState<MenuCategory[]>([]);
   const [liveMenuItems, setLiveMenuItems] = useState<MenuItem[]>([]);
   const [pairedSlug, setPairedSlug] = useState<string | null>(null);
   const [pairedTableNumber, setPairedTableNumber] = useState<string>('1');
@@ -49,49 +50,74 @@ export function useBenzinState() {
         config = await TenantApiService.fetchConfigBySlug('cavali');
       }
 
-      if (config && Array.isArray(config.menu_items)) {
-        const catMap = new Map((config.categories || []).map((c: any) => [c.id || c._id, c.title || c.name]));
+      if (config) {
+        let catList: MenuCategory[] = [];
+        const catMap = new Map<string, any>();
 
-        const mapped: MenuItem[] = config.menu_items.map((i: any, index: number) => {
-          const itemId = i.id || i._id || `item_${index}_${Date.now()}`;
-          const rawCatTitle = (catMap.get(i.category_id) || i.category_id || '').toString();
-          const catLower = rawCatTitle.toLowerCase();
-          const catIdUpper = (i.category_id || '').toString().toUpperCase();
+        if (Array.isArray(config.categories)) {
+          catList = config.categories
+            .filter((c: any) => c.active !== false)
+            .map((c: any) => ({
+              _id: c._id || c.id,
+              id: c._id || c.id,
+              restaurant_id: c.restaurant_id,
+              parent_id: c.parent_id !== undefined ? c.parent_id : null,
+              name: c.name || c.title || 'Category',
+              title: c.name || c.title || 'Category',
+              description: c.description || c.subtitle || '',
+              icon: c.icon || (c.parent_id === null ? '👑' : '📋'),
+              color: c.color || '#E5B13A',
+              sort_order: c.sort_order ?? 0,
+              active: c.active !== false,
+            }))
+            .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+          
+          catList.forEach(c => catMap.set(c._id, c));
+          setLiveCategories(catList);
+        }
 
-          let cat: 'hookah' | 'food' | 'drinks' = 'food';
-          if (catLower.includes('hookah') || catIdUpper.includes('HOOKAH')) {
-            cat = 'hookah';
-          } else if (catLower.includes('beverage') || catLower.includes('drink') || catIdUpper.includes('BEVERAGE') || catIdUpper.includes('DRINK')) {
-            cat = 'drinks';
-          }
+        if (Array.isArray(config.menu_items)) {
+          const itemList: MenuItem[] = config.menu_items
+            .filter((i: any) => i.active !== false)
+            .map((i: any) => {
+              const subCat = catMap.get(i.category_id);
+              const parentSuper = subCat?.parent_id ? catMap.get(subCat.parent_id) : null;
+              const parentName = (parentSuper?.name || parentSuper?.title || subCat?.name || subCat?.title || '').toLowerCase();
+              
+              let cat: 'hookah' | 'food' | 'drinks' = 'food';
+              if (parentName.includes('hookah') || (i.category_id && i.category_id.toUpperCase().includes('HOOKAH')) || (i.name && i.name.toLowerCase().includes('hookah'))) {
+                cat = 'hookah';
+              } else if (parentName.includes('beverage') || parentName.includes('drink') || (i.category_id && (i.category_id.toUpperCase().includes('BEVERAGE') || i.category_id.toUpperCase().includes('DRINK')))) {
+                cat = 'drinks';
+              }
 
-          // Determine readable subcategory name
-          let subcategory = rawCatTitle;
-          if (cat === 'drinks') {
-            const nameLower = (i.name + ' ' + (i.desc || '')).toLowerCase();
-            if (nameLower.includes('mojito') || nameLower.includes('margarita') || nameLower.includes('colada') || nameLower.includes('refresher') || nameLower.includes('mocktail') || nameLower.includes('melon') || nameLower.includes('ocean') || nameLower.includes('red affair') || nameLower.includes('juice') || nameLower.includes('shake') || nameLower.includes('lassi')) {
-              subcategory = 'Refreshers & Mocktails';
-            } else if (nameLower.includes('chai') || nameLower.includes('tea') || nameLower.includes('coffee') || nameLower.includes('latte') || nameLower.includes('espresso') || nameLower.includes('cappuccino')) {
-              subcategory = 'Tea & Coffee';
-            } else {
-              subcategory = 'Soft Drinks & Sodas';
-            }
-          }
+              const subcategory = subCat?.name || subCat?.title || i.subcategory || 'General';
 
-          return {
-            id: itemId,
-            name: i.name,
-            price: i.price,
-            description: i.desc || i.description || '',
-            category: cat,
-            subcategory,
-            imageUrl: i.image_url || undefined,
-            imageKey: i.image_url ? undefined : (itemId.replace(/^MI_/, '').replace(/_\d+$/, '')),
-            modifierGroups: i.modifier_groups || []
-          };
-        });
-
-        setLiveMenuItems(mapped);
+              return {
+                id: i._id || i.id,
+                _id: i._id || i.id,
+                restaurant_id: i.restaurant_id,
+                category_id: i.category_id,
+                name: i.name,
+                price: Number(i.price) || 0,
+                description: i.description || i.desc || '',
+                desc: i.desc || i.description || '',
+                emoji: i.emoji || '🍽️',
+                imageUrl: i.image_url || i.imageUrl || undefined,
+                image_url: i.image_url || i.imageUrl || null,
+                sort_order: i.sort_order ?? 0,
+                active: i.active !== false,
+                available: i.available !== false,
+                modifierGroups: i.modifier_groups || i.modifierGroups || [],
+                recipe: i.recipe || [],
+                variants: i.variants || [],
+                category: cat,
+                subcategory,
+              };
+            })
+            .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+          setLiveMenuItems(itemList);
+        }
       }
     } catch (err) {
       console.warn('Could not fetch live menu config in mobile app:', err);
@@ -109,18 +135,8 @@ export function useBenzinState() {
     return () => clearInterval(intervalId);
   }, [loadLiveMenu]);
 
-  const allMenuItems = useMemo(() => {
-    if (liveMenuItems.length > 0) return liveMenuItems;
-    // If a specific non-Cavali restaurant is paired (e.g. Vindu), do NOT leak Cavali items
-    if (pairedSlug && pairedSlug !== 'cavali') {
-      return liveMenuItems;
-    }
-    return [
-      ...CAVALLI_HOOKAH_ITEMS,
-      ...CAVALLI_FOOD_ITEMS,
-      ...CAVALLI_DRINK_ITEMS,
-    ];
-  }, [liveMenuItems, pairedSlug]);
+  const allCategories = useMemo(() => liveCategories, [liveCategories]);
+  const allMenuItems = useMemo(() => liveMenuItems, [liveMenuItems]);
 
   const navigate = useCallback((screen: ScreenState) => {
     setCurrentScreen(screen);
@@ -319,6 +335,7 @@ export function useBenzinState() {
     draftDrink,
     setDraftDrink,
     placeOrder,
+    allCategories,
     allMenuItems,
     refreshLiveMenu: loadLiveMenu,
     logOutSession,

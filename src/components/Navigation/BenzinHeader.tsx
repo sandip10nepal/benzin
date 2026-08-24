@@ -1,20 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
-import { Bell, ShoppingBag, ArrowLeft, Bot, Sun, Moon, LogOut, Sparkles } from 'lucide-react-native';
+import { ArrowLeft, Bell, Bot, LogOut, ShoppingBag, Sparkles, Sun, Moon } from 'lucide-react-native';
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRestaurantTheme } from '../../theme/ThemeContext';
+import { ConversationStep } from '../../types';
 import { BenzinLogo } from '../ui/BenzinLogo';
 
 interface BenzinHeaderProps {
   onGoHome?: () => void;
   onOpenCart?: () => void;
   onOpenCallServer?: () => void;
-  onOpenHost?: () => void;
+  onOpenHost?: (initialStep?: ConversationStep) => void;
   onLogOut?: () => void;
   cartCount?: number;
   showBackButton?: boolean;
   onBack?: () => void;
   title?: string;
   subtitle?: string;
+  hostSpeechText?: string;
 }
 
 export const BenzinHeader: React.FC<BenzinHeaderProps> = ({
@@ -26,50 +28,27 @@ export const BenzinHeader: React.FC<BenzinHeaderProps> = ({
   cartCount = 0,
   showBackButton = false,
   onBack,
+  hostSpeechText,
 }) => {
   const { theme, themeMode, toggleThemeMode } = useRestaurantTheme();
-
-  const hostSpeechTexts = [
-    `Welcome to ${theme.name || 'CAVALLI'}! What would you like to start with tonight?`,
-    "Select Hookahs 💨",
-    "Select Gourmet Food 🍔",
-    "Select Craft Drinks 🍹",
-  ];
-
-  const [speechIdx, setSpeechIdx] = useState<number>(0);
-  const [fadeAnim] = useState(new Animated.Value(1));
-
-  useEffect(() => {
-    if (!onOpenHost) return;
-    const interval = setInterval(() => {
-      Animated.sequence([
-        Animated.timing(fadeAnim, { toValue: 0.2, duration: 300, useNativeDriver: true }),
-        Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
-      ]).start();
-
-      setSpeechIdx((prev) => (prev + 1) % hostSpeechTexts.length);
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, [onOpenHost, theme.name]);
 
   return (
     <View style={[styles.headerContainer, { backgroundColor: theme.backgroundColor, borderBottomColor: theme.borderColor }]}>
       {/* Left side: Back Button OR Table Indicator */}
       <View style={styles.leftSection}>
         {showBackButton && onBack ? (
-          <TouchableOpacity 
-            onPress={onBack} 
-            activeOpacity={0.7} 
+          <TouchableOpacity
+            onPress={onBack}
+            activeOpacity={0.7}
             style={[styles.backBtn, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}
           >
             <ArrowLeft size={20} color={theme.textColor} />
             <Text style={[styles.backText, { color: theme.textColor }]}>BACK</Text>
           </TouchableOpacity>
         ) : onLogOut ? (
-          <TouchableOpacity 
-            onPress={onLogOut} 
-            activeOpacity={0.7} 
+          <TouchableOpacity
+            onPress={onLogOut}
+            activeOpacity={0.7}
             style={[styles.backBtn, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}
           >
             <LogOut size={16} color={theme.secondaryColor} />
@@ -80,7 +59,7 @@ export const BenzinHeader: React.FC<BenzinHeaderProps> = ({
         ) : null}
       </View>
 
-      {/* Center: BENZIN | CAVALLI Logo & Restaurant Name in Middle */}
+      {/* Center: BENZIN | RESTAURANT NAME */}
       <View style={styles.centerSection}>
         <TouchableOpacity onPress={onGoHome} activeOpacity={0.8} style={{ alignItems: 'center' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -89,7 +68,7 @@ export const BenzinHeader: React.FC<BenzinHeaderProps> = ({
               |
             </Text>
             <Text style={{ color: theme.textColor, fontWeight: '900', fontSize: 20, letterSpacing: 1.2 }}>
-              {theme.name || 'BENZIN'}
+              {theme.name || 'CAVALLI'}
             </Text>
           </View>
         </TouchableOpacity>
@@ -97,28 +76,23 @@ export const BenzinHeader: React.FC<BenzinHeaderProps> = ({
 
       {/* Right side: Dark/Bright Theme Toggle, AI Digital Host Icon, Call Server & Cart Trigger */}
       <View style={styles.rightSection}>
+        {/* Dark/Bright Theme Mode Toggle Button */}
         <TouchableOpacity
           onPress={toggleThemeMode}
           activeOpacity={0.8}
           style={[styles.actionBtn, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}
         >
           {themeMode === 'dark' ? (
-            <>
-              <Sun size={17} color={theme.secondaryColor} />
-              <Text style={[styles.actionBtnText, { color: theme.secondaryColor }]}>BRIGHT</Text>
-            </>
+            <Sun size={17} color={theme.secondaryColor} />
           ) : (
-            <>
-              <Moon size={17} color={theme.primaryColor} />
-              <Text style={[styles.actionBtnText, { color: theme.primaryColor }]}>DARK</Text>
-            </>
+            <Moon size={17} color={theme.primaryColor} />
           )}
         </TouchableOpacity>
-
-        {/* Persistent AI Digital Host Button with Dynamic Host Speech Text */}
+        
+        {/* Persistent AI Digital Host Button with Steady Page-Specific Host Speech Text */}
         {onOpenHost && (
           <TouchableOpacity
-            onPress={onOpenHost}
+            onPress={() => onOpenHost()}
             activeOpacity={0.8}
             style={[styles.actionBtn, styles.hostBtn, { borderColor: '#E5B13A' }]}
           >
@@ -126,14 +100,14 @@ export const BenzinHeader: React.FC<BenzinHeaderProps> = ({
               <Bot size={18} color="#F3E5AB" />
               <Sparkles size={9} color="#E5B13A" style={{ position: 'absolute', top: -3, right: -3 }} />
             </View>
-            <Animated.Text style={[styles.actionBtnText, { color: '#F3E5AB', maxWidth: 180 }, { opacity: fadeAnim }]} numberOfLines={1}>
-              {hostSpeechTexts[speechIdx]}
-            </Animated.Text>
+            <Text style={[styles.actionBtnText, { color: '#F3E5AB', maxWidth: 220 }]} numberOfLines={1}>
+              {hostSpeechText || `Welcome to ${theme.name || 'CAVALLI'}!`}
+            </Text>
           </TouchableOpacity>
         )}
 
         {onOpenCallServer && (
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={onOpenCallServer}
             activeOpacity={0.8}
             style={[styles.actionBtn, styles.callServerBtn, { borderColor: theme.accentColor }]}
@@ -146,7 +120,7 @@ export const BenzinHeader: React.FC<BenzinHeaderProps> = ({
         )}
 
         {onOpenCart && (
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={onOpenCart}
             activeOpacity={0.8}
             style={[styles.actionBtn, styles.cartBtn, { backgroundColor: theme.primaryColor }]}

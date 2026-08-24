@@ -30,19 +30,44 @@ export type ModifierGroup = {
   options: ModifierOption[];
 };
 
+export type MenuCategory = {
+  _id: string;
+  id: string;
+  restaurant_id?: string;
+  parent_id: string | null;
+  name: string;
+  title?: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  sort_order: number;
+  active: boolean;
+};
+
 export type MenuItem = {
   id: string;
+  _id?: string;
+  restaurant_id?: string;
+  category_id: string;
   name: string;
   price: number;
   description: string;
-  category: 'hookah' | 'food' | 'drinks';
-  subcategory?: string;
-  badge?: string;
+  desc?: string;
+  emoji?: string;
   imageKey?: string;
   imageUrl?: string;
+  image_url?: string | null;
+  sort_order?: number;
+  available?: boolean;
+  active?: boolean;
+  badge?: string;
   isPopular?: boolean;
   isNew?: boolean;
+  recipe?: any[];
   modifierGroups?: ModifierGroup[];
+  variants?: any[];
+  category?: string;
+  subcategory?: string;
 };
 
 export type SelectedModifier = {

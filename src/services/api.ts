@@ -293,8 +293,8 @@ export class TenantApiService {
         if (data.restaurant?.name) {
           await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_RESTAURANT_NAME, data.restaurant.name);
         }
-        if (data.table?.number || params.table_number) {
-          await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_TABLE_NUMBER, String(data.table?.number || params.table_number));
+        if (params.table_number || data.table?.number) {
+          await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_TABLE_NUMBER, String(params.table_number || data.table?.number));
         }
         // Invalidate stale menu cache so fresh isolated menu loads instantly
         await AsyncStorage.removeItem(STORAGE_KEYS.RESTAURANT_CONFIG);

@@ -14,7 +14,7 @@ import { useRestaurantTheme } from '../theme/ThemeContext';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { BenzinHeader } from '../components/Navigation/BenzinHeader';
 import { BottomNavigation } from '../components/Navigation/BottomNavigation';
-import { MenuItem, SelectedModifier, CartItem } from '../types';
+import { MenuItem, SelectedModifier, CartItem, ConversationStep } from '../types';
 import { MENU_IMAGES, getItemImageSource } from '../data/menu_images';
 
 interface MenuBrowsingProps {
@@ -23,13 +23,14 @@ interface MenuBrowsingProps {
   onAddToCart?: (item: MenuItem, qty: number, modifiers: SelectedModifier[], notes?: string) => void;
   onOpenCart: () => void;
   onCallServer: () => void;
-  onOpenHost?: () => void;
+  onOpenHost?: (initialStep?: ConversationStep) => void;
   onOpenMixLab?: () => void;
   cartCount: number;
   cartSubtotal: number;
   cartItems?: CartItem[];
   onUpdateQuantity?: (cartItemId: string, newQty: number) => void;
   onRemoveItem?: (cartItemId: string) => void;
+  allCategories?: any[];
   allMenuItems: MenuItem[];
 }
 
@@ -46,6 +47,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
   cartItems,
   onUpdateQuantity,
   onRemoveItem,
+  allCategories,
   allMenuItems,
 }) => {
   const { theme } = useRestaurantTheme();
@@ -55,70 +57,110 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
   const cardWidth = layout.cardWidthPercent;
   const imageHeight = layout.isTablet ? 175 : 195;
 
-  const [activeCategory, setActiveCategory] = useState<'hookah' | 'food' | 'drinks'>('food');
-  const [activeSubcategory, setActiveSubcategory] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const isGlobalSearch = searchQuery.trim().length > 0;
 
-  // Extract subcategories for active main category (Drinks explicitly has 3 sections)
-  const subcategories = useMemo(() => {
-    const categoryItems = allMenuItems.filter(item => item.category === activeCategory);
-    const subSet = new Set<string>();
-    categoryItems.forEach(item => {
-      if (item.subcategory) subSet.add(item.subcategory);
-    });
-    return ['ALL', ...Array.from(subSet)];
-  }, [allMenuItems, activeCategory]);
+  // 1. Super Categories (parent_id === null && active !== false)
+  const superCategories = useMemo(() => {
+    if (allCategories && allCategories.length > 0) {
+      const supers = allCategories
+        .filter(c => c.parent_id === null && c.active !== false)
+        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+      if (supers.length > 0) {
+        return supers.map(s => ({
+          _id: s._id || s.id,
+          name: (s.name || s.title || 'Category').toUpperCase(),
+          icon: s.icon || '📋',
+        }));
+      }
+    }
 
-  // Global search across ALL menu items regardless of active category or subcategory
+    // Fallback if allCategories is empty
+    const list: Array<{ _id: string; name: string; icon?: string }> = [];
+    const hasFood = (allMenuItems || []).some(i => i.category === 'food');
+    const hasHookah = (allMenuItems || []).some(i => i.category === 'hookah');
+    const hasDrinks = (allMenuItems || []).some(i => i.category === 'drinks');
+    if (hasFood || (!hasHookah && !hasDrinks)) list.push({ _id: 'cat_super_food', name: 'FOOD & DINING', icon: '🍔' });
+    if (hasHookah) list.push({ _id: 'cat_super_hookah', name: 'HOOKAH', icon: '💨' });
+    if (hasDrinks) list.push({ _id: 'cat_super_drinks', name: 'BEVERAGES', icon: '🍸' });
+    return list;
+  }, [allCategories, allMenuItems]);
+
+  const [activeSuperCatId, setActiveSuperCatId] = useState<string>('');
+
+  React.useEffect(() => {
+    if (superCategories.length > 0 && (!activeSuperCatId || !superCategories.some(s => s._id === activeSuperCatId))) {
+      setActiveSuperCatId(superCategories[0]._id);
+    }
+  }, [superCategories]);
+
+  // 2. Sub Categories for active Super Category
+  const activeSubCategories = useMemo(() => {
+    if (allCategories && allCategories.length > 0) {
+      const subs = allCategories
+        .filter(c => c.parent_id === activeSuperCatId && c.active !== false)
+        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+      return [{ _id: 'ALL', name: 'ALL' }, ...subs.map(s => ({ _id: s._id || s.id, name: s.name || s.title || s._id }))];
+    }
+
+    const legacyCat = activeSuperCatId.replace('cat_super_', '');
+    const categoryItems = (allMenuItems || []).filter(item => item.category === legacyCat);
+    const subSet = new Set<string>();
+    categoryItems.forEach(item => { if (item.subcategory) subSet.add(item.subcategory); });
+    return [{ _id: 'ALL', name: 'ALL' }, ...Array.from(subSet).map(s => ({ _id: s, name: s }))];
+  }, [allCategories, activeSuperCatId, allMenuItems]);
+
+  const [activeSubCatId, setActiveSubCatId] = useState<string>('ALL');
+
+  React.useEffect(() => {
+    setActiveSubCatId('ALL');
+  }, [activeSuperCatId]);
+
+  // 3. Filtered Items
   const filteredItems = useMemo(() => {
+    const activeItems = (allMenuItems || []).filter(i => i.active !== false);
+
     if (isGlobalSearch) {
       const q = searchQuery.toLowerCase().trim();
-      return allMenuItems.filter((item) => 
+      return activeItems.filter((item) => 
         item.name.toLowerCase().includes(q) ||
-        item.description.toLowerCase().includes(q) ||
+        (item.description && item.description.toLowerCase().includes(q)) ||
         (item.subcategory && item.subcategory.toLowerCase().includes(q))
-      );
+      ).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
     }
 
-    return allMenuItems.filter((item) => {
-      const matchesCategory = item.category === activeCategory;
-      const matchesSubcategory = activeSubcategory === 'ALL' || item.subcategory === activeSubcategory;
-      return matchesCategory && matchesSubcategory;
-    });
-  }, [allMenuItems, activeCategory, activeSubcategory, searchQuery, isGlobalSearch]);
+    if (!allCategories || allCategories.length === 0) {
+      const legacyCat = activeSuperCatId.replace('cat_super_', '');
+      return activeItems.filter((item) => {
+        const matchesCategory = item.category === legacyCat;
+        const matchesSubcategory = activeSubCatId === 'ALL' || item.subcategory === activeSubCatId;
+        return matchesCategory && matchesSubcategory;
+      }).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    }
 
-  const hasHookahs = useMemo(() => (allMenuItems || []).some(item => item.category === 'hookah'), [allMenuItems]);
-  const hasFood = useMemo(() => (allMenuItems || []).some(item => item.category === 'food'), [allMenuItems]);
-  const hasDrinks = useMemo(() => (allMenuItems || []).some(item => item.category === 'drinks'), [allMenuItems]);
+    const validSubIds = activeSubCategories.filter(s => s._id !== 'ALL').map(s => s._id);
+    const activeSuperObj = superCategories.find(s => s._id === activeSuperCatId);
+    const superName = (activeSuperObj?.name || '').toLowerCase();
+    let legacyCat: 'hookah' | 'food' | 'drinks' = 'food';
+    if (superName.includes('hookah')) legacyCat = 'hookah';
+    else if (superName.includes('beverage') || superName.includes('drink')) legacyCat = 'drinks';
 
-  const categories = useMemo(() => {
-    const list: Array<{ key: 'food' | 'hookah' | 'drinks'; label: string }> = [];
-    if (hasFood || (!hasHookahs && !hasDrinks)) {
-      list.push({ key: 'food', label: 'FOOD & DINING' });
-    }
-    if (hasHookahs) {
-      list.push({ key: 'hookah', label: 'HOOKAH' });
-    }
-    if (hasDrinks) {
-      list.push({ key: 'drinks', label: 'BEVERAGES' });
-    }
-    return list;
-  }, [hasHookahs, hasFood, hasDrinks]);
-
-  // Keep active category aligned with available categories
-  React.useEffect(() => {
-    if (activeCategory === 'hookah' && !hasHookahs) {
-      setActiveCategory('food');
-    }
-  }, [hasHookahs, activeCategory]);
+    return activeItems.filter((item) => {
+      if (activeSubCatId === 'ALL') {
+        return validSubIds.includes(item.category_id) || item.category === legacyCat;
+      }
+      return item.category_id === activeSubCatId;
+    }).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  }, [allMenuItems, allCategories, activeSuperCatId, superCategories, activeSubCategories, activeSubCatId, searchQuery, isGlobalSearch]);
 
   const [itemQuantities, setItemQuantities] = useState<Record<string, number>>({});
 
   const handleUpdateItemQty = (item: MenuItem, delta: number, e: any) => {
     e.stopPropagation();
+    if (item.available === false && delta > 0) return;
+
     const currentQty = itemQuantities[item.id] || 0;
     const newQty = Math.max(0, currentQty + delta);
 
@@ -144,17 +186,16 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
   };
 
   const handleQuickAdd = (item: MenuItem, e: any) => {
+    if (item.available === false) return;
     handleUpdateItemQty(item, 1, e);
   };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-      {/* Toast Notification Banner (Item Added Animation Feedback) */}
+      {/* Toast Notification */}
       {toastMessage && (
-        <View style={[styles.floatingToast, { backgroundColor: theme.primaryColor }]}>
-          <ShoppingBag size={18} color="#FFFFFF" />
+        <View style={styles.floatingToast}>
           <Text style={styles.toastText}>{toastMessage}</Text>
-          <Check size={18} color="#FFFFFF" />
         </View>
       )}
 
@@ -176,16 +217,16 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
         <View style={styles.topControlRow}>
           {/* Category Tabs */}
           <View style={styles.tabsRow}>
-            {categories.map((cat, idx) => {
-              const isActive = activeCategory === cat.key && !isGlobalSearch;
+            {superCategories.map((cat, idx) => {
+              const isActive = activeSuperCatId === cat._id && !isGlobalSearch;
               return (
                 <TouchableOpacity
-                  key={cat.key || `cat_${idx}`}
+                  key={cat._id || `cat_${idx}`}
                   activeOpacity={0.8}
                   onPress={() => {
                     setSearchQuery('');
-                    setActiveCategory(cat.key as any);
-                    setActiveSubcategory('ALL');
+                    setActiveSuperCatId(cat._id);
+                    setActiveSubCatId('ALL');
                   }}
                   style={[
                     styles.tabPill,
@@ -194,7 +235,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
                   ]}
                 >
                   <Text style={[styles.tabLabel, { color: isActive ? '#FFFFFF' : theme.textColor }]}>
-                    {cat.label}
+                    {cat.icon ? `${cat.icon} ` : ''}{cat.name}
                   </Text>
                 </TouchableOpacity>
               );
@@ -206,7 +247,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
             <Search size={18} color={theme.mutedTextColor} />
             <TextInput
               style={[styles.searchInput, { color: theme.textColor }]}
-              placeholder="Search entire menu (food, hookah, drinks)..."
+              placeholder="Search entire menu..."
               placeholderTextColor={theme.mutedTextColor}
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -223,22 +264,22 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
         {isGlobalSearch && (
           <View style={styles.globalSearchBanner}>
             <Text style={[styles.globalSearchText, { color: theme.secondaryColor }]}>
-              � GLOBAL SEARCH RESULT: {filteredItems.length} ITEMS FOUND FOR "{searchQuery.toUpperCase()}" ACROSS ALL CATEGORIES
+              🔍 GLOBAL SEARCH RESULT: {filteredItems.length} ITEMS FOUND FOR "{searchQuery.toUpperCase()}" ACROSS ALL CATEGORIES
             </Text>
           </View>
         )}
 
         {/* Subcategories Filter Pills Bar */}
-        {!isGlobalSearch && subcategories.length > 1 && (
+        {!isGlobalSearch && activeSubCategories.length > 1 && (
           <View style={styles.subcatRow}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subcatScroll}>
-              {subcategories.map((sub, idx) => {
-                const isActive = activeSubcategory === sub;
+              {activeSubCategories.map((sub, idx) => {
+                const isActive = activeSubCatId === sub._id;
                 return (
                   <TouchableOpacity
-                    key={sub || `sub_${idx}`}
+                    key={sub._id || `sub_${idx}`}
                     activeOpacity={0.8}
-                    onPress={() => setActiveSubcategory(sub)}
+                    onPress={() => setActiveSubCatId(sub._id)}
                     style={[
                       styles.subcatPill,
                       { backgroundColor: theme.cardColor, borderColor: theme.borderColor },
@@ -249,7 +290,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
                       styles.subcatText, 
                       { color: isActive ? '#000000' : theme.textColor }
                     ]}>
-                      {sub}
+                      {sub.name}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -259,7 +300,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
         )}
 
         {/* Mix Lab Launch Banner when Hookah Category is Selected */}
-        {!isGlobalSearch && activeCategory === 'hookah' && onOpenMixLab && (
+        {!isGlobalSearch && activeSuperCatId.toLowerCase().includes('hookah') && onOpenMixLab && (
           <TouchableOpacity
             onPress={onOpenMixLab}
             activeOpacity={0.88}
@@ -296,6 +337,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
                 style={[
                   styles.itemCard,
                   { width: cardWidth, backgroundColor: theme.cardColor, borderColor: theme.borderColor },
+                  item.available === false && { opacity: 0.6 },
                   (itemQuantities[item.id] || 0) > 0 && { borderColor: '#10B981', borderWidth: 2.5 }
                 ]}
               >
@@ -313,17 +355,26 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
                   ) : (
                     <View style={[styles.placeholderImage, { backgroundColor: 'rgba(255,255,255,0.05)' }]}>
                       <Text style={{ fontSize: 44 }}>
-                        {item.category === 'hookah' ? '💨' : item.category === 'drinks' ? '🍹' : '🍔'}
+                        {item.emoji || '🍽️'}
                       </Text>
                     </View>
                   )}
 
-                  {item.badge && (
+                  {/* Unavailable / Sold Out Overlay Badge */}
+                  {item.available === false && (
+                    <View style={[styles.cardBadge, { backgroundColor: '#EF4444' }]}>
+                      <Text style={styles.cardBadgeText}>SOLD OUT</Text>
+                    </View>
+                  )}
+
+                  {/* Badge */}
+                  {item.available !== false && item.badge && (
                     <View style={[styles.cardBadge, { backgroundColor: theme.primaryColor }]}>
                       <Text style={styles.cardBadgeText}>{item.badge}</Text>
                     </View>
                   )}
 
+                  {/* Quantities in Order Indicator */}
                   {(itemQuantities[item.id] || 0) > 0 && (
                     <View style={[styles.selectedCountBadge, { backgroundColor: '#10B981' }]}>
                       <Check size={12} color="#FFFFFF" />
@@ -349,6 +400,16 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
 
                   {/* HIGH VISIBILITY ADD BUTTON BAR (+ ADD TO ORDER & STEPPER) */}
                   {(() => {
+                    if (item.available === false) {
+                      return (
+                        <View style={styles.cardBtnRow}>
+                          <View style={[styles.quickAddBtn, { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: theme.borderColor, borderWidth: 1 }]}>
+                            <Text style={[styles.quickAddText, { color: theme.mutedTextColor }]}>UNAVAILABLE</Text>
+                          </View>
+                        </View>
+                      );
+                    }
+
                     const qty = itemQuantities[item.id] || 0;
                     return (
                       <View style={styles.cardBtnRow}>
@@ -404,7 +465,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
         </ScrollView>
       </View>
 
-      {/* Bottom Bar */}
+      {/* Footer Nav Bar */}
       <BottomNavigation
         onBack={onBack}
         backText="HOME"

@@ -13,8 +13,17 @@ import { ItemDetailModal } from '../components/ItemDetail/ItemDetailModal';
 import { CallServerModal } from '../components/Server/CallServerModal';
 import { HookahMixLabModal } from '../components/HookahMixLab/HookahMixLabModal';
 
+import { ConversationStep } from '../types';
+
 function MainAppContent() {
   const { theme } = useRestaurantTheme();
+  const [hostInitialStep, setHostInitialStep] = React.useState<ConversationStep>('welcome_category');
+
+  const handleStartOrder = (step?: ConversationStep) => {
+    setHostInitialStep(step || 'welcome_category');
+    navigate('start_order');
+  };
+
   const {
     currentScreen,
     navigate,
@@ -38,6 +47,7 @@ function MainAppContent() {
     requestServer,
     cancelServerRequest,
     placeOrder,
+    allCategories,
     allMenuItems,
     refreshLiveMenu,
     logOutSession,
@@ -59,7 +69,7 @@ function MainAppContent() {
       {currentScreen === 'home' && (
         <RestaurantHome
           onOpenMenu={() => navigate('menu')}
-          onStartOrder={() => navigate('start_order')}
+          onStartOrder={handleStartOrder}
           onCallServer={() => setIsCallServerModalOpen(true)}
           onOpenCart={() => setIsCartDrawerOpen(true)}
           onLogOut={logOutSession}
@@ -74,19 +84,21 @@ function MainAppContent() {
           onAddToCart={addToCart}
           onOpenCart={() => setIsCartDrawerOpen(true)}
           onCallServer={() => setIsCallServerModalOpen(true)}
-          onOpenHost={() => navigate('start_order')}
+          onOpenHost={handleStartOrder}
           onOpenMixLab={() => setIsMixLabOpen(true)}
           cartCount={totalCartCount}
           cartSubtotal={cartSubtotal}
           cartItems={cart}
           onUpdateQuantity={updateQuantity}
           onRemoveItem={removeFromCart}
+          allCategories={allCategories}
           allMenuItems={allMenuItems}
         />
       )}
 
       {currentScreen === 'start_order' && (
         <ConversationalHost
+          initialStep={hostInitialStep}
           onBackToHome={() => navigate('home')}
           onOpenCart={() => setIsCartDrawerOpen(true)}
           onCallServer={() => setIsCallServerModalOpen(true)}
@@ -99,6 +111,7 @@ function MainAppContent() {
           onRemoveItem={removeFromCart}
           onAddToCart={addToCart}
           onPlaceOrder={placeOrder}
+          allCategories={allCategories}
           allMenuItems={allMenuItems}
         />
       )}

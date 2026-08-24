@@ -20,13 +20,15 @@ import {
   ShoppingBag,
   Plus,
   Minus,
-  Trash2
+  Trash2,
+  Sparkles,
+  X
 } from 'lucide-react-native';
 import { useRestaurantTheme } from '../theme/ThemeContext';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { BenzinHeader } from '../components/Navigation/BenzinHeader';
 import { BottomNavigation } from '../components/Navigation/BottomNavigation';
-import { MenuItem, SelectedModifier, CartItem } from '../types';
+import { MenuItem, SelectedModifier, CartItem, ConversationStep } from '../types';
 import { 
   CAVALLI_HOOKAH_ITEMS, 
   CAVALLI_FOOD_ITEMS, 
@@ -47,7 +49,9 @@ interface ConversationalHostProps {
   onRemoveItem?: (cartItemId: string) => void;
   onAddToCart: (item: MenuItem, qty: number, modifiers: SelectedModifier[], notes?: string) => void;
   onPlaceOrder: () => void;
+  allCategories?: MenuCategory[];
   allMenuItems?: MenuItem[];
+  initialStep?: ConversationStep;
 }
 
 type ConversationalStep =
@@ -72,11 +76,44 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
   onRemoveItem,
   onAddToCart,
   onPlaceOrder,
+  allCategories = [],
   allMenuItems = [],
+  initialStep = 'welcome_category',
 }) => {
   const { theme } = useRestaurantTheme();
   const layout = useResponsiveLayout();
-  const [step, setStep] = useState<ConversationalStep>('welcome_category');
+  const [step, setStep] = React.useState<ConversationalStep>(
+    (initialStep as ConversationalStep) || 'welcome_category'
+  );
+
+  React.useEffect(() => {
+    if (initialStep) {
+      setStep(initialStep as ConversationalStep);
+    }
+  }, [initialStep]);
+
+  // Track if full host speech prompt overlay is visible (only pops up when AI Host icon is clicked)
+  const [isSpeechOverlayVisible, setIsSpeechOverlayVisible] = useState<boolean>(false);
+
+  // Dynamic speech text computed for current conversational step
+  const currentSpeechText = useMemo(() => {
+    switch (step) {
+      case 'welcome_category':
+        return `Welcome to ${theme.name || 'CAVALLI'}! What would you like to start with tonight?`;
+      case 'select_hookah':
+        return 'Select Hookahs 💨';
+      case 'prompt_food':
+      case 'select_food':
+        return 'Select Gourmet Food 🍔';
+      case 'prompt_drink':
+      case 'select_drink':
+        return 'Select Craft Drinks 🍹';
+      case 'review_summary':
+        return `You're all set! Here is your curated order ready for Table ${theme.tableNumber}:`;
+      default:
+        return `Welcome to ${theme.name || 'CAVALLI'}!`;
+    }
+  }, [step, theme.name, theme.tableNumber]);
 
   // Subcategory filter states
   const [foodSubcategory, setFoodSubcategory] = useState<string>('ALL');
@@ -118,6 +155,46 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
 
   const currentStepIndex = stepOrder.indexOf(step);
 
+  // Track visited Super Categories to mandate visiting all sections before review/place order
+  const [visitedSuperCategorySteps, setVisitedSuperCategorySteps] = useState<Set<string>>(new Set());
+
+  React.useEffect(() => {
+    if (step === 'select_hookah') {
+      setVisitedSuperCategorySteps(prev => new Set(prev).add('hookah'));
+    } else if (step === 'select_food' || step === 'prompt_food') {
+      setVisitedSuperCategorySteps(prev => new Set(prev).add('food'));
+    } else if (step === 'select_drink' || step === 'prompt_drink') {
+      setVisitedSuperCategorySteps(prev => new Set(prev).add('drinks'));
+    }
+  }, [step]);
+
+  const getUnvisitedNextStep = (currentStep: ConversationalStep): ConversationalStep | null => {
+    if (currentStep === 'select_hookah') {
+      if (hasFood && !visitedSuperCategorySteps.has('food')) return 'prompt_food';
+      if (hasDrinks && !visitedSuperCategorySteps.has('drinks')) return 'prompt_drink';
+    } else if (currentStep === 'select_food' || currentStep === 'prompt_food') {
+      if (hasDrinks && !visitedSuperCategorySteps.has('drinks')) return 'prompt_drink';
+      if (hasHookahs && !visitedSuperCategorySteps.has('hookah')) return 'select_hookah';
+    } else if (currentStep === 'select_drink' || currentStep === 'prompt_drink') {
+      if (hasFood && !visitedSuperCategorySteps.has('food')) return 'prompt_food';
+      if (hasHookahs && !visitedSuperCategorySteps.has('hookah')) return 'select_hookah';
+    }
+    return null;
+  };
+
+  const handleProceedToNextStep = (preferredTarget?: ConversationalStep) => {
+    if (preferredTarget === 'review_summary' || !preferredTarget) {
+      const nextUnvisited = getUnvisitedNextStep(step);
+      if (nextUnvisited) {
+        setStep(nextUnvisited);
+        return;
+      }
+      setStep('review_summary');
+      return;
+    }
+    setStep(preferredTarget);
+  };
+
   const handleStepBack = () => {
     if (currentStepIndex > 0) {
       setStep(stepOrder[currentStepIndex - 1]);
@@ -152,44 +229,87 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
     }
   };
 
+  // Dynamic Super Categories from database
+  const superCategories = useMemo(() => {
+    if (allCategories && allCategories.length > 0) {
+      const supers = allCategories
+        .filter(c => c.parent_id === null && c.active !== false)
+        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+      if (supers.length > 0) {
+        return supers.map(s => ({
+          _id: s._id || s.id,
+          name: (s.name || s.title || 'Category').toUpperCase(),
+          icon: s.icon || '📋',
+          color: s.color || '#E5B13A',
+          raw: s,
+        }));
+      }
+    }
+
+    // Default fallback
+    return [
+      { _id: 'cat_super_hookah', name: 'HOOKAH', icon: '💨', color: '#0099FF' },
+      { _id: 'cat_super_food', name: 'FOOD & DINING', icon: '🍔', color: '#E5B13A' },
+      { _id: 'cat_super_drinks', name: 'BEVERAGES', icon: '🍸', color: '#14B8A6' },
+    ];
+  }, [allCategories]);
+
   // Subcategories for Food
   const foodSubcategories = useMemo(() => {
-    const source = allMenuItems !== undefined
-      ? allMenuItems.filter(item => item.category === 'food')
-      : CAVALLI_FOOD_ITEMS;
+    if (allCategories && allCategories.length > 0) {
+      const foodSuper = allCategories.find(c => c.parent_id === null && (c.name.toLowerCase().includes('food') || c.title.toLowerCase().includes('food')));
+      if (foodSuper) {
+        const subs = allCategories
+          .filter(c => c.parent_id === (foodSuper._id || foodSuper.id) && c.active !== false)
+          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+        if (subs.length > 0) {
+          return ['ALL', ...subs.map(s => s.name || s.title)];
+        }
+      }
+    }
+    const source = (allMenuItems || []).filter(item => item.category === 'food');
     const subs = new Set<string>();
     source.forEach(f => {
       if (f.subcategory) subs.add(f.subcategory);
     });
     return ['ALL', ...Array.from(subs)];
-  }, [allMenuItems]);
+  }, [allCategories, allMenuItems]);
 
-  // Subcategories for Drinks (3 explicit sections)
+  // Subcategories for Drinks
   const drinkSubcategories = useMemo(() => {
-    return ['ALL', 'Refreshers & Mocktails', 'Tea & Coffee', 'Soft Drinks & Sodas'];
-  }, []);
+    if (allCategories && allCategories.length > 0) {
+      const drinkSuper = allCategories.find(c => c.parent_id === null && (c.name.toLowerCase().includes('beverage') || c.name.toLowerCase().includes('drink') || c.title.toLowerCase().includes('beverage') || c.title.toLowerCase().includes('drink')));
+      if (drinkSuper) {
+        const subs = allCategories
+          .filter(c => c.parent_id === (drinkSuper._id || drinkSuper.id) && c.active !== false)
+          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+        if (subs.length > 0) {
+          return ['ALL', ...subs.map(s => s.name || s.title)];
+        }
+      }
+    }
+    const source = (allMenuItems || []).filter(item => item.category === 'drinks');
+    const subs = new Set<string>();
+    source.forEach(d => {
+      if (d.subcategory) subs.add(d.subcategory);
+    });
+    return ['ALL', ...Array.from(subs)];
+  }, [allCategories, allMenuItems]);
 
   const filteredFoodItems = useMemo(() => {
-    const source = allMenuItems !== undefined
-      ? allMenuItems.filter(item => item.category === 'food')
-      : CAVALLI_FOOD_ITEMS;
+    const source = (allMenuItems || []).filter(item => item.category === 'food');
     if (foodSubcategory === 'ALL') return source;
-    return source.filter(item => item.subcategory === foodSubcategory);
+    return source.filter(item => item.subcategory === foodSubcategory || item.category_id === foodSubcategory);
   }, [allMenuItems, foodSubcategory]);
 
   const filteredDrinkItems = useMemo(() => {
-    const source = allMenuItems !== undefined
-      ? allMenuItems.filter(item => item.category === 'drinks')
-      : CAVALLI_DRINK_ITEMS;
+    const source = (allMenuItems || []).filter(item => item.category === 'drinks');
     if (drinkSubcategory === 'ALL') return source;
-    return source.filter(item => item.subcategory === drinkSubcategory);
+    return source.filter(item => item.subcategory === drinkSubcategory || item.category_id === drinkSubcategory);
   }, [allMenuItems, drinkSubcategory]);
 
   const hookahList = useMemo(() => {
-    if (allMenuItems !== undefined) {
-      return allMenuItems.filter(item => item.category === 'hookah');
-    }
-    return CAVALLI_HOOKAH_ITEMS;
+    return (allMenuItems || []).filter(item => item.category === 'hookah');
   }, [allMenuItems]);
 
   return (
@@ -203,101 +323,98 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
         </View>
       )}
 
-      {/* Top Header */}
+      {/* Top Header with AI Digital Host Icon */}
       <BenzinHeader
         showBackButton
         onBack={handleStepBack}
         onOpenCart={onOpenCart}
         onOpenCallServer={onCallServer}
+        onOpenHost={() => setIsSpeechOverlayVisible(true)}
+        hostSpeechText={currentSpeechText}
         cartCount={cartCount}
       />
 
-      {/* Main Conversational Host Area */}
-      <View style={styles.body}>
-        {/* Host Avatar & Prompt Banner */}
-        <View style={styles.hostBanner}>
-          <View style={[styles.hostAvatar, { borderColor: '#6F4E37', backgroundColor: 'rgba(74,46,27,0.18)' }]}>
-            <Bot size={34} color="#A06D44" />
-          </View>
+      {/* Floating AI Digital Host Speech Prompt Overlay (Appears ONLY when the AI Host icon is clicked) */}
+      {isSpeechOverlayVisible && (
+        <View style={styles.modalOverlayContainer}>
+          <TouchableOpacity 
+            style={styles.modalBackdropTouch} 
+            activeOpacity={1} 
+            onPress={() => setIsSpeechOverlayVisible(false)} 
+          />
+          <View style={[styles.speechOverlayPopCard, { backgroundColor: theme.cardColor, borderColor: '#E5B13A' }]}>
+            <View style={styles.speechOverlayTopHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={[styles.hostAvatar, { width: 40, height: 40, borderRadius: 20, borderColor: '#E5B13A', backgroundColor: 'rgba(74,46,27,0.5)' }]}>
+                  <Bot size={22} color="#F3E5AB" />
+                  <Sparkles size={9} color="#E5B13A" style={{ position: 'absolute', top: -3, right: -3 }} />
+                </View>
+                <View>
+                  <Text style={{ color: '#E5B13A', fontWeight: '900', fontSize: 12, letterSpacing: 1 }}>
+                    AI DIGITAL HOST
+                  </Text>
+                  <Text style={{ color: theme.mutedTextColor, fontSize: 11 }}>
+                    Guided Order Speech Prompt
+                  </Text>
+                </View>
+              </View>
 
-          <View style={styles.dialogueBox}>
-            {/* Dynamic Conversational Host Questions */}
-            {step === 'welcome_category' && (
-              <Text style={[styles.questionText, { color: theme.textColor }]}>
-                Welcome to {theme.name || 'our restaurant'}! What would you like to start with tonight?
-              </Text>
-            )}
+              <TouchableOpacity 
+                onPress={() => setIsSpeechOverlayVisible(false)} 
+                activeOpacity={0.8}
+                style={[styles.closeSpeechIconBtn, { backgroundColor: 'rgba(255,255,255,0.08)' }]}
+              >
+                <X size={18} color={theme.textColor} />
+              </TouchableOpacity>
+            </View>
 
-            {step === 'select_hookah' && (
+            <View style={styles.speechOverlayBodyText}>
               <Text style={[styles.questionText, { color: theme.textColor }]}>
-                Select Hookahs
+                {currentSpeechText}
               </Text>
-            )}
-
-            {(step === 'prompt_food' || step === 'select_food') && (
-              <Text style={[styles.questionText, { color: theme.textColor }]}>
-                {hasHookahs 
-                  ? 'Awesome! Hookah choices saved. Would you like something delicious to eat with that?' 
-                  : `Welcome to ${theme.name || 'our restaurant'}! What delicious dishes would you like to enjoy tonight?`}
-              </Text>
-            )}
-
-            {(step === 'prompt_drink' || step === 'select_drink') && (
-              <Text style={[styles.questionText, { color: theme.textColor }]}>
-                Awesome! Would you like something refreshing to drink to wash that down?
-              </Text>
-            )}
-
-            {step === 'review_summary' && (
-              <Text style={[styles.questionText, { color: theme.textColor }]}>
-                You're all set! Here is your curated order ready for Table {theme.tableNumber}:
-              </Text>
-            )}
+            </View>
           </View>
         </View>
+      )}
 
+      {/* Main Conversational Host Area (Cards Pushed All The Way Up for Maximum Space) */}
+      <View style={styles.body}>
         {/* Dynamic Content Interactive Choices */}
         <View style={styles.interactiveArea}>
           {/* STEP 1: INITIAL CATEGORY CHOICE */}
           {step === 'welcome_category' && (
             <View style={styles.categoryChoicesRow}>
-              {hasHookahs && (
-                <TouchableOpacity
-                  activeOpacity={0.88}
-                  onPress={() => setStep('select_hookah')}
-                  style={[styles.categoryChoiceCard, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}
-                >
-                  <Text style={styles.choiceIcon}>💨</Text>
-                  <Text style={[styles.choiceTitle, { color: theme.textColor }]}>HOOKAH</Text>
-                  <View style={[styles.choiceBadge, { backgroundColor: '#0099FF' }]}>
-                    <Text style={styles.choiceBadgeText}>POPULAR</Text>
-                  </View>
-                </TouchableOpacity>
-              )}
+              {superCategories.map((superObj) => {
+                const superName = superObj.name.toLowerCase();
+                let targetStep: ConversationalStep = 'select_food';
+                let cardColor = superObj.color || '#E5B13A';
+                let badgeText = 'GOURMET';
 
-              <TouchableOpacity
-                activeOpacity={0.88}
-                onPress={() => setStep('select_food')}
-                style={[styles.categoryChoiceCard, { backgroundColor: theme.cardColor, borderColor: '#E5B13A' }]}
-              >
-                <Text style={styles.choiceIcon}>🍔</Text>
-                <Text style={[styles.choiceTitle, { color: theme.textColor }]}>FOOD & DINING</Text>
-                <View style={[styles.choiceBadge, { backgroundColor: '#E5B13A' }]}>
-                  <Text style={styles.choiceBadgeText}>GOURMET</Text>
-                </View>
-              </TouchableOpacity>
+                if (superName.includes('hookah')) {
+                  targetStep = 'select_hookah';
+                  cardColor = '#0099FF';
+                  badgeText = 'POPULAR';
+                } else if (superName.includes('beverage') || superName.includes('drink')) {
+                  targetStep = 'select_drink';
+                  cardColor = '#14B8A6';
+                  badgeText = 'REFRESHING';
+                }
 
-              <TouchableOpacity
-                activeOpacity={0.88}
-                onPress={() => setStep('select_drink')}
-                style={[styles.categoryChoiceCard, { backgroundColor: theme.cardColor, borderColor: '#14B8A6' }]}
-              >
-                <Text style={styles.choiceIcon}>🍹</Text>
-                <Text style={[styles.choiceTitle, { color: theme.textColor }]}>BEVERAGES</Text>
-                <View style={[styles.choiceBadge, { backgroundColor: '#14B8A6' }]}>
-                  <Text style={styles.choiceBadgeText}>REFRESHING</Text>
-                </View>
-              </TouchableOpacity>
+                return (
+                  <TouchableOpacity
+                    key={superObj._id}
+                    activeOpacity={0.88}
+                    onPress={() => setStep(targetStep)}
+                    style={[styles.categoryChoiceCard, { backgroundColor: theme.cardColor, borderColor: cardColor }]}
+                  >
+                    <Text style={styles.choiceIcon}>{superObj.icon || '📋'}</Text>
+                    <Text style={[styles.choiceTitle, { color: theme.textColor }]}>{superObj.name}</Text>
+                    <View style={[styles.choiceBadge, { backgroundColor: cardColor }]}>
+                      <Text style={styles.choiceBadgeText}>{badgeText}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           )}
 
@@ -601,7 +718,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
 
               <TouchableOpacity
                 activeOpacity={0.88}
-                onPress={() => setStep('review_summary')}
+                onPress={() => handleProceedToNextStep('review_summary')}
                 style={[styles.promptChoiceCard, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}
               >
                 <Text style={styles.promptIcon}>📋</Text>
@@ -899,24 +1016,27 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
           bottomAction = () => setStep(hasHookahs ? 'select_hookah' : 'select_food');
           bottomIcon = 'next';
         } else if (step === 'select_hookah') {
-          bottomText = 'NEXT: FOOD SELECTION';
-          bottomAction = () => setStep('prompt_food');
+          const unvisited = getUnvisitedNextStep('select_hookah');
+          bottomText = unvisited === 'prompt_drink' ? 'NEXT: DRINK SELECTION' : 'NEXT: FOOD SELECTION';
+          bottomAction = () => handleProceedToNextStep(unvisited || 'review_summary');
           bottomIcon = 'next';
         } else if (step === 'prompt_food') {
           bottomText = 'YES, SHOW ME FOOD';
           bottomAction = () => setStep('select_food');
           bottomIcon = 'next';
         } else if (step === 'select_food') {
-          bottomText = 'NEXT: DRINK SELECTION';
-          bottomAction = () => setStep('prompt_drink');
+          const unvisited = getUnvisitedNextStep('select_food');
+          bottomText = unvisited === 'prompt_drink' ? 'NEXT: DRINK SELECTION' : unvisited === 'select_hookah' ? 'NEXT: HOOKAH SELECTION' : 'NEXT: REVIEW ORDER';
+          bottomAction = () => handleProceedToNextStep(unvisited || 'review_summary');
           bottomIcon = 'next';
         } else if (step === 'prompt_drink') {
           bottomText = 'YES, SHOW ME DRINKS';
           bottomAction = () => setStep('select_drink');
           bottomIcon = 'next';
         } else if (step === 'select_drink') {
-          bottomText = 'NEXT: REVIEW ORDER';
-          bottomAction = () => setStep('review_summary');
+          const unvisited = getUnvisitedNextStep('select_drink');
+          bottomText = unvisited === 'prompt_food' ? 'NEXT: FOOD SELECTION' : unvisited === 'select_hookah' ? 'NEXT: HOOKAH SELECTION' : 'NEXT: REVIEW ORDER';
+          bottomAction = () => handleProceedToNextStep(unvisited || 'review_summary');
           bottomIcon = 'next';
         } else if (step === 'review_summary') {
           bottomText = 'PLACE TABLE ORDER';
@@ -1017,6 +1137,49 @@ const styles = StyleSheet.create({
     lineHeight: 30,
     letterSpacing: 0.4,
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
+  },
+  modalOverlayContainer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 999,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  modalBackdropTouch: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+  },
+  speechOverlayPopCard: {
+    width: '100%',
+    maxWidth: 540,
+    borderRadius: 24,
+    borderWidth: 2,
+    padding: 24,
+    shadowColor: '#E5B13A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 12,
+    zIndex: 1000,
+  },
+  speechOverlayTopHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+  },
+  closeSpeechIconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  speechOverlayBodyText: {
+    paddingVertical: 8,
   },
   topControlHeaderRow: {
     flexDirection: 'row',
@@ -1130,7 +1293,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   portraitImageWrapper: {
-    height: 255, // Goldilocks image height (spacious picture + comfortable room below)
+    height: 310, // Bigger image presentation
     width: '100%',
     position: 'relative',
     backgroundColor: 'rgba(0,0,0,0.04)',
@@ -1141,7 +1304,7 @@ const styles = StyleSheet.create({
   },
   productPlaceholder: {
     width: '100%',
-    height: 255,
+    height: 310,
     backgroundColor: 'rgba(255,255,255,0.04)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1163,45 +1326,46 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   productBody: {
-    paddingHorizontal: 17,
-    paddingTop: 16,
-    paddingBottom: 15,
-    gap: 7,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 12,
+    gap: 3,
   },
   productTitleRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
+    marginTop: 2,
   },
   productName: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '900',
     flex: 1,
-    lineHeight: 23,
+    lineHeight: 22,
     marginRight: 8,
   },
   productPrice: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '900',
   },
   productDesc: {
     fontSize: 12,
-    lineHeight: 17,
-    height: 34,
-    marginTop: 2,
+    lineHeight: 16,
+    height: 32,
+    marginTop: 1,
   },
   cardActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9,
-    marginTop: 7,
+    gap: 8,
+    marginTop: 4,
   },
   multiAddBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 7,
-    paddingVertical: 12,
+    gap: 6,
+    paddingVertical: 10,
     borderRadius: 17,
   },
   multiAddBtnText: {
