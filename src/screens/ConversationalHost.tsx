@@ -16,10 +16,8 @@ import {
   ShoppingBag,
   Plus,
   Minus,
-  Trash2,
   Sparkles,
-  X,
-  RotateCcw
+  X
 } from 'lucide-react-native';
 import { useRestaurantTheme } from '../theme/ThemeContext';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
@@ -148,7 +146,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
 
   const currentStepIndex = stepOrder.indexOf(step);
 
-  // Track visited Super Categories to mandate visiting all sections before review/place order
+  // Track visited Super Categories
   const [visitedSuperCategorySteps, setVisitedSuperCategorySteps] = useState<Set<string>>(new Set());
 
   React.useEffect(() => {
@@ -221,7 +219,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
     }
   };
 
-  // Dynamic Super Categories from database
+  // Dynamic Super Categories
   const superCategories = useMemo(() => {
     if (allCategories && allCategories.length > 0) {
       const supers = allCategories
@@ -303,27 +301,32 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
     return (allMenuItems || []).filter(item => item.category === 'hookah');
   }, [allMenuItems]);
 
-  // Compute next action label for lightweight inline button
+  // Next action label and target
   const nextActionConfig = useMemo(() => {
-    if (step === 'welcome_category') return null;
+    if (step === 'welcome_category') {
+      return {
+        label: 'START ORDER',
+        action: () => setStep(hasHookahs ? 'select_hookah' : 'select_food')
+      };
+    }
     if (step === 'select_hookah') {
       const unvisited = getUnvisitedNextStep('select_hookah');
       return {
-        label: unvisited === 'prompt_drink' ? 'DRINK SELECTION →' : 'FOOD SELECTION →',
+        label: unvisited === 'prompt_drink' ? 'NEXT: DRINKS' : 'NEXT: FOOD MENU',
         action: () => handleProceedToNextStep(unvisited || 'review_summary')
       };
     }
     if (step === 'select_food') {
       const unvisited = getUnvisitedNextStep('select_food');
       return {
-        label: unvisited === 'prompt_drink' ? 'DRINK SELECTION →' : unvisited === 'select_hookah' ? 'HOOKAH SELECTION →' : 'REVIEW ORDER →',
+        label: unvisited === 'prompt_drink' ? 'NEXT: DRINKS' : unvisited === 'select_hookah' ? 'NEXT: HOOKAH' : 'REVIEW ORDER',
         action: () => handleProceedToNextStep(unvisited || 'review_summary')
       };
     }
     if (step === 'select_drink') {
       const unvisited = getUnvisitedNextStep('select_drink');
       return {
-        label: unvisited === 'prompt_food' ? 'FOOD SELECTION →' : unvisited === 'select_hookah' ? 'HOOKAH SELECTION →' : 'REVIEW ORDER →',
+        label: unvisited === 'prompt_food' ? 'NEXT: FOOD' : unvisited === 'select_hookah' ? 'NEXT: HOOKAH' : 'REVIEW ORDER',
         action: () => handleProceedToNextStep(unvisited || 'review_summary')
       };
     }
@@ -341,7 +344,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
         </View>
       )}
 
-      {/* Top Header with AI Digital Host Icon */}
+      {/* Top Header */}
       <BenzinHeader
         showBackButton
         onBack={handleStepBack}
@@ -395,31 +398,9 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
         </View>
       )}
 
-      {/* Main Content Area - Maximized Screen Room (No Footer) */}
+      {/* Main Content Area */}
       <View style={[styles.body, isMobile && { paddingHorizontal: layout.contentPadding, paddingVertical: 8 }]}>
         
-        {/* Inline Light-Weight Step Header Navigation Bar (Unboxed & Clean) */}
-        <View style={styles.cleanStepHeader}>
-          <TouchableOpacity onPress={handleStepBack} style={styles.cleanNavBtn} activeOpacity={0.7}>
-            <ArrowLeft size={16} color={theme.textColor} />
-            <Text style={[styles.cleanNavText, { color: theme.textColor }]}>
-              {currentStepIndex === 0 ? 'HOME' : 'BACK'}
-            </Text>
-          </TouchableOpacity>
-
-          <Text style={[styles.stepTitleText, { color: theme.secondaryColor }]}>
-            {step === 'welcome_category' ? 'SELECT CATEGORY' : step === 'select_hookah' ? 'HOOKAHS' : step === 'select_food' ? 'FOOD MENU' : step === 'select_drink' ? 'CRAFT DRINKS' : 'ORDER REVIEW'}
-          </Text>
-
-          {nextActionConfig ? (
-            <TouchableOpacity onPress={nextActionConfig.action} style={[styles.cleanNavBtn, styles.cleanNextBtn]} activeOpacity={0.7}>
-              <Text style={[styles.cleanNavText, { color: theme.primaryColor }]}>{nextActionConfig.label}</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={{ width: 60 }} />
-          )}
-        </View>
-
         {/* Dynamic Content Interactive Choices */}
         <View style={styles.interactiveArea}>
           {/* STEP 1: INITIAL CATEGORY CHOICE */}
@@ -976,6 +957,31 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
           )}
         </View>
       </View>
+
+      {/* Prominent Bottom Navigation Bar (Back & High-Visibility Next Button) */}
+      <View style={[styles.bottomActionBar, { backgroundColor: theme.cardColor, borderTopColor: theme.borderColor }]}>
+        <TouchableOpacity
+          onPress={handleStepBack}
+          activeOpacity={0.8}
+          style={[styles.bottomBackBtn, { borderColor: theme.borderColor }]}
+        >
+          <ArrowLeft size={18} color={theme.textColor} />
+          <Text style={[styles.bottomBackText, { color: theme.textColor }]}>
+            {currentStepIndex === 0 ? 'HOME' : 'BACK'}
+          </Text>
+        </TouchableOpacity>
+
+        {nextActionConfig && step !== 'review_summary' && (
+          <TouchableOpacity
+            onPress={nextActionConfig.action}
+            activeOpacity={0.88}
+            style={[styles.prominentNextBtn, { backgroundColor: '#10B981' }]}
+          >
+            <Text style={styles.prominentNextText}>{nextActionConfig.label}</Text>
+            <ArrowRight size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 };
@@ -987,7 +993,7 @@ const styles = StyleSheet.create({
   },
   floatingToast: {
     position: 'absolute',
-    bottom: 20,
+    bottom: 80,
     alignSelf: 'center',
     zIndex: 999,
     flexDirection: 'row',
@@ -1012,33 +1018,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
     paddingVertical: 8,
-  },
-  cleanStepHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 6,
-    marginBottom: 6,
-  },
-  cleanNavBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 4,
-  },
-  cleanNextBtn: {
-    justifyContent: 'flex-end',
-  },
-  cleanNavText: {
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  stepTitleText: {
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 1,
-    textAlign: 'center',
   },
   hostAvatar: {
     alignItems: 'center',
@@ -1379,5 +1358,49 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 32,
+  },
+  bottomActionBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderTopWidth: 1.5,
+    gap: 12,
+  },
+  bottomBackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
+    borderWidth: 1.5,
+  },
+  bottomBackText: {
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  prominentNextBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 16,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  prominentNextText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 1,
   },
 });
