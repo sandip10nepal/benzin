@@ -213,37 +213,85 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
 
       {/* Main Content Area */}
       <View style={[styles.content, { paddingHorizontal: layout.contentPadding }]}>
-        {/* Category Navigation Tabs & Global Search */}
-        <View style={[styles.topControlRow, isMobile && { flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}>
-          {/* Category Tabs Scroll View */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsRow}>
-            {superCategories.map((cat, idx) => {
-              const isActive = activeSuperCatId === cat._id && !isGlobalSearch;
-              return (
-                <TouchableOpacity
-                  key={cat._id || `cat_${idx}`}
-                  activeOpacity={0.8}
-                  onPress={() => {
-                    setSearchQuery('');
-                    setActiveSuperCatId(cat._id);
-                    setActiveSubCatId('ALL');
-                  }}
-                  style={[
-                    styles.tabPill,
-                    { backgroundColor: theme.cardColor, borderColor: theme.borderColor },
-                    isActive && { backgroundColor: theme.primaryColor, borderColor: theme.primaryColor },
-                    isMobile && { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14 }
-                  ]}
-                >
-                  <Text style={[styles.tabLabel, { color: isActive ? '#FFFFFF' : theme.textColor, fontSize: isMobile ? 11 : 12 }]}>
-                    {cat.icon ? `${cat.icon} ` : ''}{cat.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+        {/* Super Category Touch Cards - Arranged Like Welcome Page */}
+        {!isGlobalSearch && (
+          <View style={styles.menuSuperCategorySection}>
+            <View style={[styles.topCardsRow, isMobile && { flexDirection: 'column', gap: 12 }]}>
+              {/* 1. HOOKAH CARD */}
+              <TouchableOpacity
+                activeOpacity={0.88}
+                onPress={() => {
+                  const hookahCat = superCategories.find(s => s.name.includes('HOOKAH'));
+                  if (hookahCat) setActiveSuperCatId(hookahCat._id);
+                }}
+                style={[
+                  styles.superTouchCard,
+                  { backgroundColor: theme.cardColor, borderColor: activeSuperCatId.toLowerCase().includes('hookah') ? '#0099FF' : theme.borderColor, borderWidth: activeSuperCatId.toLowerCase().includes('hookah') ? 2.5 : 1.5 },
+                  isMobile && { width: '100%', padding: 12 }
+                ]}
+              >
+                <View style={styles.superCardHeader}>
+                  <Text style={{ fontSize: isMobile ? 22 : 28 }}>💨</Text>
+                  <View style={[styles.superBadge, { backgroundColor: '#0099FF' }]}>
+                    <Text style={styles.superBadgeText}>POPULAR</Text>
+                  </View>
+                </View>
+                <Text style={[styles.superCardTitle, { color: theme.textColor }, isMobile && { fontSize: 16 }]}>HOOKAH</Text>
+                <Text style={[styles.superCardSub, { color: theme.mutedTextColor }, isMobile && { fontSize: 10 }]}>Shisha & Blends</Text>
+              </TouchableOpacity>
 
-          {/* Search Bar */}
+              {/* 2. FOOD & DINING CARD */}
+              <TouchableOpacity
+                activeOpacity={0.88}
+                onPress={() => {
+                  const foodCat = superCategories.find(s => s.name.includes('FOOD'));
+                  if (foodCat) setActiveSuperCatId(foodCat._id);
+                }}
+                style={[
+                  styles.superTouchCard,
+                  { backgroundColor: theme.cardColor, borderColor: (activeSuperCatId.toLowerCase().includes('food') || activeSuperCatId.includes('cat_super_food')) ? '#E5B13A' : theme.borderColor, borderWidth: (activeSuperCatId.toLowerCase().includes('food') || activeSuperCatId.includes('cat_super_food')) ? 2.5 : 1.5 },
+                  isMobile && { width: '100%', padding: 12 }
+                ]}
+              >
+                <View style={styles.superCardHeader}>
+                  <Text style={{ fontSize: isMobile ? 22 : 28 }}>🍔</Text>
+                  <View style={[styles.superBadge, { backgroundColor: '#E5B13A' }]}>
+                    <Text style={[styles.superBadgeText, { color: '#000000' }]}>GOURMET</Text>
+                  </View>
+                </View>
+                <Text style={[styles.superCardTitle, { color: theme.textColor }, isMobile && { fontSize: 16 }]}>FOOD & DINING</Text>
+                <Text style={[styles.superCardSub, { color: theme.mutedTextColor }, isMobile && { fontSize: 10 }]}>Lounge Dishes & Plates</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* 3. BEVERAGES & DRINKS CARD (CENTERED BELOW) */}
+            <TouchableOpacity
+              activeOpacity={0.88}
+              onPress={() => {
+                const drinkCat = superCategories.find(s => s.name.includes('BEVERAGE') || s.name.includes('DRINK'));
+                if (drinkCat) setActiveSuperCatId(drinkCat._id);
+              }}
+              style={[
+                styles.superTouchCard,
+                styles.bottomSuperCard,
+                { backgroundColor: theme.cardColor, borderColor: (activeSuperCatId.toLowerCase().includes('drink') || activeSuperCatId.toLowerCase().includes('beverage')) ? '#14B8A6' : theme.borderColor, borderWidth: (activeSuperCatId.toLowerCase().includes('drink') || activeSuperCatId.toLowerCase().includes('beverage')) ? 2.5 : 1.5 },
+                isMobile && { width: '100%', marginTop: 12, padding: 12 }
+              ]}
+            >
+              <View style={styles.superCardHeader}>
+                <Text style={{ fontSize: isMobile ? 22 : 28 }}>🍹</Text>
+                <View style={[styles.superBadge, { backgroundColor: '#14B8A6' }]}>
+                  <Text style={styles.superBadgeText}>REFRESHING</Text>
+                </View>
+              </View>
+              <Text style={[styles.superCardTitle, { color: theme.textColor }, isMobile && { fontSize: 16 }]}>BEVERAGES & DRINKS</Text>
+              <Text style={[styles.superCardSub, { color: theme.mutedTextColor }, isMobile && { fontSize: 10 }]}>Craft Cocktails, Tea & Beverages</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Global Search Box */}
+        <View style={[styles.searchBoxRow, isMobile && { paddingVertical: 4 }]}>
           <View style={[styles.searchBox, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }, isMobile && { minWidth: '100%', paddingVertical: 8 }]}>
             <Search size={isMobile ? 16 : 18} color={theme.mutedTextColor} />
             <TextInput
@@ -509,30 +557,61 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 12,
   },
-  topControlRow: {
+  menuSuperCategorySection: {
+    maxWidth: 1040,
+    alignSelf: 'center',
+    width: '100%',
+    marginBottom: 16,
+  },
+  topCardsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    gap: 16,
+    width: '100%',
+  },
+  superTouchCard: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 20,
     justifyContent: 'space-between',
-    marginBottom: 12,
-    gap: 12,
+    minHeight: 110,
   },
-  tabsRow: {
+  bottomSuperCard: {
+    width: '48.8%',
+    alignSelf: 'center',
+    marginTop: 14,
+  },
+  superCardHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 8,
+    marginBottom: 6,
   },
-  tabPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 16,
-    borderWidth: 1.5,
+  superBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
   },
-  tabLabel: {
+  superBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  superCardTitle: {
+    fontSize: 18,
     fontWeight: '900',
     letterSpacing: 0.8,
+  },
+  superCardSub: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  searchBoxRow: {
+    marginBottom: 14,
+    maxWidth: 1040,
+    alignSelf: 'center',
+    width: '100%',
   },
   searchBox: {
     flexDirection: 'row',
