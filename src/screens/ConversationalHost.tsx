@@ -1074,6 +1074,9 @@ const styles = StyleSheet.create({
   },
   interactiveArea: {
     flex: 1,
+    maxWidth: 1320,
+    alignSelf: 'center',
+    width: '100%',
   },
   categoryChoicesRow: {
     flexDirection: 'row',
@@ -1133,7 +1136,8 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   portraitProductCard: {
-    width: 320,
+    width: 290,
+    maxWidth: 320,
     borderRadius: 18,
     borderWidth: 1.5,
     overflow: 'hidden',

@@ -54,8 +54,8 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
   const isMobile = layout.isMobilePhone;
 
   // Dynamic layout metrics based on iPad / Phone & Orientation
-  const cardWidth = isMobile ? '100%' : layout.cardWidthPercent;
-  const imageHeight = isMobile ? 145 : layout.isTablet ? 175 : 195;
+  const cardWidth = isMobile ? '100%' : 290;
+  const imageHeight = isMobile ? 145 : 200;
 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -581,6 +581,10 @@ const styles = StyleSheet.create({
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: 'center',
+    maxWidth: 1320,
+    alignSelf: 'center',
+    width: '100%',
     paddingBottom: 20,
   },
   itemCard: {
