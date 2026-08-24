@@ -54,8 +54,8 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
   const isMobile = layout.isMobilePhone;
 
   // Dynamic layout metrics based on iPad / Phone & Orientation
-  const cardWidth = isMobile ? '100%' : 290;
-  const imageHeight = isMobile ? 145 : 200;
+  const cardWidth = isMobile ? '100%' : layout.cardWidthPercent;
+  const imageHeight = isMobile ? 135 : 155;
 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -621,8 +621,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   cardBody: {
-    padding: 14,
-    gap: 6,
+    padding: 10,
+    gap: 2,
   },
   titleRow: {
     flexDirection: 'row',
@@ -638,13 +638,15 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   itemDesc: {
-    lineHeight: 15,
+    lineHeight: 14,
+    marginTop: 1,
+    marginBottom: 2,
   },
   cardBtnRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 6,
+    gap: 6,
+    marginTop: 2,
   },
   quickAddBtn: {
     flex: 1,

@@ -1136,14 +1136,14 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   portraitProductCard: {
-    width: 290,
-    maxWidth: 320,
+    width: 320,
+    maxWidth: 350,
     borderRadius: 18,
     borderWidth: 1.5,
     overflow: 'hidden',
   },
   portraitImageWrapper: {
-    height: 220,
+    height: 155,
     width: '100%',
     position: 'relative',
     backgroundColor: 'rgba(0,0,0,0.04)',
@@ -1176,8 +1176,8 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   productBody: {
-    padding: 12,
-    gap: 4,
+    padding: 10,
+    gap: 2,
   },
   productTitleRow: {
     flexDirection: 'row',
