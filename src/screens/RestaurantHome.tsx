@@ -48,9 +48,11 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
     return allMenuItems;
   }, [allMenuItems]);
 
+  const isMobile = layout.isMobilePhone;
+
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-      {/* Persistent Top Header with AI Host Side Button */}
+      {/* Persistent Top Header */}
       <BenzinHeader
         onOpenCart={onOpenCart}
         onOpenCallServer={onCallServer}
@@ -62,30 +64,35 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
 
       {/* Main Touch Action Cards Container */}
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingHorizontal: layout.contentPadding }]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.cardsContainer, { maxWidth: layout.isTablet ? 840 : 640 }]}>
+        <View style={[styles.cardsContainer, { maxWidth: layout.isTablet ? 840 : layout.isDesktop ? 1040 : '100%' }]}>
 
           {/* Welcome Greeting Header */}
           <View style={styles.welcomeBanner}>
-            <Text style={[styles.welcomeSubtitle, { color: theme.secondaryColor }]}>WELCOME TO</Text>
-            <Text style={[styles.welcomeTitle, { color: theme.textColor }]}>{theme.name || 'LOUNGE'}</Text>
+            <Text style={[styles.welcomeSubtitle, { color: theme.secondaryColor, fontSize: isMobile ? 12 : 14 }]}>WELCOME TO</Text>
+            <Text style={[styles.welcomeTitle, { color: theme.textColor, fontSize: isMobile ? 32 : 42 }]}>{theme.name || 'LOUNGE'}</Text>
           </View>
 
           {/* Prominent Action Cards Container */}
           <View style={styles.topCardsSection}>
             {/* Top Row: START ORDER & VIEW MENU */}
-            <View style={styles.topCardsRow}>
+            <View style={[styles.topCardsRow, isMobile && { flexDirection: 'column', gap: 12 }]}>
               {/* 1. START ORDER (AI HOST CARD) */}
-              <View style={styles.topCardWrapper}>
+              <View style={[styles.topCardWrapper, isMobile && { height: 'auto', width: '100%' }]}>
                 <TouchCard
                   onPress={() => onStartOrder()}
-                  style={[styles.actionCard, styles.largeActionCard, { backgroundColor: theme.cardColor, borderColor: theme.primaryColor, borderWidth: 2.5 }]}
+                  style={[
+                    styles.actionCard,
+                    styles.largeActionCard,
+                    { backgroundColor: theme.cardColor, borderColor: theme.primaryColor, borderWidth: 2.5 },
+                    isMobile && { padding: 14 }
+                  ]}
                 >
                   <View style={styles.cardHeaderRow}>
-                    <View style={[styles.cardIconBg, styles.largeIconBg, { backgroundColor: 'rgba(74,46,27,0.25)' }]}>
-                      <Bot size={36} color="#A06D44" />
+                    <View style={[styles.cardIconBg, styles.largeIconBg, { backgroundColor: 'rgba(74,46,27,0.25)' }, isMobile && { width: 42, height: 42 }]}>
+                      <Bot size={isMobile ? 24 : 36} color="#A06D44" />
                     </View>
                     <View style={[styles.badgeTag, { backgroundColor: '#4A2E1B' }]}>
                       <Text style={[styles.badgeTagText, { color: '#F3E5AB' }]}>AI HOST</Text>
@@ -93,26 +100,31 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
                   </View>
 
                   <View style={styles.cardTextContent}>
-                    <Text style={[styles.cardTitle, styles.largeCardTitle, { color: theme.textColor }]}>START ORDER</Text>
-                    <Text style={[styles.cardSubtitle, styles.largeCardSubtitle, { color: theme.mutedTextColor }]}>Guided Ordering Experience</Text>
+                    <Text style={[styles.cardTitle, styles.largeCardTitle, { color: theme.textColor }, isMobile && { fontSize: 18 }]}>START ORDER</Text>
+                    <Text style={[styles.cardSubtitle, styles.largeCardSubtitle, { color: theme.mutedTextColor }, isMobile && { fontSize: 11 }]}>Guided Ordering Experience</Text>
                   </View>
 
                   <View style={styles.cardFooterRow}>
-                    <Text style={[styles.cardActionText, styles.largeCardActionText, { color: theme.primaryColor }]}>LAUNCH ORDER</Text>
-                    <ArrowRight size={20} color={theme.primaryColor} />
+                    <Text style={[styles.cardActionText, styles.largeCardActionText, { color: theme.primaryColor }, isMobile && { fontSize: 11 }]}>LAUNCH ORDER</Text>
+                    <ArrowRight size={isMobile ? 16 : 20} color={theme.primaryColor} />
                   </View>
                 </TouchCard>
               </View>
 
               {/* 2. VIEW MENU */}
-              <View style={styles.topCardWrapper}>
+              <View style={[styles.topCardWrapper, isMobile && { height: 'auto', width: '100%' }]}>
                 <TouchCard
                   onPress={onOpenMenu}
-                  style={[styles.actionCard, styles.largeActionCard, { backgroundColor: theme.cardColor, borderColor: theme.secondaryColor, borderWidth: 2.5 }]}
+                  style={[
+                    styles.actionCard,
+                    styles.largeActionCard,
+                    { backgroundColor: theme.cardColor, borderColor: theme.secondaryColor, borderWidth: 2.5 },
+                    isMobile && { padding: 14 }
+                  ]}
                 >
                   <View style={styles.cardHeaderRow}>
-                    <View style={[styles.cardIconBg, styles.largeIconBg, { backgroundColor: 'rgba(229,177,58,0.18)' }]}>
-                      <BookOpen size={36} color={theme.secondaryColor} />
+                    <View style={[styles.cardIconBg, styles.largeIconBg, { backgroundColor: 'rgba(229,177,58,0.18)' }, isMobile && { width: 42, height: 42 }]}>
+                      <BookOpen size={isMobile ? 24 : 36} color={theme.secondaryColor} />
                     </View>
                     <View style={[styles.badgeTag, { backgroundColor: 'rgba(229,177,58,0.15)' }]}>
                       <Text style={[styles.badgeTagText, { color: theme.secondaryColor }]}>CATALOG</Text>
@@ -120,27 +132,32 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
                   </View>
 
                   <View style={styles.cardTextContent}>
-                    <Text style={[styles.cardTitle, styles.largeCardTitle, { color: theme.textColor }]}>VIEW MENU</Text>
-                    <Text style={[styles.cardSubtitle, styles.largeCardSubtitle, { color: theme.mutedTextColor }]}>Explore Full Menu Catalog</Text>
+                    <Text style={[styles.cardTitle, styles.largeCardTitle, { color: theme.textColor }, isMobile && { fontSize: 18 }]}>VIEW MENU</Text>
+                    <Text style={[styles.cardSubtitle, styles.largeCardSubtitle, { color: theme.mutedTextColor }, isMobile && { fontSize: 11 }]}>Explore Full Menu Catalog</Text>
                   </View>
 
                   <View style={styles.cardFooterRow}>
-                    <Text style={[styles.cardActionText, styles.largeCardActionText, { color: theme.secondaryColor }]}>EXPLORE MENU</Text>
-                    <ArrowRight size={20} color={theme.secondaryColor} />
+                    <Text style={[styles.cardActionText, styles.largeCardActionText, { color: theme.secondaryColor }, isMobile && { fontSize: 11 }]}>EXPLORE MENU</Text>
+                    <ArrowRight size={isMobile ? 16 : 20} color={theme.secondaryColor} />
                   </View>
                 </TouchCard>
               </View>
             </View>
 
-            {/* Bottom Row: CALL SERVER BELOW START ORDER & VIEW MENU */}
-            <View style={styles.bottomCardWrapper}>
+            {/* Bottom Row: CALL SERVER */}
+            <View style={[styles.bottomCardWrapper, isMobile && { width: '100%', height: 'auto', marginTop: 12 }]}>
               <TouchCard
                 onPress={onCallServer}
-                style={[styles.actionCard, styles.largeActionCard, { backgroundColor: theme.cardColor, borderColor: theme.accentColor, borderWidth: 2.5 }]}
+                style={[
+                  styles.actionCard,
+                  styles.largeActionCard,
+                  { backgroundColor: theme.cardColor, borderColor: theme.accentColor, borderWidth: 2.5 },
+                  isMobile && { padding: 14 }
+                ]}
               >
                 <View style={styles.cardHeaderRow}>
-                  <View style={[styles.cardIconBg, styles.largeIconBg, { backgroundColor: 'rgba(20,184,166,0.18)' }]}>
-                    <Bell size={36} color={theme.accentColor} />
+                  <View style={[styles.cardIconBg, styles.largeIconBg, { backgroundColor: 'rgba(20,184,166,0.18)' }, isMobile && { width: 42, height: 42 }]}>
+                    <Bell size={isMobile ? 24 : 36} color={theme.accentColor} />
                   </View>
                   <View style={[styles.badgeTag, { backgroundColor: 'rgba(20,184,166,0.15)' }]}>
                     <Text style={[styles.badgeTagText, { color: theme.accentColor }]}>STAFF</Text>
@@ -148,30 +165,30 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
                 </View>
 
                 <View style={styles.cardTextContent}>
-                  <Text style={[styles.cardTitle, styles.largeCardTitle, { color: theme.textColor }]}>CALL SERVER</Text>
-                  <Text style={[styles.cardSubtitle, styles.largeCardSubtitle, { color: theme.mutedTextColor }]}>Request Staff Assistance & Service</Text>
+                  <Text style={[styles.cardTitle, styles.largeCardTitle, { color: theme.textColor }, isMobile && { fontSize: 18 }]}>CALL SERVER</Text>
+                  <Text style={[styles.cardSubtitle, styles.largeCardSubtitle, { color: theme.mutedTextColor }, isMobile && { fontSize: 11 }]}>Request Staff Assistance & Service</Text>
                 </View>
 
                 <View style={styles.cardFooterRow}>
-                  <Text style={[styles.cardActionText, styles.largeCardActionText, { color: theme.accentColor }]}>REQUEST STAFF</Text>
-                  <ArrowRight size={20} color={theme.accentColor} />
+                  <Text style={[styles.cardActionText, styles.largeCardActionText, { color: theme.accentColor }, isMobile && { fontSize: 11 }]}>REQUEST STAFF</Text>
+                  <ArrowRight size={isMobile ? 16 : 20} color={theme.accentColor} />
                 </View>
               </TouchCard>
             </View>
           </View>
 
-          {/* FEATURED MENU ITEMS PRESENTATION (BIGGER ROOM FOR MENU CARDS) */}
+          {/* FEATURED MENU ITEMS PRESENTATION */}
           {featuredItems.length > 0 && (
             <View style={styles.featuredSection}>
               <View style={styles.featuredHeaderRow}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Sparkles size={20} color={theme.secondaryColor} />
-                  <Text style={[styles.featuredSectionTitle, { color: theme.textColor }]}>
-                    FEATURED MENU & POPULAR DISHES
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
+                  <Sparkles size={isMobile ? 16 : 20} color={theme.secondaryColor} />
+                  <Text style={[styles.featuredSectionTitle, { color: theme.textColor, fontSize: isMobile ? 13 : 16 }]} numberOfLines={1}>
+                    FEATURED MENU & DISHES
                   </Text>
                 </View>
                 <TouchableOpacity onPress={onOpenMenu} activeOpacity={0.8} style={styles.seeAllBtn}>
-                  <Text style={[styles.seeAllText, { color: theme.secondaryColor }]}>SEE ALL MENU →</Text>
+                  <Text style={[styles.seeAllText, { color: theme.secondaryColor, fontSize: isMobile ? 11 : 12 }]}>SEE ALL →</Text>
                 </TouchableOpacity>
               </View>
 
@@ -182,20 +199,21 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
               >
                 {featuredItems.map((item, idx) => {
                   const imageSource = getItemImageSource(item);
+                  const cardWidth = isMobile ? 170 : 230;
 
                   return (
                     <TouchableOpacity
                       key={item.id || `home_feat_${idx}`}
                       activeOpacity={0.88}
                       onPress={() => onSelectItem ? onSelectItem(item) : onOpenMenu()}
-                      style={[styles.homeMenuCard, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}
+                      style={[styles.homeMenuCard, { backgroundColor: theme.cardColor, borderColor: theme.borderColor, width: cardWidth }]}
                     >
-                      <View style={styles.homeCardImageWrapper}>
+                      <View style={[styles.homeCardImageWrapper, { height: isMobile ? 130 : 185 }]}>
                         {imageSource ? (
                           <Image source={imageSource} style={styles.homeCardImage} resizeMode="cover" />
                         ) : (
                           <View style={styles.homeCardPlaceholder}>
-                            <Text style={{ fontSize: 38 }}>
+                            <Text style={{ fontSize: isMobile ? 28 : 38 }}>
                               {item.category === 'hookah' ? '💨' : item.category === 'drinks' ? '🍹' : '🍔'}
                             </Text>
                           </View>
@@ -206,10 +224,10 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
                       </View>
 
                       <View style={styles.homeCardBody}>
-                        <Text style={[styles.homeCardName, { color: theme.textColor }]} numberOfLines={1}>
+                        <Text style={[styles.homeCardName, { color: theme.textColor, fontSize: isMobile ? 13 : 15 }]} numberOfLines={1}>
                           {item.name}
                         </Text>
-                        <Text style={[styles.homeCardPrice, { color: theme.secondaryColor }]}>
+                        <Text style={[styles.homeCardPrice, { color: theme.secondaryColor, fontSize: isMobile ? 14 : 16 }]}>
                           ${item.price.toFixed(2)}
                         </Text>
 
@@ -220,10 +238,10 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
                             else onOpenMenu();
                           }}
                           activeOpacity={0.8}
-                          style={[styles.homeCardAddBtn, { backgroundColor: theme.secondaryColor }]}
+                          style={[styles.homeCardAddBtn, { backgroundColor: theme.secondaryColor, paddingVertical: isMobile ? 8 : 10 }]}
                         >
-                          <Plus size={14} color="#000000" />
-                          <Text style={styles.homeCardAddBtnText}>+ ADD TO ORDER</Text>
+                          <Plus size={isMobile ? 12 : 14} color="#000000" />
+                          <Text style={[styles.homeCardAddBtnText, { fontSize: isMobile ? 10 : 11 }]}>+ ADD</Text>
                         </TouchableOpacity>
                       </View>
                     </TouchableOpacity>
@@ -245,37 +263,32 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 32,
+    paddingTop: 12,
+    paddingBottom: 28,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   cardsContainer: {
     width: '100%',
     alignItems: 'center',
-    justifyContent: 'center',
   },
   welcomeBanner: {
     alignItems: 'center',
     marginTop: 4,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   welcomeSubtitle: {
-    fontSize: 14,
-    fontWeight: '900',
-    letterSpacing: 3,
-    marginBottom: 4,
-  },
-  welcomeTitle: {
-    fontSize: 42,
     fontWeight: '900',
     letterSpacing: 2,
+    marginBottom: 2,
+  },
+  welcomeTitle: {
+    fontWeight: '900',
+    letterSpacing: 1.5,
     textAlign: 'center',
   },
   topCardsSection: {
     width: '100%',
-    marginBottom: 32,
+    marginBottom: 24,
   },
   topCardsRow: {
     flexDirection: 'row',
@@ -284,18 +297,18 @@ const styles = StyleSheet.create({
   },
   topCardWrapper: {
     flex: 1,
-    height: 195,
+    minHeight: 160,
   },
   bottomCardWrapper: {
     width: '48.8%',
-    height: 195,
+    minHeight: 160,
     alignSelf: 'center',
     marginTop: 16,
   },
   actionCard: {
     flex: 1,
-    padding: 18,
-    borderRadius: 22,
+    padding: 16,
+    borderRadius: 20,
     justifyContent: 'space-between',
   },
   cardHeaderRow: {
@@ -311,22 +324,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   badgeTag: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
   },
   badgeTagText: {
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 1.2,
-  },
-  cardTextContent: {
-    marginTop: 4,
-  },
-  cardTitle: {
-    fontSize: 20,
+    fontSize: 9,
     fontWeight: '900',
     letterSpacing: 1,
+  },
+  cardTextContent: {
+    marginVertical: 8,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 0.8,
   },
   cardSubtitle: {
     fontSize: 11,
@@ -340,71 +353,69 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   largeActionCard: {
-    padding: 22,
-    borderRadius: 24,
+    padding: 18,
+    borderRadius: 22,
   },
   largeIconBg: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
   },
   largeCardTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '900',
     letterSpacing: 1,
   },
   largeCardSubtitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
-    marginTop: 3,
+    marginTop: 2,
   },
   largeCardActionText: {
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 1.2,
-  },
-  cardActionText: {
     fontSize: 12,
     fontWeight: '900',
-    letterSpacing: 1.2,
+    letterSpacing: 1,
+  },
+  cardActionText: {
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1,
   },
   featuredSection: {
     width: '100%',
-    marginTop: 8,
+    marginTop: 4,
   },
   featuredHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 12,
   },
   featuredSectionTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    letterSpacing: 1.2,
-  },
-  seeAllBtn: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-  },
-  seeAllText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '900',
     letterSpacing: 1,
   },
+  seeAllBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
+  seeAllText: {
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
   featuredScrollContainer: {
-    gap: 16,
-    paddingBottom: 8,
+    gap: 12,
+    paddingBottom: 4,
   },
   homeMenuCard: {
-    width: 230,
-    borderRadius: 22,
+    borderRadius: 18,
     borderWidth: 1.5,
     overflow: 'hidden',
   },
   homeCardImageWrapper: {
     width: '100%',
-    height: 185,
     position: 'relative',
     backgroundColor: '#19120E',
   },
@@ -419,80 +430,39 @@ const styles = StyleSheet.create({
   },
   homeCategoryTag: {
     position: 'absolute',
-    top: 8,
-    left: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    top: 6,
+    left: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
   homeCategoryTagText: {
     color: '#E5B13A',
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: '900',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
   homeCardBody: {
     padding: 10,
   },
   homeCardName: {
-    fontSize: 15,
     fontWeight: '800',
   },
   homeCardPrice: {
-    fontSize: 16,
     fontWeight: '900',
-    marginTop: 4,
-    marginBottom: 10,
+    marginTop: 2,
+    marginBottom: 8,
   },
   homeCardAddBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: 12,
+    gap: 4,
+    borderRadius: 10,
   },
   homeCardAddBtnText: {
     color: '#000000',
-    fontSize: 11,
     fontWeight: '900',
-    letterSpacing: 0.8,
-  },
-  floatingHostFab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    backgroundColor: '#3E2413',
-    borderColor: '#E5B13A',
-    borderWidth: 2,
-    borderRadius: 100,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    shadowColor: '#E5B13A',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.5,
-    shadowRadius: 14,
-    elevation: 8,
-    zIndex: 100,
-    maxWidth: 360,
-  },
-  floatingHostInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  botIconWrapper: {
-    position: 'relative',
-  },
-  sparkleBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-  },
-  floatingHostSpeechText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#F8F1EA',
-    flexShrink: 1,
+    letterSpacing: 0.5,
   },
 });

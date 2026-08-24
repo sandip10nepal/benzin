@@ -4,7 +4,7 @@ import Svg, { Path, Circle, Defs, LinearGradient, Stop } from 'react-native-svg'
 import { useRestaurantTheme } from '../../theme/ThemeContext';
 
 interface BenzinLogoProps {
-  size?: 'small' | 'medium' | 'large' | 'hero';
+  size?: 'micro' | 'small' | 'medium' | 'large' | 'hero';
   showSubtitle?: boolean;
   lightMode?: boolean;
   color?: string;
@@ -20,15 +20,16 @@ export const BenzinLogo: React.FC<BenzinLogoProps> = ({
   const isHero = size === 'hero';
   const isLarge = size === 'large';
   const isSmall = size === 'small';
+  const isMicro = size === 'micro';
 
-  const fontSize = isHero ? 48 : isLarge ? 36 : isSmall ? 18 : 26;
-  const iconSize = isHero ? 42 : isLarge ? 32 : isSmall ? 18 : 24;
+  const fontSize = isHero ? 48 : isLarge ? 36 : isSmall ? 18 : isMicro ? 14 : 26;
+  const iconSize = isHero ? 42 : isLarge ? 32 : isSmall ? 18 : isMicro ? 14 : 24;
 
   const textColor = color;
 
   return (
     <View style={styles.container}>
-      <View style={styles.logoRow}>
+      <View style={[styles.logoRow, isMicro && { gap: 4 }]}>
         {/* Authentic Benzene Hexagon Structure Emblem */}
         <Svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none">
           <Defs>
@@ -66,7 +67,7 @@ export const BenzinLogo: React.FC<BenzinLogoProps> = ({
 
         <Text style={[
           styles.text, 
-          { fontSize, color: textColor }
+          { fontSize, color: textColor, letterSpacing: isMicro ? 2 : 4 }
         ]}>
           BENZIN
         </Text>

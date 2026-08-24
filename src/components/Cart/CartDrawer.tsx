@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { X, Trash2, ArrowRight, ShoppingBag, Sparkles } from 'lucide-react-native';
 import { useRestaurantTheme } from '../../theme/ThemeContext';
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { CartItem } from '../../types';
 import { QuantitySelector } from '../ui/QuantitySelector';
 import { MENU_IMAGES, getItemImageSource } from '../../data/menu_images';
@@ -38,24 +39,52 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   onPlaceOrder,
 }) => {
   const { theme } = useRestaurantTheme();
+  const layout = useResponsiveLayout();
+  const isMobile = layout.isMobilePhone;
 
   if (!visible) return null;
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
-      <View style={styles.overlay}>
+      <View style={[styles.overlay, isMobile && { flexDirection: 'column', justifyContent: 'flex-end' }]}>
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
         
-        <View style={[styles.drawerContainer, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}>
+        <View style={[
+          styles.drawerContainer,
+          { backgroundColor: theme.cardColor, borderColor: theme.borderColor },
+          isMobile ? {
+            width: '100%',
+            maxWidth: '100%',
+            height: '85%',
+            borderTopLeftRadius: 28,
+            borderTopRightRadius: 28,
+            borderLeftWidth: 0,
+            borderTopWidth: 2,
+            paddingHorizontal: 16,
+            paddingTop: 16,
+          } : {
+            width: 440,
+            maxWidth: '88%',
+            height: '100%',
+            borderLeftWidth: 1,
+            paddingHorizontal: 24,
+            paddingTop: 20,
+          }
+        ]}>
+          {/* Mobile Handle Indicator */}
+          {isMobile && (
+            <View style={styles.mobileSheetHandle} />
+          )}
+
           {/* Header */}
           <View style={[styles.drawerHeader, { borderBottomColor: theme.borderColor }]}>
             <View style={styles.headerTitleGroup}>
-              <ShoppingBag size={22} color={theme.primaryColor} />
+              <ShoppingBag size={isMobile ? 18 : 22} color={theme.primaryColor} />
               <View>
-                <Text style={[styles.drawerTitle, { color: theme.textColor }]}>
+                <Text style={[styles.drawerTitle, { color: theme.textColor, fontSize: isMobile ? 16 : 18 }]}>
                   YOUR TABLE ORDER
                 </Text>
-                <Text style={[styles.drawerSubtitle, { color: theme.mutedTextColor }]}>
+                <Text style={[styles.drawerSubtitle, { color: theme.mutedTextColor, fontSize: isMobile ? 9 : 10 }]}>
                   TABLE {theme.tableNumber} • {theme.name || 'LOUNGE'}
                 </Text>
               </View>
@@ -65,7 +94,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               onPress={onClose}
               style={[styles.closeBtn, { backgroundColor: 'rgba(255,255,255,0.06)' }]}
             >
-              <X size={20} color={theme.textColor} />
+              <X size={18} color={theme.textColor} />
             </TouchableOpacity>
           </View>
 
@@ -73,10 +102,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
           {cart.length === 0 ? (
             <View style={styles.emptyContainer}>
               <View style={[styles.emptyIconBg, { backgroundColor: 'rgba(255,90,31,0.08)' }]}>
-                <ShoppingBag size={48} color={theme.primaryColor} />
+                <ShoppingBag size={isMobile ? 36 : 48} color={theme.primaryColor} />
               </View>
-              <Text style={[styles.emptyTitle, { color: theme.textColor }]}>Your Order is Empty</Text>
-              <Text style={[styles.emptyText, { color: theme.mutedTextColor }]}>
+              <Text style={[styles.emptyTitle, { color: theme.textColor, fontSize: isMobile ? 18 : 20 }]}>Your Order is Empty</Text>
+              <Text style={[styles.emptyText, { color: theme.mutedTextColor, fontSize: isMobile ? 12 : 14 }]}>
                 Explore our menu or launch the Digital Host to curate your table experience.
               </Text>
             </View>
@@ -92,17 +121,17 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   >
                     {/* Item Image */}
                     {imageSource ? (
-                      <Image source={imageSource} style={styles.itemImage} resizeMode="cover" />
+                      <Image source={imageSource} style={[styles.itemImage, isMobile && { width: 56, height: 56 }]} resizeMode="cover" />
                     ) : (
-                      <View style={[styles.placeholderImage, { backgroundColor: 'rgba(255,255,255,0.05)' }]}>
-                        <Text style={{ fontSize: 20 }}>�</Text>
+                      <View style={[styles.placeholderImage, { backgroundColor: 'rgba(255,255,255,0.05)' }, isMobile && { width: 56, height: 56 }]}>
+                        <Text style={{ fontSize: 18 }}>🍽️</Text>
                       </View>
                     )}
 
                     {/* Item Details */}
                     <View style={styles.itemDetails}>
                       <View style={styles.itemTitleRow}>
-                        <Text style={[styles.itemName, { color: theme.textColor }]}>
+                        <Text style={[styles.itemName, { color: theme.textColor, fontSize: isMobile ? 14 : 15 }]}>
                           {cartItem.item.name}
                         </Text>
                         <TouchableOpacity onPress={() => onRemoveItem(cartItem.cartItemId)}>
@@ -134,7 +163,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           onIncrease={() => onUpdateQuantity(cartItem.cartItemId, cartItem.quantity + 1)}
                           onDecrease={() => onUpdateQuantity(cartItem.cartItemId, cartItem.quantity - 1)}
                         />
-                        <Text style={[styles.itemPrice, { color: theme.secondaryColor }]}>
+                        <Text style={[styles.itemPrice, { color: theme.secondaryColor, fontSize: isMobile ? 14 : 16 }]}>
                           ${cartItem.itemTotal.toFixed(2)}
                         </Text>
                       </View>
@@ -160,17 +189,17 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
               <View style={[styles.summaryRow, styles.totalRow]}>
                 <Text style={[styles.totalLabel, { color: theme.textColor }]}>TOTAL</Text>
-                <Text style={[styles.totalVal, { color: theme.secondaryColor }]}>${total.toFixed(2)}</Text>
+                <Text style={[styles.totalVal, { color: theme.secondaryColor, fontSize: isMobile ? 20 : 24 }]}>${total.toFixed(2)}</Text>
               </View>
 
               <TouchableOpacity
                 onPress={onPlaceOrder}
                 activeOpacity={0.88}
-                style={[styles.checkoutBtn, { backgroundColor: '#10B981' }]}
+                style={[styles.checkoutBtn, { backgroundColor: '#10B981', paddingVertical: isMobile ? 12 : 16 }]}
               >
-                <Sparkles size={20} color="#FFFFFF" />
-                <Text style={styles.checkoutBtnText}>SEND ORDER TO KITCHEN</Text>
-                <ArrowRight size={20} color="#FFFFFF" />
+                <Sparkles size={isMobile ? 16 : 20} color="#FFFFFF" />
+                <Text style={[styles.checkoutBtnText, isMobile && { fontSize: 13 }]}>SEND ORDER TO KITCHEN</Text>
+                <ArrowRight size={isMobile ? 16 : 20} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
           )}
@@ -190,41 +219,41 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   drawerContainer: {
-    width: 440,
-    maxWidth: '88%',
-    height: '100%',
-    borderLeftWidth: 1,
-    paddingHorizontal: 24,
-    paddingTop: 20,
     paddingBottom: 24,
+  },
+  mobileSheetHandle: {
+    width: 36,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 12,
   },
   drawerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingBottom: 16,
+    paddingBottom: 14,
     borderBottomWidth: 1,
   },
   headerTitleGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   drawerTitle: {
-    fontSize: 18,
     fontWeight: '900',
     letterSpacing: 1,
   },
   drawerSubtitle: {
-    fontSize: 10,
     fontWeight: '700',
     letterSpacing: 1,
     marginTop: 2,
   },
   closeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -232,35 +261,33 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: 24,
   },
   emptyIconBg: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   emptyTitle: {
-    fontSize: 20,
     fontWeight: '800',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   emptyText: {
-    fontSize: 14,
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 20,
   },
   itemList: {
     flex: 1,
-    marginVertical: 16,
+    marginVertical: 12,
   },
   cartItemRow: {
     flexDirection: 'row',
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    gap: 14,
+    gap: 12,
   },
   itemImage: {
     width: 72,
@@ -284,38 +311,36 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   itemName: {
-    fontSize: 15,
     fontWeight: '800',
     flex: 1,
   },
   modifiersContainer: {
-    marginTop: 4,
+    marginTop: 2,
   },
   modifierTag: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
     marginTop: 1,
   },
   instructionText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
-    marginTop: 4,
+    marginTop: 2,
     fontStyle: 'italic',
   },
   itemBottomRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 10,
+    marginTop: 8,
   },
   itemPrice: {
-    fontSize: 16,
     fontWeight: '900',
   },
   drawerFooter: {
     borderTopWidth: 1,
-    paddingTop: 16,
-    gap: 10,
+    paddingTop: 12,
+    gap: 8,
   },
   summaryRow: {
     flexDirection: 'row',
@@ -323,43 +348,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   summaryLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
   },
   summaryVal: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
   },
   totalRow: {
-    marginTop: 6,
-    paddingTop: 8,
+    marginTop: 4,
+    paddingTop: 6,
   },
   totalLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '900',
     letterSpacing: 1,
   },
   totalVal: {
-    fontSize: 24,
     fontWeight: '900',
   },
   checkoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
-    paddingVertical: 16,
-    borderRadius: 18,
-    marginTop: 12,
-    shadowColor: '#0099FF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
+    gap: 10,
+    borderRadius: 16,
+    marginTop: 8,
   },
   checkoutBtnText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '900',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
 });

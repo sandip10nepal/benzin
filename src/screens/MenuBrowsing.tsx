@@ -6,8 +6,7 @@ import {
   TouchableOpacity, 
   ScrollView, 
   Image, 
-  TextInput,
-  useWindowDimensions 
+  TextInput
 } from 'react-native';
 import { Search, Plus, Minus, X, Check, ShoppingBag } from 'lucide-react-native';
 import { useRestaurantTheme } from '../theme/ThemeContext';
@@ -52,10 +51,11 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
 }) => {
   const { theme } = useRestaurantTheme();
   const layout = useResponsiveLayout();
+  const isMobile = layout.isMobilePhone;
 
   // Dynamic layout metrics based on iPad / Phone & Orientation
   const cardWidth = layout.cardWidthPercent;
-  const imageHeight = layout.isTablet ? 175 : 195;
+  const imageHeight = isMobile ? 145 : layout.isTablet ? 175 : 195;
 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -212,11 +212,11 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
       />
 
       {/* Main Content Area */}
-      <View style={styles.content}>
+      <View style={[styles.content, { paddingHorizontal: layout.contentPadding }]}>
         {/* Category Navigation Tabs & Global Search */}
-        <View style={styles.topControlRow}>
-          {/* Category Tabs */}
-          <View style={styles.tabsRow}>
+        <View style={[styles.topControlRow, isMobile && { flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}>
+          {/* Category Tabs Scroll View */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsRow}>
             {superCategories.map((cat, idx) => {
               const isActive = activeSuperCatId === cat._id && !isGlobalSearch;
               return (
@@ -232,21 +232,22 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
                     styles.tabPill,
                     { backgroundColor: theme.cardColor, borderColor: theme.borderColor },
                     isActive && { backgroundColor: theme.primaryColor, borderColor: theme.primaryColor },
+                    isMobile && { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14 }
                   ]}
                 >
-                  <Text style={[styles.tabLabel, { color: isActive ? '#FFFFFF' : theme.textColor }]}>
+                  <Text style={[styles.tabLabel, { color: isActive ? '#FFFFFF' : theme.textColor, fontSize: isMobile ? 11 : 12 }]}>
                     {cat.icon ? `${cat.icon} ` : ''}{cat.name}
                   </Text>
                 </TouchableOpacity>
               );
             })}
-          </View>
+          </ScrollView>
 
           {/* Search Bar */}
-          <View style={[styles.searchBox, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}>
-            <Search size={18} color={theme.mutedTextColor} />
+          <View style={[styles.searchBox, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }, isMobile && { minWidth: '100%', paddingVertical: 8 }]}>
+            <Search size={isMobile ? 16 : 18} color={theme.mutedTextColor} />
             <TextInput
-              style={[styles.searchInput, { color: theme.textColor }]}
+              style={[styles.searchInput, { color: theme.textColor, fontSize: isMobile ? 12 : 13 }]}
               placeholder="Search entire menu..."
               placeholderTextColor={theme.mutedTextColor}
               value={searchQuery}
@@ -264,7 +265,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
         {isGlobalSearch && (
           <View style={styles.globalSearchBanner}>
             <Text style={[styles.globalSearchText, { color: theme.secondaryColor }]}>
-              🔍 GLOBAL SEARCH RESULT: {filteredItems.length} ITEMS FOUND FOR "{searchQuery.toUpperCase()}" ACROSS ALL CATEGORIES
+              🔍 GLOBAL SEARCH RESULT: {filteredItems.length} ITEMS FOUND FOR "{searchQuery.toUpperCase()}"
             </Text>
           </View>
         )}
@@ -284,11 +285,12 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
                       styles.subcatPill,
                       { backgroundColor: theme.cardColor, borderColor: theme.borderColor },
                       isActive && { backgroundColor: theme.secondaryColor, borderColor: theme.secondaryColor },
+                      isMobile && { paddingHorizontal: 10, paddingVertical: 5 }
                     ]}
                   >
                     <Text style={[
                       styles.subcatText, 
-                      { color: isActive ? '#000000' : theme.textColor }
+                      { color: isActive ? '#000000' : theme.textColor, fontSize: isMobile ? 10 : 11 }
                     ]}>
                       {sub.name}
                     </Text>
@@ -304,27 +306,27 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
           <TouchableOpacity
             onPress={onOpenMixLab}
             activeOpacity={0.88}
-            style={[styles.mixLabCtaBanner, { backgroundColor: theme.cardColor, borderColor: '#E5B13A', borderWidth: 2 }]}
+            style={[styles.mixLabCtaBanner, { backgroundColor: theme.cardColor, borderColor: '#E5B13A', borderWidth: 2 }, isMobile && { paddingHorizontal: 14, paddingVertical: 10 }]}
           >
             <View style={styles.mixLabCtaLeft}>
-              <Text style={{ fontSize: 32 }}>🧪</Text>
-              <View>
+              <Text style={{ fontSize: isMobile ? 24 : 32 }}>🧪</Text>
+              <View style={{ flexShrink: 1 }}>
                 <View style={[styles.mixLabPill, { backgroundColor: 'rgba(229,177,58,0.12)' }]}>
                   <Text style={[styles.mixLabPillText, { color: '#E5B13A' }]}>FLAVOR LABORATORY</Text>
                 </View>
-                <Text style={[styles.mixLabCtaTitle, { color: theme.textColor }]}>
+                <Text style={[styles.mixLabCtaTitle, { color: theme.textColor, fontSize: isMobile ? 13 : 16 }]} numberOfLines={1}>
                   CREATE YOUR OWN HOOKAH MIX
                 </Text>
               </View>
             </View>
-            <View style={[styles.mixLabCtaBtn, { backgroundColor: '#E5B13A' }]}>
-              <Text style={[styles.mixLabCtaBtnText, { color: '#000000' }]}>ENTER MIX LAB</Text>
+            <View style={[styles.mixLabCtaBtn, { backgroundColor: '#E5B13A', paddingHorizontal: isMobile ? 12 : 18 }]}>
+              <Text style={[styles.mixLabCtaBtnText, { color: '#000000', fontSize: isMobile ? 10 : 12 }]}>MIX LAB</Text>
             </View>
           </TouchableOpacity>
         )}
 
         {/* Menu Items Grid */}
-        <ScrollView contentContainerStyle={styles.gridContainer} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.gridContainer, { gap: isMobile ? 12 : 20 }]} showsVerticalScrollIndicator={false}>
           {filteredItems.map((item, idx) => {
             const imageSource = getItemImageSource(item);
             const isPortraitCategory = item.category === 'drinks' || item.category === 'hookah';
@@ -354,7 +356,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
                     />
                   ) : (
                     <View style={[styles.placeholderImage, { backgroundColor: 'rgba(255,255,255,0.05)' }]}>
-                      <Text style={{ fontSize: 44 }}>
+                      <Text style={{ fontSize: isMobile ? 32 : 44 }}>
                         {item.emoji || '🍽️'}
                       </Text>
                     </View>
@@ -384,27 +386,27 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
                 </View>
 
                 {/* Card Body */}
-                <View style={styles.cardBody}>
+                <View style={[styles.cardBody, isMobile && { padding: 12, gap: 4 }]}>
                   <View style={styles.titleRow}>
-                    <Text style={[styles.itemName, { color: theme.textColor }]} numberOfLines={1}>
+                    <Text style={[styles.itemName, { color: theme.textColor, fontSize: isMobile ? 14 : 18 }]} numberOfLines={1}>
                       {item.name}
                     </Text>
-                    <Text style={[styles.itemPrice, { color: theme.secondaryColor }]}>
+                    <Text style={[styles.itemPrice, { color: theme.secondaryColor, fontSize: isMobile ? 14 : 18 }]}>
                       ${item.price.toFixed(2)}
                     </Text>
                   </View>
 
-                  <Text style={[styles.itemDesc, { color: theme.mutedTextColor }]} numberOfLines={2}>
+                  <Text style={[styles.itemDesc, { color: theme.mutedTextColor, fontSize: isMobile ? 10 : 12, height: isMobile ? 28 : 36 }]} numberOfLines={2}>
                     {item.description}
                   </Text>
 
-                  {/* HIGH VISIBILITY ADD BUTTON BAR (+ ADD TO ORDER & STEPPER) */}
+                  {/* HIGH VISIBILITY ADD BUTTON BAR */}
                   {(() => {
                     if (item.available === false) {
                       return (
                         <View style={styles.cardBtnRow}>
                           <View style={[styles.quickAddBtn, { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: theme.borderColor, borderWidth: 1 }]}>
-                            <Text style={[styles.quickAddText, { color: theme.mutedTextColor }]}>UNAVAILABLE</Text>
+                            <Text style={[styles.quickAddText, { color: theme.mutedTextColor, fontSize: isMobile ? 10 : 13 }]}>UNAVAILABLE</Text>
                           </View>
                         </View>
                       );
@@ -412,36 +414,36 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
 
                     const qty = itemQuantities[item.id] || 0;
                     return (
-                      <View style={styles.cardBtnRow}>
+                      <View style={[styles.cardBtnRow, isMobile && { gap: 6, marginTop: 4 }]}>
                         {qty === 0 ? (
                           <TouchableOpacity
                             onPress={(e) => handleQuickAdd(item, e)}
                             activeOpacity={0.8}
-                            style={[styles.quickAddBtn, { backgroundColor: 'transparent', borderColor: '#22C55E', borderWidth: 1.5 }]}
+                            style={[styles.quickAddBtn, { backgroundColor: 'transparent', borderColor: '#22C55E', borderWidth: 1.5 }, isMobile && { paddingVertical: 8 }]}
                           >
-                            <Plus size={16} color="#22C55E" />
-                            <Text style={[styles.quickAddText, { color: '#22C55E' }]}>+ ADD</Text>
+                            <Plus size={isMobile ? 14 : 16} color="#22C55E" />
+                            <Text style={[styles.quickAddText, { color: '#22C55E', fontSize: isMobile ? 11 : 13 }]}>+ ADD</Text>
                           </TouchableOpacity>
                         ) : (
                           <View style={styles.browseStepperRow}>
                             <TouchableOpacity
                               onPress={(e) => handleUpdateItemQty(item, -1, e)}
                               activeOpacity={0.8}
-                              style={[styles.browseStepBtn, { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: theme.borderColor }]}
+                              style={[styles.browseStepBtn, { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: theme.borderColor }, isMobile && { width: 28, height: 28 }]}
                             >
-                              <Minus size={14} color={theme.textColor} />
+                              <Minus size={isMobile ? 12 : 14} color={theme.textColor} />
                             </TouchableOpacity>
 
-                            <View style={[styles.browseCountBadge, { backgroundColor: '#2C2B2A' }]}>
-                              <Text style={styles.browseCountText}>{qty}</Text>
+                            <View style={[styles.browseCountBadge, { backgroundColor: '#2C2B2A' }, isMobile && { height: 28 }]}>
+                              <Text style={[styles.browseCountText, isMobile && { fontSize: 11 }]}>{qty}</Text>
                             </View>
 
                             <TouchableOpacity
                               onPress={(e) => handleUpdateItemQty(item, 1, e)}
                               activeOpacity={0.8}
-                              style={[styles.browseStepBtn, { backgroundColor: '#2C2B2A', borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1 }]}
+                              style={[styles.browseStepBtn, { backgroundColor: '#2C2B2A', borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1 }, isMobile && { width: 28, height: 28 }]}
                             >
-                              <Plus size={14} color="#FFFFFF" />
+                              <Plus size={isMobile ? 12 : 14} color="#FFFFFF" />
                             </TouchableOpacity>
                           </View>
                         )}
@@ -450,9 +452,9 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
                           <TouchableOpacity
                             onPress={() => onSelectItem(item)}
                             activeOpacity={0.8}
-                            style={[styles.customizeBtn, { borderColor: '#E5B13A', borderWidth: 1.5 }]}
+                            style={[styles.customizeBtn, { borderColor: '#E5B13A', borderWidth: 1.5 }, isMobile && { paddingHorizontal: 10, paddingVertical: 7 }]}
                           >
-                            <Text style={[styles.customizeBtnText, { color: '#E5B13A' }]}>OPTIONS</Text>
+                            <Text style={[styles.customizeBtnText, { color: '#E5B13A', fontSize: isMobile ? 9 : 11 }]}>OPTIONS</Text>
                           </TouchableOpacity>
                         )}
                       </View>
@@ -488,9 +490,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.4,
@@ -499,105 +501,96 @@ const styles = StyleSheet.create({
   },
   toastText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '900',
     letterSpacing: 0.5,
   },
   content: {
     flex: 1,
-    paddingHorizontal: 28,
-    paddingTop: 16,
+    paddingTop: 12,
   },
   topControlRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 14,
-    gap: 16,
+    marginBottom: 12,
+    gap: 12,
   },
   tabsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
   },
   tabPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 18,
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 16,
     borderWidth: 1.5,
   },
-  tabIcon: {
-    fontSize: 15,
-  },
   tabLabel: {
-    fontSize: 12,
     fontWeight: '900',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 18,
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 16,
     borderWidth: 1.5,
-    minWidth: 320,
+    minWidth: 260,
   },
   searchInput: {
     flex: 1,
-    fontSize: 13,
     padding: 0,
   },
   globalSearchBanner: {
-    marginBottom: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    marginBottom: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
     backgroundColor: 'rgba(229,177,58,0.1)',
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: 'rgba(229,177,58,0.3)',
   },
   globalSearchText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '900',
-    letterSpacing: 0.8,
+    letterSpacing: 0.5,
   },
   subcatRow: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   subcatScroll: {
-    gap: 8,
+    gap: 6,
   },
   subcatPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 12,
     borderWidth: 1,
   },
   subcatText: {
-    fontSize: 11,
     fontWeight: '800',
-    letterSpacing: 0.8,
+    letterSpacing: 0.5,
   },
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 20,
-    paddingBottom: 24,
+    paddingBottom: 20,
   },
   itemCard: {
-    borderRadius: 22,
+    borderRadius: 18,
     borderWidth: 1.5,
     overflow: 'hidden',
   },
   cardImageWrapper: {
     width: '100%',
     position: 'relative',
-    backgroundColor: 'rgba(0,0,0,0.3)',
   },
   cardImage: {
     width: '100%',
@@ -611,21 +604,21 @@ const styles = StyleSheet.create({
   },
   cardBadge: {
     position: 'absolute',
-    top: 12,
-    left: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 12,
+    top: 8,
+    left: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
   },
   cardBadgeText: {
     color: '#FFFFFF',
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: '900',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
   cardBody: {
-    padding: 18,
-    gap: 8,
+    padding: 14,
+    gap: 6,
   },
   titleRow: {
     flexDirection: 'row',
@@ -633,113 +626,102 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   itemName: {
-    fontSize: 18,
     fontWeight: '900',
     flex: 1,
-    lineHeight: 23,
   },
   itemPrice: {
-    fontSize: 18,
     fontWeight: '900',
-    marginLeft: 10,
+    marginLeft: 6,
   },
   itemDesc: {
-    fontSize: 12,
-    lineHeight: 18,
-    height: 36,
+    lineHeight: 15,
   },
   cardBtnRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginTop: 8,
+    gap: 8,
+    marginTop: 6,
   },
   quickAddBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 16,
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 12,
   },
   quickAddText: {
-    color: '#FFFFFF',
-    fontSize: 13,
     fontWeight: '900',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
   customizeBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 11,
-    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 12,
     borderWidth: 1.5,
   },
   customizeBtnText: {
-    fontSize: 11,
     fontWeight: '900',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
   mixLabCtaBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
     borderWidth: 2,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   mixLabCtaLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 10,
+    flex: 1,
   },
   mixLabPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
     marginBottom: 2,
   },
   mixLabPillText: {
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: '900',
-    letterSpacing: 1.2,
+    letterSpacing: 1,
   },
   mixLabCtaTitle: {
-    fontSize: 16,
     fontWeight: '900',
     letterSpacing: 0.5,
   },
   mixLabCtaBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
   },
   mixLabCtaBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
     fontWeight: '900',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
   browseStepperRow: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
   },
   browseStepBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
+    width: 30,
+    height: 30,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
   },
   browseCountBadge: {
     flex: 1,
-    height: 32,
-    borderRadius: 10,
+    height: 30,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -750,18 +732,18 @@ const styles = StyleSheet.create({
   },
   selectedCountBadge: {
     position: 'absolute',
-    top: 10,
-    right: 10,
+    top: 8,
+    right: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
   },
   selectedCountText: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '900',
     letterSpacing: 0.5,
   },
