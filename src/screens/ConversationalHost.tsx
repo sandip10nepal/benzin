@@ -1139,10 +1139,13 @@ const styles = StyleSheet.create({
     maxWidth: 1040,
     alignSelf: 'center',
     width: '100%',
+    justifyContent: 'center',
   },
   welcomeCategoryContainer: {
-    paddingVertical: 12,
+    flexGrow: 1,
+    justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: 20,
     width: '100%',
   },
   topCardsRow: {
@@ -1444,11 +1447,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 16,
+    flexWrap: 'wrap',
+    gap: 8,
   },
   mixLabCtaLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    flexShrink: 1,
   },
   mixLabCtaTitle: {
     fontWeight: '900',
