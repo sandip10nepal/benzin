@@ -6,35 +6,26 @@ import {
   TouchableOpacity, 
   ScrollView, 
   Image, 
-  Animated,
   Platform 
 } from 'react-native';
 import { 
   Bot, 
   ArrowRight, 
+  ArrowLeft,
   Check, 
-  Flame, 
-  Utensils, 
-  Wine, 
-  RotateCcw,
   ShoppingBag,
   Plus,
   Minus,
   Trash2,
   Sparkles,
-  X
+  X,
+  RotateCcw
 } from 'lucide-react-native';
 import { useRestaurantTheme } from '../theme/ThemeContext';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { BenzinHeader } from '../components/Navigation/BenzinHeader';
-import { BottomNavigation } from '../components/Navigation/BottomNavigation';
 import { MenuItem, SelectedModifier, CartItem, ConversationStep } from '../types';
-import { 
-  CAVALLI_HOOKAH_ITEMS, 
-  CAVALLI_FOOD_ITEMS, 
-  CAVALLI_DRINK_ITEMS 
-} from '../data/mockRestaurant';
-import { MENU_IMAGES, getItemImageSource } from '../data/menu_images';
+import { getItemImageSource } from '../data/menu_images';
 
 interface ConversationalHostProps {
   onBackToHome: () => void;
@@ -49,7 +40,7 @@ interface ConversationalHostProps {
   onRemoveItem?: (cartItemId: string) => void;
   onAddToCart: (item: MenuItem, qty: number, modifiers: SelectedModifier[], notes?: string) => void;
   onPlaceOrder: () => void;
-  allCategories?: MenuCategory[];
+  allCategories?: any[];
   allMenuItems?: MenuItem[];
   initialStep?: ConversationStep;
 }
@@ -82,6 +73,8 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
 }) => {
   const { theme } = useRestaurantTheme();
   const layout = useResponsiveLayout();
+  const isMobile = layout.isMobilePhone;
+
   const [step, setStep] = React.useState<ConversationalStep>(
     (initialStep as ConversationalStep) || 'welcome_category'
   );
@@ -92,7 +85,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
     }
   }, [initialStep]);
 
-  // Track if full host speech prompt overlay is visible (only pops up when AI Host icon is clicked)
+  // Track if full host speech prompt overlay is visible
   const [isSpeechOverlayVisible, setIsSpeechOverlayVisible] = useState<boolean>(false);
 
   // Dynamic speech text computed for current conversational step
@@ -217,7 +210,6 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
       onAddToCart(item, 1, []);
       showToast(item.name);
     } else if (delta < 0) {
-      // Sync decrease/removal directly with cart order state
       const existingCartItem = cartItems?.find(ci => ci.item.id === item.id);
       if (existingCartItem) {
         if (existingCartItem.quantity > 1 && onUpdateQuantity) {
@@ -246,7 +238,6 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
       }
     }
 
-    // Default fallback
     return [
       { _id: 'cat_super_hookah', name: 'HOOKAH', icon: '💨', color: '#0099FF' },
       { _id: 'cat_super_food', name: 'FOOD & DINING', icon: '🍔', color: '#E5B13A' },
@@ -312,9 +303,36 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
     return (allMenuItems || []).filter(item => item.category === 'hookah');
   }, [allMenuItems]);
 
+  // Compute next action label for lightweight inline button
+  const nextActionConfig = useMemo(() => {
+    if (step === 'welcome_category') return null;
+    if (step === 'select_hookah') {
+      const unvisited = getUnvisitedNextStep('select_hookah');
+      return {
+        label: unvisited === 'prompt_drink' ? 'DRINK SELECTION →' : 'FOOD SELECTION →',
+        action: () => handleProceedToNextStep(unvisited || 'review_summary')
+      };
+    }
+    if (step === 'select_food') {
+      const unvisited = getUnvisitedNextStep('select_food');
+      return {
+        label: unvisited === 'prompt_drink' ? 'DRINK SELECTION →' : unvisited === 'select_hookah' ? 'HOOKAH SELECTION →' : 'REVIEW ORDER →',
+        action: () => handleProceedToNextStep(unvisited || 'review_summary')
+      };
+    }
+    if (step === 'select_drink') {
+      const unvisited = getUnvisitedNextStep('select_drink');
+      return {
+        label: unvisited === 'prompt_food' ? 'FOOD SELECTION →' : unvisited === 'select_hookah' ? 'HOOKAH SELECTION →' : 'REVIEW ORDER →',
+        action: () => handleProceedToNextStep(unvisited || 'review_summary')
+      };
+    }
+    return null;
+  }, [step, visitedSuperCategorySteps, hasFood, hasDrinks, hasHookahs]);
+
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-      {/* Toast Notification Banner (Floating at Bottom) */}
+      {/* Toast Notification Banner */}
       {toastMessage && (
         <View style={[styles.floatingToast, { backgroundColor: theme.primaryColor }]}>
           <ShoppingBag size={18} color="#FFFFFF" />
@@ -334,7 +352,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
         cartCount={cartCount}
       />
 
-      {/* Floating AI Digital Host Speech Prompt Overlay (Appears ONLY when the AI Host icon is clicked) */}
+      {/* Speech Overlay Modal */}
       {isSpeechOverlayVisible && (
         <View style={styles.modalOverlayContainer}>
           <TouchableOpacity 
@@ -377,13 +395,36 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
         </View>
       )}
 
-      {/* Main Conversational Host Area (Cards Pushed All The Way Up for Maximum Space) */}
-      <View style={styles.body}>
+      {/* Main Content Area - Maximized Screen Room (No Footer) */}
+      <View style={[styles.body, isMobile && { paddingHorizontal: layout.contentPadding, paddingVertical: 8 }]}>
+        
+        {/* Inline Light-Weight Step Header Navigation Bar (Unboxed & Clean) */}
+        <View style={styles.cleanStepHeader}>
+          <TouchableOpacity onPress={handleStepBack} style={styles.cleanNavBtn} activeOpacity={0.7}>
+            <ArrowLeft size={16} color={theme.textColor} />
+            <Text style={[styles.cleanNavText, { color: theme.textColor }]}>
+              {currentStepIndex === 0 ? 'HOME' : 'BACK'}
+            </Text>
+          </TouchableOpacity>
+
+          <Text style={[styles.stepTitleText, { color: theme.secondaryColor }]}>
+            {step === 'welcome_category' ? 'SELECT CATEGORY' : step === 'select_hookah' ? 'HOOKAHS' : step === 'select_food' ? 'FOOD MENU' : step === 'select_drink' ? 'CRAFT DRINKS' : 'ORDER REVIEW'}
+          </Text>
+
+          {nextActionConfig ? (
+            <TouchableOpacity onPress={nextActionConfig.action} style={[styles.cleanNavBtn, styles.cleanNextBtn]} activeOpacity={0.7}>
+              <Text style={[styles.cleanNavText, { color: theme.primaryColor }]}>{nextActionConfig.label}</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={{ width: 60 }} />
+          )}
+        </View>
+
         {/* Dynamic Content Interactive Choices */}
         <View style={styles.interactiveArea}>
           {/* STEP 1: INITIAL CATEGORY CHOICE */}
           {step === 'welcome_category' && (
-            <View style={styles.categoryChoicesRow}>
+            <ScrollView contentContainerStyle={[styles.categoryChoicesRow, isMobile && { flexDirection: 'column', gap: 12 }]}>
               {superCategories.map((superObj) => {
                 const superName = superObj.name.toLowerCase();
                 let targetStep: ConversationalStep = 'select_food';
@@ -405,48 +446,50 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
                     key={superObj._id}
                     activeOpacity={0.88}
                     onPress={() => setStep(targetStep)}
-                    style={[styles.categoryChoiceCard, { backgroundColor: theme.cardColor, borderColor: cardColor }]}
+                    style={[
+                      styles.categoryChoiceCard,
+                      { backgroundColor: theme.cardColor, borderColor: cardColor },
+                      isMobile && { padding: 18, width: '100%' }
+                    ]}
                   >
-                    <Text style={styles.choiceIcon}>{superObj.icon || '📋'}</Text>
-                    <Text style={[styles.choiceTitle, { color: theme.textColor }]}>{superObj.name}</Text>
+                    <Text style={[styles.choiceIcon, isMobile && { fontSize: 36, marginBottom: 8 }]}>{superObj.icon || '📋'}</Text>
+                    <Text style={[styles.choiceTitle, { color: theme.textColor }, isMobile && { fontSize: 18 }]}>{superObj.name}</Text>
                     <View style={[styles.choiceBadge, { backgroundColor: cardColor }]}>
                       <Text style={styles.choiceBadgeText}>{badgeText}</Text>
                     </View>
                   </TouchableOpacity>
                 );
               })}
-            </View>
+            </ScrollView>
           )}
 
-          {/* STEP 2: SELECT HOOKAH (MULTI-SELECTION ALLOWED & MIX LAB CTA) */}
+          {/* STEP 2: SELECT HOOKAH */}
           {step === 'select_hookah' && (
             <View style={{ flex: 1 }}>
-              {/* Header Control Row: Mix Lab & View Order Pill */}
-              <View style={styles.topControlHeaderRow}>
-                {onOpenMixLab && (
-                  <TouchableOpacity
-                    onPress={onOpenMixLab}
-                    activeOpacity={0.88}
-                    style={[styles.mixLabCtaBanner, { backgroundColor: theme.cardColor, borderColor: '#3B82F6', borderWidth: 2, flex: 1, marginBottom: 0 }]}
-                  >
-                    <View style={styles.mixLabCtaLeft}>
-                      <Text style={{ fontSize: 24 }}>🧪</Text>
-                      <View>
-                        <Text style={[styles.mixLabCtaTitle, { color: theme.textColor, fontSize: 13 }]}>
-                          CREATE CUSTOM HOOKAH MIX
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={[styles.mixLabCtaBtn, { backgroundColor: '#3B82F6', paddingVertical: 6, paddingHorizontal: 12 }]}>
-                      <Text style={[styles.mixLabCtaBtnText, { fontSize: 10 }]}>MIX LAB</Text>
-                      <ArrowRight size={14} color="#FFFFFF" />
-                    </View>
-                  </TouchableOpacity>
-                )}
+              {onOpenMixLab && (
+                <TouchableOpacity
+                  onPress={onOpenMixLab}
+                  activeOpacity={0.88}
+                  style={[styles.mixLabCtaBanner, { backgroundColor: theme.cardColor, borderColor: '#3B82F6', borderWidth: 2 }, isMobile && { paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8 }]}
+                >
+                  <View style={styles.mixLabCtaLeft}>
+                    <Text style={{ fontSize: isMobile ? 20 : 24 }}>🧪</Text>
+                    <Text style={[styles.mixLabCtaTitle, { color: theme.textColor, fontSize: isMobile ? 12 : 13 }]}>
+                      CREATE CUSTOM HOOKAH MIX
+                    </Text>
+                  </View>
+                  <View style={[styles.mixLabCtaBtn, { backgroundColor: '#3B82F6', paddingVertical: 4, paddingHorizontal: 10 }]}>
+                    <Text style={[styles.mixLabCtaBtnText, { fontSize: 10 }]}>MIX LAB →</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
 
-              </View>
-
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cardsScrollRow}>
+              <ScrollView
+                horizontal={!isMobile}
+                showsHorizontalScrollIndicator={false}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={[styles.cardsScrollRow, isMobile && { flexDirection: 'column', gap: 12 }]}
+              >
                 {hookahList.map((hookah, idx) => {
                   const imageSource = getItemImageSource(hookah);
                   const count = draftCounts[hookah.id] || 0;
@@ -459,50 +502,49 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
                       style={[
                         styles.portraitProductCard,
                         { backgroundColor: theme.cardColor, borderColor: theme.borderColor },
+                        isMobile && { width: '100%' },
                         count > 0 && { borderColor: '#10B981', borderWidth: 2.5 }
                       ]}
                     >
-                      {/* Portrait Image View for Full Aspect Ratio */}
-                      <View style={styles.portraitImageWrapper}>
+                      <View style={[styles.portraitImageWrapper, isMobile && { height: 160 }]}>
                         {imageSource ? (
                           <Image source={imageSource} style={styles.portraitImage} resizeMode="contain" />
                         ) : (
                           <View style={styles.productPlaceholder}>
-                            <Text style={{ fontSize: 48 }}>💨</Text>
+                            <Text style={{ fontSize: isMobile ? 36 : 48 }}>💨</Text>
                           </View>
                         )}
                         {count > 0 && (
                           <View style={[styles.selectedCountBadge, { backgroundColor: '#10B981' }]}>
-                            <Check size={14} color="#FFFFFF" />
+                            <Check size={12} color="#FFFFFF" />
                             <Text style={styles.selectedCountText}>{count} in order</Text>
                           </View>
                         )}
                       </View>
 
-                      <View style={styles.productBody}>
+                      <View style={[styles.productBody, isMobile && { padding: 10, gap: 2 }]}>
                         <View style={styles.productTitleRow}>
-                          <Text style={[styles.productName, { color: theme.textColor }]} numberOfLines={2}>
+                          <Text style={[styles.productName, { color: theme.textColor, fontSize: isMobile ? 14 : 17 }]} numberOfLines={1}>
                             {hookah.name}
                           </Text>
-                          <Text style={[styles.productPrice, { color: theme.secondaryColor }]}>
+                          <Text style={[styles.productPrice, { color: theme.secondaryColor, fontSize: isMobile ? 14 : 17 }]}>
                             ${hookah.price.toFixed(2)}
                           </Text>
                         </View>
 
-                        <Text style={[styles.productDesc, { color: theme.mutedTextColor }]} numberOfLines={2}>
+                        <Text style={[styles.productDesc, { color: theme.mutedTextColor, fontSize: isMobile ? 11 : 12, height: isMobile ? 26 : 32 }]} numberOfLines={2}>
                           {hookah.description}
                         </Text>
 
-                        {/* Action Buttons: Add & Stepper */}
                         <View style={styles.cardActionsRow}>
                           {count === 0 ? (
                             <TouchableOpacity
                               onPress={() => handleItemQuantityChange(hookah, 1)}
                               activeOpacity={0.8}
-                              style={[styles.multiAddBtn, { backgroundColor: 'transparent', borderColor: '#22C55E', borderWidth: 1.5, flex: 1 }]}
+                              style={[styles.multiAddBtn, { backgroundColor: 'transparent', borderColor: '#22C55E', borderWidth: 1.5, flex: 1 }, isMobile && { paddingVertical: 6 }]}
                             >
-                              <Plus size={16} color="#22C55E" />
-                              <Text style={[styles.multiAddBtnText, { color: '#22C55E' }]}>+ ADD</Text>
+                              <Plus size={14} color="#22C55E" />
+                              <Text style={[styles.multiAddBtnText, { color: '#22C55E', fontSize: 11 }]}>+ ADD TO ORDER</Text>
                             </TouchableOpacity>
                           ) : (
                             <View style={styles.quantityStepperRow}>
@@ -511,7 +553,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
                                 activeOpacity={0.8}
                                 style={[styles.stepperBtn, { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: theme.borderColor }]}
                               >
-                                <Minus size={15} color={theme.textColor} />
+                                <Minus size={14} color={theme.textColor} />
                               </TouchableOpacity>
 
                               <View style={[styles.stepperCountBadge, { backgroundColor: '#2C2B2A' }]}>
@@ -523,19 +565,9 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
                                 activeOpacity={0.8}
                                 style={[styles.stepperBtn, { backgroundColor: '#2C2B2A', borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1 }]}
                               >
-                                <Plus size={15} color="#FFFFFF" />
+                                <Plus size={14} color="#FFFFFF" />
                               </TouchableOpacity>
                             </View>
-                          )}
-
-                          {onSelectItem && (
-                            <TouchableOpacity
-                              onPress={() => onSelectItem(hookah)}
-                              activeOpacity={0.8}
-                              style={[styles.customizeBtn, { borderColor: '#E5B13A', borderWidth: 1.5 }]}
-                            >
-                              <Text style={[styles.customizeBtnText, { color: '#E5B13A' }]}>DETAILS</Text>
-                            </TouchableOpacity>
                           )}
                         </View>
                       </View>
@@ -548,63 +580,64 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
 
           {/* STEP 3: PROMPT FOOD */}
           {step === 'prompt_food' && (
-            <View style={styles.promptActionsRow}>
+            <ScrollView contentContainerStyle={[styles.promptActionsRow, isMobile && { flexDirection: 'column', gap: 12 }]}>
               <TouchableOpacity
                 activeOpacity={0.88}
                 onPress={() => setStep('select_food')}
-                style={[styles.promptChoiceCard, { backgroundColor: theme.cardColor, borderColor: theme.primaryColor }]}
+                style={[styles.promptChoiceCard, { backgroundColor: theme.cardColor, borderColor: theme.primaryColor }, isMobile && { padding: 20, width: '100%' }]}
               >
-                <Text style={styles.promptIcon}>🍔</Text>
-                <Text style={[styles.promptTitle, { color: theme.textColor }]}>YES, SHOW ME FOOD</Text>
+                <Text style={[styles.promptIcon, isMobile && { fontSize: 36, marginBottom: 8 }]}>🍔</Text>
+                <Text style={[styles.promptTitle, { color: theme.textColor }, isMobile && { fontSize: 18 }]}>YES, SHOW ME FOOD</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 activeOpacity={0.88}
                 onPress={() => setStep('prompt_drink')}
-                style={[styles.promptChoiceCard, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}
+                style={[styles.promptChoiceCard, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }, isMobile && { padding: 20, width: '100%' }]}
               >
-                <Text style={styles.promptIcon}>⏩</Text>
-                <Text style={[styles.promptTitle, { color: theme.textColor }]}>SKIP TO DRINKS</Text>
+                <Text style={[styles.promptIcon, isMobile && { fontSize: 36, marginBottom: 8 }]}>⏩</Text>
+                <Text style={[styles.promptTitle, { color: theme.textColor }, isMobile && { fontSize: 18 }]}>SKIP TO DRINKS</Text>
               </TouchableOpacity>
-            </View>
+            </ScrollView>
           )}
 
-          {/* STEP 4: SELECT FOOD (WITH SUBCATEGORY NAVIGATION) */}
+          {/* STEP 4: SELECT FOOD */}
           {step === 'select_food' && (
             <View style={{ flex: 1 }}>
-              {/* Subcategories Bar + View Order Pill */}
-              <View style={styles.topControlHeaderRow}>
-                <View style={[styles.subcatBar, { flex: 1, marginBottom: 0 }]}>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subcatScroll}>
-                    {foodSubcategories.map((sub, idx) => {
-                      const isActive = foodSubcategory === sub;
-                      return (
-                        <TouchableOpacity
-                          key={sub || `food_sub_${idx}`}
-                          activeOpacity={0.8}
-                          onPress={() => setFoodSubcategory(sub)}
-                          style={[
-                            styles.subcatPill,
-                            { backgroundColor: theme.cardColor, borderColor: theme.borderColor },
-                            isActive && { backgroundColor: theme.secondaryColor, borderColor: theme.secondaryColor },
-                          ]}
-                        >
-                          <Text style={[
-                            styles.subcatText, 
-                            { color: isActive ? '#000000' : theme.textColor }
-                          ]}>
-                            {sub}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-
+              <View style={styles.subcatBar}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subcatScroll}>
+                  {foodSubcategories.map((sub, idx) => {
+                    const isActive = foodSubcategory === sub;
+                    return (
+                      <TouchableOpacity
+                        key={sub || `food_sub_${idx}`}
+                        activeOpacity={0.8}
+                        onPress={() => setFoodSubcategory(sub)}
+                        style={[
+                          styles.subcatPill,
+                          { backgroundColor: theme.cardColor, borderColor: theme.borderColor },
+                          isActive && { backgroundColor: theme.secondaryColor, borderColor: theme.secondaryColor },
+                          isMobile && { paddingHorizontal: 12, paddingVertical: 6 }
+                        ]}
+                      >
+                        <Text style={[
+                          styles.subcatText, 
+                          { color: isActive ? '#000000' : theme.textColor, fontSize: isMobile ? 11 : 13 }
+                        ]}>
+                          {sub}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
               </View>
 
-              {/* Cards Row */}
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cardsScrollRow}>
+              <ScrollView
+                horizontal={!isMobile}
+                showsHorizontalScrollIndicator={false}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={[styles.cardsScrollRow, isMobile && { flexDirection: 'column', gap: 12 }]}
+              >
                 {filteredFoodItems.map((food, idx) => {
                   const imageSource = getItemImageSource(food);
                   const count = draftCounts[food.id] || 0;
@@ -617,50 +650,49 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
                       style={[
                         styles.portraitProductCard,
                         { backgroundColor: theme.cardColor, borderColor: theme.borderColor },
+                        isMobile && { width: '100%' },
                         count > 0 && { borderColor: '#10B981', borderWidth: 2.5 }
                       ]}
                     >
-                      {/* Portrait Image */}
-                      <View style={styles.portraitImageWrapper}>
+                      <View style={[styles.portraitImageWrapper, isMobile && { height: 160 }]}>
                         {imageSource ? (
                           <Image source={imageSource} style={styles.portraitImage} resizeMode="cover" />
                         ) : (
                           <View style={styles.productPlaceholder}>
-                            <Text style={{ fontSize: 48 }}>🍔</Text>
+                            <Text style={{ fontSize: isMobile ? 36 : 48 }}>🍔</Text>
                           </View>
                         )}
                         {count > 0 && (
                           <View style={[styles.selectedCountBadge, { backgroundColor: '#10B981' }]}>
-                            <Check size={14} color="#FFFFFF" />
+                            <Check size={12} color="#FFFFFF" />
                             <Text style={styles.selectedCountText}>{count} in order</Text>
                           </View>
                         )}
                       </View>
 
-                      <View style={styles.productBody}>
+                      <View style={[styles.productBody, isMobile && { padding: 10, gap: 2 }]}>
                         <View style={styles.productTitleRow}>
-                          <Text style={[styles.productName, { color: theme.textColor }]} numberOfLines={2}>
+                          <Text style={[styles.productName, { color: theme.textColor, fontSize: isMobile ? 14 : 17 }]} numberOfLines={1}>
                             {food.name}
                           </Text>
-                          <Text style={[styles.productPrice, { color: theme.secondaryColor }]}>
+                          <Text style={[styles.productPrice, { color: theme.secondaryColor, fontSize: isMobile ? 14 : 17 }]}>
                             ${food.price.toFixed(2)}
                           </Text>
                         </View>
 
-                        <Text style={[styles.productDesc, { color: theme.mutedTextColor }]} numberOfLines={2}>
+                        <Text style={[styles.productDesc, { color: theme.mutedTextColor, fontSize: isMobile ? 11 : 12, height: isMobile ? 26 : 32 }]} numberOfLines={2}>
                           {food.description}
                         </Text>
 
-                        {/* Action Buttons: Add & Stepper */}
                         <View style={styles.cardActionsRow}>
                           {count === 0 ? (
                             <TouchableOpacity
                               onPress={() => handleItemQuantityChange(food, 1)}
                               activeOpacity={0.8}
-                              style={[styles.multiAddBtn, { backgroundColor: 'transparent', borderColor: '#22C55E', borderWidth: 1.5, flex: 1 }]}
+                              style={[styles.multiAddBtn, { backgroundColor: 'transparent', borderColor: '#22C55E', borderWidth: 1.5, flex: 1 }, isMobile && { paddingVertical: 6 }]}
                             >
-                              <Plus size={16} color="#22C55E" />
-                              <Text style={[styles.multiAddBtnText, { color: '#22C55E' }]}>+ ADD</Text>
+                              <Plus size={14} color="#22C55E" />
+                              <Text style={[styles.multiAddBtnText, { color: '#22C55E', fontSize: 11 }]}>+ ADD TO ORDER</Text>
                             </TouchableOpacity>
                           ) : (
                             <View style={styles.quantityStepperRow}>
@@ -669,7 +701,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
                                 activeOpacity={0.8}
                                 style={[styles.stepperBtn, { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: theme.borderColor }]}
                               >
-                                <Minus size={15} color={theme.textColor} />
+                                <Minus size={14} color={theme.textColor} />
                               </TouchableOpacity>
 
                               <View style={[styles.stepperCountBadge, { backgroundColor: '#2C2B2A' }]}>
@@ -681,19 +713,9 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
                                 activeOpacity={0.8}
                                 style={[styles.stepperBtn, { backgroundColor: '#2C2B2A', borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1 }]}
                               >
-                                <Plus size={15} color="#FFFFFF" />
+                                <Plus size={14} color="#FFFFFF" />
                               </TouchableOpacity>
                             </View>
-                          )}
-
-                          {onSelectItem && (
-                            <TouchableOpacity
-                              onPress={() => onSelectItem(food)}
-                              activeOpacity={0.8}
-                              style={[styles.customizeBtn, { borderColor: '#E5B13A', borderWidth: 1.5 }]}
-                            >
-                              <Text style={[styles.customizeBtnText, { color: '#E5B13A' }]}>DETAILS</Text>
-                            </TouchableOpacity>
                           )}
                         </View>
                       </View>
@@ -706,63 +728,64 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
 
           {/* STEP 5: PROMPT DRINKS */}
           {step === 'prompt_drink' && (
-            <View style={styles.promptActionsRow}>
+            <ScrollView contentContainerStyle={[styles.promptActionsRow, isMobile && { flexDirection: 'column', gap: 12 }]}>
               <TouchableOpacity
                 activeOpacity={0.88}
                 onPress={() => setStep('select_drink')}
-                style={[styles.promptChoiceCard, { backgroundColor: theme.cardColor, borderColor: theme.primaryColor }]}
+                style={[styles.promptChoiceCard, { backgroundColor: theme.cardColor, borderColor: theme.primaryColor }, isMobile && { padding: 20, width: '100%' }]}
               >
-                <Text style={styles.promptIcon}>🍹</Text>
-                <Text style={[styles.promptTitle, { color: theme.textColor }]}>YES, SHOW ME DRINKS</Text>
+                <Text style={[styles.promptIcon, isMobile && { fontSize: 36, marginBottom: 8 }]}>🍹</Text>
+                <Text style={[styles.promptTitle, { color: theme.textColor }, isMobile && { fontSize: 18 }]}>YES, SHOW ME DRINKS</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 activeOpacity={0.88}
                 onPress={() => handleProceedToNextStep('review_summary')}
-                style={[styles.promptChoiceCard, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}
+                style={[styles.promptChoiceCard, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }, isMobile && { padding: 20, width: '100%' }]}
               >
-                <Text style={styles.promptIcon}>📋</Text>
-                <Text style={[styles.promptTitle, { color: theme.textColor }]}>FINISH ORDER</Text>
+                <Text style={[styles.promptIcon, isMobile && { fontSize: 36, marginBottom: 8 }]}>📋</Text>
+                <Text style={[styles.promptTitle, { color: theme.textColor }, isMobile && { fontSize: 18 }]}>FINISH ORDER</Text>
               </TouchableOpacity>
-            </View>
+            </ScrollView>
           )}
 
           {/* STEP 6: SELECT DRINK */}
           {step === 'select_drink' && (
             <View style={{ flex: 1 }}>
-              {/* Subcategories Bar + View Order Pill */}
-              <View style={styles.topControlHeaderRow}>
-                <View style={[styles.subcatBar, { flex: 1, marginBottom: 0 }]}>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subcatScroll}>
-                    {drinkSubcategories.map((sub, idx) => {
-                      const isActive = drinkSubcategory === sub;
-                      return (
-                        <TouchableOpacity
-                          key={sub || `drink_sub_${idx}`}
-                          activeOpacity={0.8}
-                          onPress={() => setDrinkSubcategory(sub)}
-                          style={[
-                            styles.subcatPill,
-                            { backgroundColor: theme.cardColor, borderColor: theme.borderColor },
-                            isActive && { backgroundColor: theme.accentColor, borderColor: theme.accentColor },
-                          ]}
-                        >
-                          <Text style={[
-                            styles.subcatText, 
-                            { color: isActive ? '#FFFFFF' : theme.textColor }
-                          ]}>
-                            {sub}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-
+              <View style={styles.subcatBar}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subcatScroll}>
+                  {drinkSubcategories.map((sub, idx) => {
+                    const isActive = drinkSubcategory === sub;
+                    return (
+                      <TouchableOpacity
+                        key={sub || `drink_sub_${idx}`}
+                        activeOpacity={0.8}
+                        onPress={() => setDrinkSubcategory(sub)}
+                        style={[
+                          styles.subcatPill,
+                          { backgroundColor: theme.cardColor, borderColor: theme.borderColor },
+                          isActive && { backgroundColor: theme.accentColor, borderColor: theme.accentColor },
+                          isMobile && { paddingHorizontal: 12, paddingVertical: 6 }
+                        ]}
+                      >
+                        <Text style={[
+                          styles.subcatText, 
+                          { color: isActive ? '#FFFFFF' : theme.textColor, fontSize: isMobile ? 11 : 13 }
+                        ]}>
+                          {sub}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
               </View>
 
-              {/* Cards Row */}
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cardsScrollRow}>
+              <ScrollView
+                horizontal={!isMobile}
+                showsHorizontalScrollIndicator={false}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={[styles.cardsScrollRow, isMobile && { flexDirection: 'column', gap: 12 }]}
+              >
                 {filteredDrinkItems.map((drink, idx) => {
                   const imageSource = getItemImageSource(drink);
                   const count = draftCounts[drink.id] || 0;
@@ -775,50 +798,49 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
                       style={[
                         styles.portraitProductCard,
                         { backgroundColor: theme.cardColor, borderColor: theme.borderColor },
+                        isMobile && { width: '100%' },
                         count > 0 && { borderColor: '#10B981', borderWidth: 2.5 }
                       ]}
                     >
-                      {/* Portrait Image Container */}
-                      <View style={styles.portraitImageWrapper}>
+                      <View style={[styles.portraitImageWrapper, isMobile && { height: 160 }]}>
                         {imageSource ? (
                           <Image source={imageSource} style={styles.portraitImage} resizeMode="contain" />
                         ) : (
                           <View style={styles.productPlaceholder}>
-                            <Text style={{ fontSize: 48 }}>🍹</Text>
+                            <Text style={{ fontSize: isMobile ? 36 : 48 }}>🍹</Text>
                           </View>
                         )}
                         {count > 0 && (
                           <View style={[styles.selectedCountBadge, { backgroundColor: '#10B981' }]}>
-                            <Check size={14} color="#FFFFFF" />
+                            <Check size={12} color="#FFFFFF" />
                             <Text style={styles.selectedCountText}>{count} in order</Text>
                           </View>
                         )}
                       </View>
 
-                      <View style={styles.productBody}>
+                      <View style={[styles.productBody, isMobile && { padding: 10, gap: 2 }]}>
                         <View style={styles.productTitleRow}>
-                          <Text style={[styles.productName, { color: theme.textColor }]} numberOfLines={2}>
+                          <Text style={[styles.productName, { color: theme.textColor, fontSize: isMobile ? 14 : 17 }]} numberOfLines={1}>
                             {drink.name}
                           </Text>
-                          <Text style={[styles.productPrice, { color: theme.secondaryColor }]}>
+                          <Text style={[styles.productPrice, { color: theme.secondaryColor, fontSize: isMobile ? 14 : 17 }]}>
                             ${drink.price.toFixed(2)}
                           </Text>
                         </View>
 
-                        <Text style={[styles.productDesc, { color: theme.mutedTextColor }]} numberOfLines={2}>
+                        <Text style={[styles.productDesc, { color: theme.mutedTextColor, fontSize: isMobile ? 11 : 12, height: isMobile ? 26 : 32 }]} numberOfLines={2}>
                           {drink.description}
                         </Text>
 
-                        {/* Action Buttons: Add & Stepper */}
                         <View style={styles.cardActionsRow}>
                           {count === 0 ? (
                             <TouchableOpacity
                               onPress={() => handleItemQuantityChange(drink, 1)}
                               activeOpacity={0.8}
-                              style={[styles.multiAddBtn, { backgroundColor: 'transparent', borderColor: '#22C55E', borderWidth: 1.5, flex: 1 }]}
+                              style={[styles.multiAddBtn, { backgroundColor: 'transparent', borderColor: '#22C55E', borderWidth: 1.5, flex: 1 }, isMobile && { paddingVertical: 6 }]}
                             >
-                              <Plus size={16} color="#22C55E" />
-                              <Text style={[styles.multiAddBtnText, { color: '#22C55E' }]}>+ ADD</Text>
+                              <Plus size={14} color="#22C55E" />
+                              <Text style={[styles.multiAddBtnText, { color: '#22C55E', fontSize: 11 }]}>+ ADD TO ORDER</Text>
                             </TouchableOpacity>
                           ) : (
                             <View style={styles.quantityStepperRow}>
@@ -827,7 +849,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
                                 activeOpacity={0.8}
                                 style={[styles.stepperBtn, { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: theme.borderColor }]}
                               >
-                                <Minus size={15} color={theme.textColor} />
+                                <Minus size={14} color={theme.textColor} />
                               </TouchableOpacity>
 
                               <View style={[styles.stepperCountBadge, { backgroundColor: '#2C2B2A' }]}>
@@ -839,19 +861,9 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
                                 activeOpacity={0.8}
                                 style={[styles.stepperBtn, { backgroundColor: '#2C2B2A', borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1 }]}
                               >
-                                <Plus size={15} color="#FFFFFF" />
+                                <Plus size={14} color="#FFFFFF" />
                               </TouchableOpacity>
                             </View>
-                          )}
-
-                          {onSelectItem && (
-                            <TouchableOpacity
-                              onPress={() => onSelectItem(drink)}
-                              activeOpacity={0.8}
-                              style={[styles.customizeBtn, { borderColor: '#E5B13A', borderWidth: 1.5 }]}
-                            >
-                              <Text style={[styles.customizeBtnText, { color: '#E5B13A' }]}>DETAILS</Text>
-                            </TouchableOpacity>
                           )}
                         </View>
                       </View>
@@ -862,28 +874,23 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
             </View>
           )}
 
-          {/* STEP 7: REVIEW SUMMARY (FULL ITEMIZED ORDER REVIEW LIST) */}
+          {/* STEP 7: REVIEW SUMMARY */}
           {step === 'review_summary' && (
             <View style={[styles.reviewContainer, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}>
-              {/* Header Bar */}
               <View style={[styles.reviewHeader, { borderBottomColor: theme.borderColor }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <ShoppingBag size={22} color={theme.primaryColor} />
-                  <Text style={[styles.reviewTitle, { color: theme.textColor }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <ShoppingBag size={18} color={theme.primaryColor} />
+                  <Text style={[styles.reviewTitle, { color: theme.textColor, fontSize: isMobile ? 13 : 15 }]}>
                     ITEMIZED TABLE ORDER ({cartItems?.reduce((acc, i) => acc + i.quantity, 0) || 0} ITEMS)
                   </Text>
                 </View>
-                <Text style={{ color: theme.secondaryColor, fontWeight: '900', fontSize: 14 }}>
-                  TABLE {theme.tableNumber}
-                </Text>
               </View>
 
-              {/* Itemized Cart Items Scroll List */}
               <ScrollView style={styles.reviewItemsScroll} contentContainerStyle={{ paddingVertical: 8 }} showsVerticalScrollIndicator={false}>
                 {(!cartItems || cartItems.length === 0) ? (
                   <View style={styles.emptyReviewBox}>
-                    <Text style={{ fontSize: 36, marginBottom: 8 }}>🛒</Text>
-                    <Text style={{ color: theme.textColor, fontWeight: '900', fontSize: 16 }}>Your Order is Empty</Text>
+                    <Text style={{ fontSize: 32, marginBottom: 6 }}>🛒</Text>
+                    <Text style={{ color: theme.textColor, fontWeight: '900', fontSize: 15 }}>Your Order is Empty</Text>
                     <Text style={{ color: theme.mutedTextColor, fontSize: 12, marginTop: 4 }}>
                       Go back to add hookahs, food, or drinks to your table order.
                     </Text>
@@ -894,40 +901,25 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
 
                     return (
                       <View key={cartItem.cartItemId || `cart_${idx}`} style={[styles.reviewItemRow, { borderBottomColor: 'rgba(255,255,255,0.06)' }]}>
-                        {/* Thumbnail */}
                         <View style={[styles.reviewThumb, { backgroundColor: 'rgba(0,0,0,0.4)' }]}>
                           {itemImage ? (
                             <Image source={itemImage} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                           ) : (
-                            <Text style={{ fontSize: 20 }}>
+                            <Text style={{ fontSize: 18 }}>
                               {cartItem.item.category === 'hookah' ? '💨' : cartItem.item.category === 'drinks' ? '🍹' : '🍔'}
                             </Text>
                           )}
                         </View>
 
-                        {/* Details */}
-                        <View style={{ flex: 1, marginHorizontal: 12 }}>
-                          <Text style={[styles.reviewItemName, { color: theme.textColor }]}>{cartItem.item.name}</Text>
-                          <Text style={{ color: theme.secondaryColor, fontWeight: '800', fontSize: 13, marginTop: 2 }}>
+                        <View style={{ flex: 1, marginHorizontal: 8 }}>
+                          <Text style={[styles.reviewItemName, { color: theme.textColor, fontSize: isMobile ? 13 : 15 }]}>{cartItem.item.name}</Text>
+                          <Text style={{ color: theme.secondaryColor, fontWeight: '800', fontSize: 12, marginTop: 1 }}>
                             ${cartItem.item.price.toFixed(2)} each
                           </Text>
-                          
-                          {cartItem.selectedModifiers && cartItem.selectedModifiers.length > 0 && (
-                            <Text style={{ color: theme.mutedTextColor, fontSize: 11, marginTop: 2 }} numberOfLines={1}>
-                              {cartItem.selectedModifiers.map(m => m.optionName).join(', ')}
-                            </Text>
-                          )}
-                          
-                          {cartItem.specialInstructions ? (
-                            <Text style={{ color: theme.accentColor, fontSize: 11, marginTop: 2 }} numberOfLines={1}>
-                              Note: {cartItem.specialInstructions}
-                            </Text>
-                          ) : null}
                         </View>
 
-                        {/* Quantity Stepper & Subtotal */}
-                        <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                          <Text style={{ color: theme.textColor, fontWeight: '900', fontSize: 15 }}>
+                        <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                          <Text style={{ color: theme.textColor, fontWeight: '900', fontSize: 14 }}>
                             ${cartItem.itemTotal.toFixed(2)}
                           </Text>
 
@@ -939,7 +931,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
                               <Minus size={12} color={theme.textColor} />
                             </TouchableOpacity>
 
-                            <Text style={{ color: theme.textColor, fontWeight: '900', fontSize: 12, paddingHorizontal: 6 }}>
+                            <Text style={{ color: theme.textColor, fontWeight: '900', fontSize: 12, paddingHorizontal: 4 }}>
                               {cartItem.quantity}
                             </Text>
 
@@ -949,13 +941,6 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
                             >
                               <Plus size={12} color="#FFFFFF" />
                             </TouchableOpacity>
-
-                            <TouchableOpacity
-                              onPress={() => onRemoveItem && onRemoveItem(cartItem.cartItemId)}
-                              style={{ marginLeft: 6, padding: 4 }}
-                            >
-                              <Trash2 size={15} color="#EF4444" />
-                            </TouchableOpacity>
                           </View>
                         </View>
                       </View>
@@ -964,99 +949,33 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
                 )}
               </ScrollView>
 
-              {/* Order Total Footer & Place Order Button */}
               <View style={[styles.reviewFooter, { borderTopColor: theme.borderColor }]}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <Text style={{ color: theme.mutedTextColor, fontSize: 13, fontWeight: '700' }}>TOTAL ORDER SUB-TOTAL</Text>
-                  <Text style={{ color: theme.secondaryColor, fontSize: 22, fontWeight: '900' }}>${cartSubtotal.toFixed(2)}</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={{ color: theme.mutedTextColor, fontSize: 12, fontWeight: '700' }}>TOTAL ORDER</Text>
+                  <Text style={{ color: theme.secondaryColor, fontSize: 18, fontWeight: '900' }}>${cartSubtotal.toFixed(2)}</Text>
                 </View>
 
-                <View style={styles.finalActionsRow}>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setDraftCounts({});
-                      onPlaceOrder();
-                    }}
-                    disabled={!cartItems || cartItems.length === 0}
-                    activeOpacity={0.88}
-                    style={[
-                      styles.finalPlaceBtn, 
-                      { backgroundColor: theme.primaryColor },
-                      (!cartItems || cartItems.length === 0) && { opacity: 0.4 }
-                    ]}
-                  >
-                    <ShoppingBag size={22} color="#FFFFFF" />
-                    <Text style={styles.finalPlaceText}>PLACE TABLE ORDER NOW (${cartSubtotal.toFixed(2)})</Text>
-                    <ArrowRight size={22} color="#FFFFFF" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={() => setStep('welcome_category')}
-                    activeOpacity={0.8}
-                    style={[styles.startOverBtn, { borderColor: theme.borderColor }]}
-                  >
-                    <RotateCcw size={16} color={theme.textColor} />
-                    <Text style={[styles.startOverText, { color: theme.textColor }]}>ADD MORE</Text>
-                  </TouchableOpacity>
-                </View>
+                <TouchableOpacity
+                  onPress={() => {
+                    setDraftCounts({});
+                    onPlaceOrder();
+                  }}
+                  disabled={!cartItems || cartItems.length === 0}
+                  activeOpacity={0.88}
+                  style={[
+                    styles.finalPlaceBtn, 
+                    { backgroundColor: theme.primaryColor },
+                    (!cartItems || cartItems.length === 0) && { opacity: 0.4 }
+                  ]}
+                >
+                  <ShoppingBag size={18} color="#FFFFFF" />
+                  <Text style={styles.finalPlaceText}>SEND ORDER TO KITCHEN (${cartSubtotal.toFixed(2)})</Text>
+                </TouchableOpacity>
               </View>
             </View>
           )}
         </View>
       </View>
-
-      {/* Dynamic Persistent Bottom Navigation Bar */}
-      {(() => {
-        let bottomAction = onOpenCart;
-        let bottomText = 'REVIEW ORDER';
-        let bottomIcon: 'next' | 'check' | 'cart' = 'cart';
-
-        if (step === 'welcome_category') {
-          bottomText = 'START ORDER';
-          bottomAction = () => setStep(hasHookahs ? 'select_hookah' : 'select_food');
-          bottomIcon = 'next';
-        } else if (step === 'select_hookah') {
-          const unvisited = getUnvisitedNextStep('select_hookah');
-          bottomText = unvisited === 'prompt_drink' ? 'NEXT: DRINK SELECTION' : 'NEXT: FOOD SELECTION';
-          bottomAction = () => handleProceedToNextStep(unvisited || 'review_summary');
-          bottomIcon = 'next';
-        } else if (step === 'prompt_food') {
-          bottomText = 'YES, SHOW ME FOOD';
-          bottomAction = () => setStep('select_food');
-          bottomIcon = 'next';
-        } else if (step === 'select_food') {
-          const unvisited = getUnvisitedNextStep('select_food');
-          bottomText = unvisited === 'prompt_drink' ? 'NEXT: DRINK SELECTION' : unvisited === 'select_hookah' ? 'NEXT: HOOKAH SELECTION' : 'NEXT: REVIEW ORDER';
-          bottomAction = () => handleProceedToNextStep(unvisited || 'review_summary');
-          bottomIcon = 'next';
-        } else if (step === 'prompt_drink') {
-          bottomText = 'YES, SHOW ME DRINKS';
-          bottomAction = () => setStep('select_drink');
-          bottomIcon = 'next';
-        } else if (step === 'select_drink') {
-          const unvisited = getUnvisitedNextStep('select_drink');
-          bottomText = unvisited === 'prompt_food' ? 'NEXT: FOOD SELECTION' : unvisited === 'select_hookah' ? 'NEXT: HOOKAH SELECTION' : 'NEXT: REVIEW ORDER';
-          bottomAction = () => handleProceedToNextStep(unvisited || 'review_summary');
-          bottomIcon = 'next';
-        } else if (step === 'review_summary') {
-          bottomText = 'PLACE TABLE ORDER';
-          bottomAction = onPlaceOrder;
-          bottomIcon = 'check';
-        }
-
-        return (
-          <BottomNavigation
-            onBack={handleStepBack}
-            backText={currentStepIndex === 0 ? 'HOME' : 'BACK'}
-            stepDotsCount={stepOrder.length}
-            activeStepIndex={currentStepIndex}
-            onPrimaryAction={bottomAction}
-            primaryText={bottomText}
-            primaryIcon={bottomIcon}
-            totalCartSubtotal={cartSubtotal}
-          />
-        );
-      })()}
     </View>
   );
 };
@@ -1068,15 +987,15 @@ const styles = StyleSheet.create({
   },
   floatingToast: {
     position: 'absolute',
-    bottom: 95,
+    bottom: 20,
     alignSelf: 'center',
     zIndex: 999,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.4,
@@ -1085,65 +1004,58 @@ const styles = StyleSheet.create({
   },
   toastText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '900',
     letterSpacing: 0.5,
   },
   body: {
     flex: 1,
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
   },
-  hostBanner: {
-    width: '100%',
+  cleanStepHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    marginBottom: 10,
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    marginBottom: 6,
+  },
+  cleanNavBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+  },
+  cleanNextBtn: {
+    justifyContent: 'flex-end',
+  },
+  cleanNavText: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  stepTitleText: {
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 1,
+    textAlign: 'center',
   },
   hostAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dialogueBox: {
-    flex: 1,
-  },
-  hostPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 3,
-  },
-  hostPillText: {
-    color: '#0099FF',
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1.2,
-  },
   questionText: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '800',
-    lineHeight: 30,
-    letterSpacing: 0.4,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
+    lineHeight: 26,
+    letterSpacing: 0.3,
   },
   modalOverlayContainer: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 999,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
   },
   modalBackdropTouch: {
     ...StyleSheet.absoluteFillObject,
@@ -1151,149 +1063,104 @@ const styles = StyleSheet.create({
   },
   speechOverlayPopCard: {
     width: '100%',
-    maxWidth: 540,
-    borderRadius: 24,
+    maxWidth: 500,
+    borderRadius: 20,
     borderWidth: 2,
-    padding: 24,
+    padding: 20,
     shadowColor: '#E5B13A',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 12,
+    shadowRadius: 12,
+    elevation: 10,
     zIndex: 1000,
   },
   speechOverlayTopHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
-    paddingBottom: 12,
+    marginBottom: 12,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.08)',
   },
   closeSpeechIconBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
   },
   speechOverlayBodyText: {
-    paddingVertical: 8,
-  },
-  topControlHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 8,
-  },
-  nextTopHeaderPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    backgroundColor: 'transparent',
-  },
-  nextTopHeaderPillText: {
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1,
-  },
-  nextSectionScrollCard: {
-    width: 220,
-    borderRadius: 24,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    backgroundColor: 'transparent',
-  },
-  nextCardTitleText: {
-    fontSize: 14,
-    fontWeight: '900',
-    letterSpacing: 1,
-    textAlign: 'center',
+    paddingVertical: 6,
   },
   interactiveArea: {
     flex: 1,
-    justifyContent: 'center',
-    marginVertical: 4,
   },
   categoryChoicesRow: {
     flexDirection: 'row',
-    gap: 20,
+    gap: 16,
+    paddingBottom: 16,
   },
   categoryChoiceCard: {
     flex: 1,
-    borderRadius: 24,
+    borderRadius: 20,
     borderWidth: 2,
-    padding: 24,
+    padding: 20,
     alignItems: 'center',
     position: 'relative',
   },
   choiceIcon: {
-    fontSize: 48,
-    marginBottom: 12,
+    fontSize: 42,
+    marginBottom: 8,
   },
   choiceTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '900',
-    letterSpacing: 1,
-    marginBottom: 6,
-  },
-  choiceSub: {
-    fontSize: 12,
-    textAlign: 'center',
-    fontWeight: '500',
+    letterSpacing: 0.8,
+    marginBottom: 4,
   },
   choiceBadge: {
     position: 'absolute',
-    top: 14,
-    right: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
+    top: 10,
+    right: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
   },
   choiceBadgeText: {
     color: '#FFFFFF',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1,
-  },
-  subcatBar: {
-    marginBottom: 8,
-    backgroundColor: 'transparent',
-  },
-  subcatScroll: {
-    gap: 10,
-  },
-  subcatPill: {
-    paddingHorizontal: 20,
-    paddingVertical: 9,
-    borderRadius: 18,
-    borderWidth: 1.5,
-  },
-  subcatText: {
-    fontSize: 13,
+    fontSize: 8,
     fontWeight: '900',
     letterSpacing: 0.8,
   },
+  subcatBar: {
+    marginBottom: 8,
+  },
+  subcatScroll: {
+    gap: 8,
+  },
+  subcatPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 14,
+    borderWidth: 1.5,
+  },
+  subcatText: {
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
   cardsScrollRow: {
-    gap: 20,
-    paddingVertical: 6,
+    gap: 16,
+    paddingBottom: 16,
   },
   portraitProductCard: {
-    width: 365,
-    borderRadius: 22,
+    width: 320,
+    borderRadius: 18,
     borderWidth: 1.5,
     overflow: 'hidden',
   },
   portraitImageWrapper: {
-    height: 310, // Bigger image presentation
+    height: 220,
     width: '100%',
     position: 'relative',
     backgroundColor: 'rgba(0,0,0,0.04)',
@@ -1304,60 +1171,51 @@ const styles = StyleSheet.create({
   },
   productPlaceholder: {
     width: '100%',
-    height: 310,
+    height: '100%',
     backgroundColor: 'rgba(255,255,255,0.04)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   selectedCountBadge: {
     position: 'absolute',
-    top: 12,
-    right: 12,
+    top: 8,
+    right: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 13,
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
   },
   selectedCountText: {
     color: '#FFFFFF',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '900',
   },
   productBody: {
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 12,
-    gap: 3,
+    padding: 12,
+    gap: 4,
   },
   productTitleRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    marginTop: 2,
   },
   productName: {
-    fontSize: 17,
     fontWeight: '900',
     flex: 1,
-    lineHeight: 22,
-    marginRight: 8,
   },
   productPrice: {
-    fontSize: 17,
     fontWeight: '900',
   },
   productDesc: {
-    fontSize: 12,
-    lineHeight: 16,
-    height: 32,
-    marginTop: 1,
+    fontSize: 11,
+    lineHeight: 15,
   },
   cardActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     marginTop: 4,
   },
   multiAddBtn: {
@@ -1365,207 +1223,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 10,
-    borderRadius: 17,
-  },
-  multiAddBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 1,
-  },
-  customizeBtn: {
-    paddingHorizontal: 17,
-    paddingVertical: 11,
-    borderRadius: 17,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  customizeBtnText: {
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1,
-  },
-  stepNextBar: {
-    alignItems: 'flex-end',
-    marginTop: 4,
-    marginBottom: 4,
-    backgroundColor: 'transparent',
-  },
-  nextSectionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 18,
     paddingVertical: 8,
     borderRadius: 14,
   },
-  nextSectionText: {
-    color: '#FFFFFF',
-    fontSize: 12,
+  multiAddBtnText: {
     fontWeight: '900',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
   promptActionsRow: {
     flexDirection: 'row',
-    gap: 20,
+    gap: 16,
+    paddingBottom: 16,
   },
   promptChoiceCard: {
     flex: 1,
-    borderRadius: 24,
+    borderRadius: 20,
     borderWidth: 2,
-    padding: 32,
+    padding: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
   promptIcon: {
-    fontSize: 54,
-    marginBottom: 12,
+    fontSize: 44,
+    marginBottom: 8,
   },
   promptTitle: {
-    color: '#FFFFFF',
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '900',
-    letterSpacing: 1,
-    marginBottom: 6,
-  },
-  promptSub: {
-    color: '#D6C7BC',
-    fontSize: 13,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  summaryBox: {
-    alignItems: 'center',
-    padding: 24,
-    borderRadius: 24,
-    backgroundColor: 'rgba(0,153,255,0.06)',
-    borderWidth: 1.5,
-    borderColor: '#0099FF',
-  },
-  summaryTitle: {
-    fontSize: 20,
-    fontWeight: '900',
-    letterSpacing: 1,
-    marginBottom: 6,
-  },
-  summarySub: {
-    fontSize: 13,
-    marginBottom: 20,
-  },
-  finalActionsRow: {
-    flexDirection: 'row',
-    gap: 16,
-    width: '100%',
-  },
-  finalPlaceBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    paddingVertical: 18,
-    borderRadius: 20,
-  },
-  finalPlaceText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '900',
-    letterSpacing: 1,
-  },
-  startOverBtn: {
-    paddingHorizontal: 24,
-    paddingVertical: 18,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  startOverText: {
-    fontSize: 13,
-    fontWeight: '800',
-    letterSpacing: 1,
-  },
-  mixLabCtaBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderRadius: 20,
-    borderWidth: 2,
-    marginBottom: 12,
-  },
-  mixLabCtaLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  mixLabPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 2,
-  },
-  mixLabPillText: {
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1.2,
-  },
-  mixLabCtaTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  mixLabCtaSub: {
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  mixLabCtaBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 14,
-  },
-  mixLabCtaBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 1,
-  },
-  quantityStepperRow: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  stepperBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-  },
-  stepperCountBadge: {
-    flex: 1,
-    height: 34,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepperCountText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '900',
+    letterSpacing: 0.8,
   },
   reviewContainer: {
     flex: 1,
-    borderRadius: 24,
+    borderRadius: 20,
     borderWidth: 1.5,
     overflow: 'hidden',
   },
@@ -1573,59 +1262,122 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderBottomWidth: 1,
   },
   reviewTitle: {
-    fontSize: 15,
     fontWeight: '900',
-    letterSpacing: 0.8,
+    letterSpacing: 0.5,
   },
   reviewItemsScroll: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   reviewItemRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
   },
   reviewThumb: {
-    width: 50,
-    height: 50,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 10,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
   reviewItemName: {
-    fontSize: 15,
-    fontWeight: '900',
+    fontWeight: '800',
   },
   reviewStepperRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginTop: 2,
   },
   miniStepBtn: {
-    width: 24,
-    height: 24,
+    width: 26,
+    height: 26,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reviewFooter: {
+    borderTopWidth: 1,
+    padding: 14,
+  },
+  finalPlaceBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 16,
+  },
+  finalPlaceText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  mixLabCtaBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 16,
+  },
+  mixLabCtaLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  mixLabCtaTitle: {
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  mixLabCtaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 10,
+  },
+  mixLabCtaBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  quantityStepperRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  stepperBtn: {
+    width: 30,
+    height: 30,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
   },
-  reviewFooter: {
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderTopWidth: 1,
+  stepperCountBadge: {
+    flex: 1,
+    height: 30,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperCountText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
   },
   emptyReviewBox: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 40,
+    paddingVertical: 32,
   },
 });

@@ -54,7 +54,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
   const isMobile = layout.isMobilePhone;
 
   // Dynamic layout metrics based on iPad / Phone & Orientation
-  const cardWidth = layout.cardWidthPercent;
+  const cardWidth = isMobile ? '100%' : layout.cardWidthPercent;
   const imageHeight = isMobile ? 145 : layout.isTablet ? 175 : 195;
 
   const [searchQuery, setSearchQuery] = useState<string>('');
