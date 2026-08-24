@@ -156,18 +156,18 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
-      <View style={[styles.overlay, isMobile && { padding: 6 }]}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={[styles.overlay, isMobile && { padding: 4 }]}>
         <View style={[
-          styles.container, 
-          { backgroundColor: theme.backgroundColor, borderColor: '#E5B13A', borderWidth: 2 },
-          isMobile && { width: '100%', height: '98%', borderRadius: 16 }
+          styles.modalContainer, 
+          { backgroundColor: theme.backgroundColor, borderColor: '#E5B13A' },
+          isMobile && { width: '100%', height: '100%', borderRadius: 16 }
         ]}>
-          {/* Header */}
-          <View style={[styles.header, { borderBottomColor: theme.borderColor }, isMobile && { paddingHorizontal: 12, paddingVertical: 10 }]}>
+          {/* Header Bar */}
+          <View style={[styles.header, { borderBottomColor: theme.borderColor }]}>
             <View style={styles.headerTitleGroup}>
-              <View style={[styles.labIconBg, { backgroundColor: 'rgba(0,153,255,0.15)' }, isMobile && { width: 36, height: 36 }]}>
-                <Text style={{ fontSize: isMobile ? 20 : 26 }}>🧪</Text>
+              <View style={[styles.labIconBg, { backgroundColor: 'rgba(0,153,255,0.15)' }]}>
+                <Text style={{ fontSize: isMobile ? 18 : 24 }}>🧪</Text>
               </View>
               <View style={{ flexShrink: 1 }}>
                 <Text style={[styles.headerTitle, { color: theme.textColor, fontSize: isMobile ? 14 : 18 }]} numberOfLines={1}>
@@ -176,66 +176,131 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
               </View>
             </View>
 
-            <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: 'rgba(255,255,255,0.08)' }, isMobile && { width: 32, height: 32 }]}>
-              <X size={isMobile ? 16 : 20} color={theme.textColor} />
+            <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
+              <X size={isMobile ? 18 : 22} color={theme.textColor} />
             </TouchableOpacity>
           </View>
 
-          {/* MAIN LABORATORY BODY (Scrollable on mobile) */}
-          <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={[
-              styles.labBody,
-              isMobile && { flexDirection: 'column', padding: 10, gap: 14 }
-            ]}
-            showsVerticalScrollIndicator={false}
-          >
-            {/* MIXING BOWL (Rendered FIRST on Mobile for fast feedback) */}
-            {isMobile && (
-              <View style={[styles.mixingChamberSide, { backgroundColor: theme.cardColor, borderColor: theme.borderColor, padding: 12 }]}>
-                <View style={styles.chamberHeader}>
-                  <Text style={[styles.mixNameText, { color: theme.textColor, fontSize: 16 }]}>{customMixName}</Text>
-                </View>
-
-                <View style={[styles.visualBowlContainer, { borderColor: theme.secondaryColor, height: 160, marginBottom: 8 }]}>
-                  <View style={styles.bowlTopRim}>
-                    <Text style={styles.rimText}>HEAT MANAGEMENT BOWL</Text>
+          {/* MOBILE VIEW: VERTICAL STACK WITH FIXED BOTTOM CTA */}
+          {isMobile ? (
+            <View style={{ flex: 1 }}>
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12, paddingBottom: 160 }} showsVerticalScrollIndicator={false}>
+                {/* 1. VISUAL MIXING BOWL */}
+                <View style={[styles.mobileChamberCard, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}>
+                  <View style={styles.chamberHeader}>
+                    {isEditingName ? (
+                      <TextInput
+                        style={[styles.mixNameInput, { color: theme.textColor, borderColor: theme.primaryColor }]}
+                        value={customMixName}
+                        onChangeText={setCustomMixName}
+                        onBlur={() => setIsEditingName(false)}
+                        autoFocus
+                      />
+                    ) : (
+                      <TouchableOpacity onPress={() => setIsEditingName(true)} style={styles.mixNameRow}>
+                        <Text style={[styles.mixNameText, { color: theme.textColor, fontSize: 15 }]}>{customMixName}</Text>
+                        <Text style={{ fontSize: 12 }}>✏️</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
 
-                  {flavorsInMix.length === 0 ? (
-                    <View style={styles.emptyChamber}>
-                      <Text style={{ fontSize: 32, marginBottom: 4 }}>🧪</Text>
-                      <Text style={[styles.emptyChamberTitle, { color: theme.textColor, fontSize: 13 }]}>
-                        YOUR BOWL IS EMPTY
-                      </Text>
+                  <View style={[styles.visualBowlContainer, { borderColor: theme.secondaryColor, minHeight: 120, marginBottom: 8 }]}>
+                    <View style={styles.bowlTopRim}>
+                      <Text style={styles.rimText}>BOWL COMPOSITION ({selectedFlavors.length}/5)</Text>
                     </View>
-                  ) : (
-                    <View style={styles.bowlLiquidLayers}>
-                      {flavorsInMix.map((item, idx) => (
-                        <View
-                          key={item.flavor?.id || `mix_layer_mob_${idx}`}
-                          style={[
-                            styles.flavorLayer,
-                            { backgroundColor: item.flavor.color, flex: item.percentage / 100, paddingHorizontal: 10 }
-                          ]}
-                        >
-                          <View style={styles.layerInfoRow}>
-                            <Text style={{ fontSize: 14 }}>{item.flavor.emoji}</Text>
-                            <Text style={[styles.layerName, { fontSize: 11 }]} numberOfLines={1}>{item.flavor.name}</Text>
-                            <Text style={[styles.layerPct, { fontSize: 12 }]}>{item.percentage}%</Text>
-                            <TouchableOpacity
-                              onPress={() => handleRemoveFlavor(item.flavor.id)}
-                              style={[styles.removeLayerBtn, { paddingHorizontal: 6, paddingVertical: 2 }]}
-                            >
-                              <Trash2 size={12} color="#FFFFFF" />
-                            </TouchableOpacity>
+
+                    {flavorsInMix.length === 0 ? (
+                      <View style={styles.emptyChamber}>
+                        <Text style={{ fontSize: 24 }}>🧪</Text>
+                        <Text style={[styles.emptyChamberTitle, { color: theme.textColor, fontSize: 12 }]}>
+                          SELECT FLAVORS BELOW
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={styles.bowlLiquidLayers}>
+                        {flavorsInMix.map((item, idx) => (
+                          <View
+                            key={item.flavor?.id || `mix_layer_m_${idx}`}
+                            style={[
+                              styles.flavorLayer,
+                              { backgroundColor: item.flavor.color, paddingVertical: 4, paddingHorizontal: 8 }
+                            ]}
+                          >
+                            <View style={styles.layerInfoRow}>
+                              <Text style={{ fontSize: 13 }}>{item.flavor.emoji}</Text>
+                              <Text style={[styles.layerName, { fontSize: 11 }]} numberOfLines={1}>{item.flavor.name}</Text>
+                              <Text style={[styles.layerPct, { fontSize: 11 }]}>{item.percentage}%</Text>
+                              <TouchableOpacity
+                                onPress={() => handleRemoveFlavor(item.flavor.id)}
+                                style={[styles.removeLayerBtn, { paddingHorizontal: 6, paddingVertical: 2 }]}
+                              >
+                                <Trash2 size={11} color="#FFFFFF" />
+                              </TouchableOpacity>
+                            </View>
                           </View>
-                        </View>
-                      ))}
-                    </View>
-                  )}
+                        ))}
+                      </View>
+                    )}
+                  </View>
                 </View>
 
+                {/* 2. SEARCH & FLAVOR CATALOG */}
+                <View style={styles.filterControlBlock}>
+                  <View style={[styles.searchBox, { backgroundColor: theme.cardColor, borderColor: theme.borderColor, paddingVertical: 6 }]}>
+                    <Search size={16} color={theme.mutedTextColor} />
+                    <TextInput
+                      style={[styles.searchInput, { color: theme.textColor, fontSize: 12 }]}
+                      placeholder="Search Flavors..."
+                      placeholderTextColor={theme.mutedTextColor}
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.flavorCardsGridMobile}>
+                  {filteredFlavors.map((flavor, idx) => {
+                    const isAdded = selectedFlavors.some(f => f.id === flavor.id);
+                    return (
+                      <TouchableOpacity
+                        key={flavor.id || `flv_m_${idx}`}
+                        activeOpacity={0.88}
+                        onPress={() => isAdded ? handleRemoveFlavor(flavor.id) : handleAddFlavor(flavor)}
+                        style={[
+                          styles.mobileFlavorRowCard,
+                          { backgroundColor: theme.cardColor, borderColor: theme.borderColor },
+                          isAdded && { borderColor: '#10B981', backgroundColor: 'rgba(16,185,129,0.12)', borderWidth: 2 }
+                        ]}
+                      >
+                        <Text style={{ fontSize: 24 }}>{flavor.emoji}</Text>
+                        <View style={{ flex: 1, marginHorizontal: 8 }}>
+                          <Text style={[styles.flavorName, { color: theme.textColor, fontSize: 13 }]}>{flavor.name}</Text>
+                          <Text style={[styles.flavorDesc, { color: theme.mutedTextColor, fontSize: 10 }]} numberOfLines={1}>
+                            {flavor.description}
+                          </Text>
+                        </View>
+
+                        <TouchableOpacity
+                          onPress={() => isAdded ? handleRemoveFlavor(flavor.id) : handleAddFlavor(flavor)}
+                          style={[
+                            styles.mobileAddBtn,
+                            { backgroundColor: isAdded ? '#EF4444' : '#22C55E' }
+                          ]}
+                        >
+                          {isAdded ? (
+                            <Trash2 size={14} color="#FFFFFF" />
+                          ) : (
+                            <Plus size={16} color="#FFFFFF" />
+                          )}
+                        </TouchableOpacity>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+
+              {/* FIXED MOBILE BOTTOM ACTION BAR */}
+              <View style={[styles.mobileFixedFooter, { backgroundColor: theme.cardColor, borderTopColor: theme.borderColor }]}>
                 <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
                   <TouchableOpacity
                     onPress={handleSurpriseMe}
@@ -243,15 +308,16 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                     style={[styles.actionPill, { backgroundColor: '#E5B13A', flex: 1, paddingVertical: 10 }]}
                   >
                     <Dices size={16} color="#000000" />
-                    <Text style={{ color: '#000000', fontWeight: '900', fontSize: 12 }}>🎲 SURPRISE ME</Text>
+                    <Text style={{ color: '#000000', fontWeight: '900', fontSize: 12 }}>SURPRISE ME</Text>
                   </TouchableOpacity>
 
                   {selectedFlavors.length > 0 && (
                     <TouchableOpacity
                       onPress={handleClearMix}
-                      style={[styles.actionPill, { backgroundColor: 'rgba(239,68,68,0.12)', borderColor: '#EF4444', paddingHorizontal: 12 }]}
+                      style={[styles.actionPill, { backgroundColor: 'rgba(239,68,68,0.15)', borderColor: '#EF4444', paddingHorizontal: 16 }]}
                     >
                       <Trash2 size={16} color="#EF4444" />
+                      <Text style={{ color: '#EF4444', fontWeight: '900', fontSize: 11 }}>CLEAR</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -266,86 +332,80 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                     selectedFlavors.length === 0 && { opacity: 0.4 }
                   ]}
                 >
-                  <Text style={[styles.addMixText, { fontSize: 12 }]}>ADD BOWL TO ORDER ($35.00)</Text>
-                  <ArrowRight size={16} color="#FFFFFF" />
+                  <Text style={[styles.addMixText, { fontSize: 13 }]}>ADD BOWL TO ORDER ($35.00)</Text>
+                  <ArrowRight size={18} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
-            )}
-
-            {/* FLAVOR SELECTION & SEARCH */}
-            <View style={styles.flavorExplorerSide}>
-              <View style={styles.filterControlBlock}>
-                <View style={[styles.searchBox, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }, isMobile && { height: 44, paddingVertical: 6 }]}>
-                  <Search size={18} color={theme.mutedTextColor} />
-                  <TextInput
-                    style={[styles.searchInput, { color: theme.textColor, fontSize: 13 }]}
-                    placeholder="Search Flavors"
-                    placeholderTextColor={theme.mutedTextColor}
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                  />
+            </View>
+          ) : (
+            /* DESKTOP / IPAD SPLIT VIEW */
+            <View style={styles.labBody}>
+              {/* LEFT SIDE: FLAVOR CATALOG */}
+              <View style={styles.flavorExplorerSide}>
+                <View style={styles.filterControlBlock}>
+                  <View style={[styles.searchBox, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}>
+                    <Search size={18} color={theme.mutedTextColor} />
+                    <TextInput
+                      style={[styles.searchInput, { color: theme.textColor }]}
+                      placeholder="Search Flavors..."
+                      placeholderTextColor={theme.mutedTextColor}
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                    />
+                  </View>
                 </View>
-              </View>
 
-              {/* Flavor Cards Grid */}
-              <View style={styles.flavorCardsGrid}>
-                {filteredFlavors.map((flavor, idx) => {
-                  const isAdded = selectedFlavors.some(f => f.id === flavor.id);
-                  return (
-                    <TouchableOpacity
-                      key={flavor.id || `flavor_${idx}`}
-                      activeOpacity={0.85}
-                      onPress={() => isAdded ? handleRemoveFlavor(flavor.id) : handleAddFlavor(flavor)}
-                      style={[
-                        styles.flavorCard,
-                        { backgroundColor: theme.cardColor, borderColor: theme.borderColor },
-                        isMobile && { width: '100%', padding: 10 },
-                        isAdded && { borderColor: '#10B981', backgroundColor: 'rgba(16,185,129,0.12)', borderWidth: 2 }
-                      ]}
-                    >
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                        <Text style={{ fontSize: isMobile ? 24 : 28 }}>{flavor.emoji}</Text>
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.flavorName, { color: theme.textColor, fontSize: isMobile ? 13 : 14 }]}>{flavor.name}</Text>
-                          <Text style={[styles.flavorDesc, { color: theme.mutedTextColor, fontSize: isMobile ? 10 : 11, height: isMobile ? 26 : 30 }]} numberOfLines={2}>
-                            {flavor.description}
-                          </Text>
-                        </View>
-                      </View>
-
+                <ScrollView contentContainerStyle={styles.flavorCardsGrid} showsVerticalScrollIndicator={false}>
+                  {filteredFlavors.map((flavor, idx) => {
+                    const isAdded = selectedFlavors.some(f => f.id === flavor.id);
+                    return (
                       <TouchableOpacity
+                        key={flavor.id || `flavor_${idx}`}
+                        activeOpacity={0.85}
                         onPress={() => isAdded ? handleRemoveFlavor(flavor.id) : handleAddFlavor(flavor)}
                         style={[
-                          styles.cardAddBtn,
-                          { 
-                            backgroundColor: isAdded ? 'rgba(239,68,68,0.12)' : 'transparent', 
-                            borderColor: isAdded ? '#EF4444' : '#22C55E', 
-                            borderWidth: 1.5, 
-                            marginTop: 6,
-                            paddingVertical: 6
-                          }
+                          styles.flavorCard,
+                          { backgroundColor: theme.cardColor, borderColor: theme.borderColor },
+                          isAdded && { borderColor: '#10B981', backgroundColor: 'rgba(16,185,129,0.12)', borderWidth: 2 }
                         ]}
                       >
-                        {isAdded ? (
-                          <>
-                            <Trash2 size={12} color="#EF4444" />
-                            <Text style={[styles.cardAddBtnText, { color: '#EF4444', fontSize: 10 }]}>REMOVE</Text>
-                          </>
-                        ) : (
-                          <>
-                            <Plus size={12} color="#22C55E" />
-                            <Text style={[styles.cardAddBtnText, { color: '#22C55E', fontSize: 10 }]}>+ ADD TO BOWL</Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
+                        <Text style={{ fontSize: 28, marginBottom: 4 }}>{flavor.emoji}</Text>
+                        <Text style={[styles.flavorName, { color: theme.textColor }]}>{flavor.name}</Text>
+                        <Text style={[styles.flavorDesc, { color: theme.mutedTextColor }]} numberOfLines={2}>
+                          {flavor.description}
+                        </Text>
 
-            {/* DESKTOP RIGHT SIDE MIXING CHAMBER */}
-            {!isMobile && (
+                        <TouchableOpacity
+                          onPress={() => isAdded ? handleRemoveFlavor(flavor.id) : handleAddFlavor(flavor)}
+                          style={[
+                            styles.cardAddBtn,
+                            { 
+                              backgroundColor: isAdded ? 'rgba(239,68,68,0.12)' : 'transparent', 
+                              borderColor: isAdded ? '#EF4444' : '#22C55E', 
+                              borderWidth: 1.5, 
+                              marginTop: 8 
+                            }
+                          ]}
+                        >
+                          {isAdded ? (
+                            <>
+                              <Trash2 size={13} color="#EF4444" />
+                              <Text style={[styles.cardAddBtnText, { color: '#EF4444' }]}>REMOVE</Text>
+                            </>
+                          ) : (
+                            <>
+                              <Plus size={13} color="#22C55E" />
+                              <Text style={[styles.cardAddBtnText, { color: '#22C55E' }]}>ADD TO BOWL</Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              {/* RIGHT SIDE: BOWL CHAMBER */}
               <View style={[styles.mixingChamberSide, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}>
                 <View style={styles.chamberHeader}>
                   {isEditingName ? (
@@ -359,7 +419,7 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                   ) : (
                     <TouchableOpacity onPress={() => setIsEditingName(true)} style={styles.mixNameRow}>
                       <Text style={[styles.mixNameText, { color: theme.textColor }]}>{customMixName}</Text>
-                      <Text style={[styles.editIcon, { color: theme.mutedTextColor }]}>✏️</Text>
+                      <Text style={{ fontSize: 14 }}>✏️</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -387,16 +447,15 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                           ]}
                         >
                           <View style={styles.layerInfoRow}>
-                            <Text style={styles.layerEmoji}>{item.flavor.emoji}</Text>
+                            <Text style={{ fontSize: 16 }}>{item.flavor.emoji}</Text>
                             <Text style={styles.layerName} numberOfLines={1}>{item.flavor.name}</Text>
                             <Text style={styles.layerPct}>{item.percentage}%</Text>
-
                             <TouchableOpacity
                               onPress={() => handleRemoveFlavor(item.flavor.id)}
                               style={styles.removeLayerBtn}
                             >
                               <Trash2 size={14} color="#FFFFFF" />
-                              <Text style={styles.removeLayerText}>REMOVE</Text>
+                              <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '900' }}>REMOVE</Text>
                             </TouchableOpacity>
                           </View>
                         </View>
@@ -409,20 +468,10 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                   <TouchableOpacity
                     onPress={handleSurpriseMe}
                     activeOpacity={0.8}
-                    style={[
-                      styles.actionPill, 
-                      { 
-                        backgroundColor: '#E5B13A', 
-                        borderColor: '#E5B13A', 
-                        flex: 1, 
-                        paddingVertical: 12,
-                      }
-                    ]}
+                    style={[styles.actionPill, { backgroundColor: '#E5B13A', flex: 1, paddingVertical: 12 }]}
                   >
                     <Dices size={20} color="#000000" />
-                    <Text style={[styles.actionPillText, { color: '#000000', fontWeight: '900', letterSpacing: 1 }]}>
-                      🎲 SURPRISE ME
-                    </Text>
+                    <Text style={[styles.actionPillText, { color: '#000000' }]}>🎲 SURPRISE ME</Text>
                   </TouchableOpacity>
 
                   {selectedFlavors.length > 0 && (
@@ -450,8 +499,8 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                   <ArrowRight size={20} color="#FFFFFF" />
                 </TouchableOpacity>
               </View>
-            )}
-          </ScrollView>
+            </View>
+          )}
         </View>
       </View>
     </Modal>
@@ -461,61 +510,52 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.88)',
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    padding: 12,
   },
-  container: {
+  modalContainer: {
     width: '98%',
     height: '94%',
     borderRadius: 24,
-    borderWidth: 1.5,
+    borderWidth: 2,
     overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
   },
   headerTitleGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
+    flexShrink: 1,
   },
   labIconBg: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-  },
-  actionPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 16,
-    borderWidth: 1.5,
-  },
-  closeBtn: {
     width: 38,
     height: 38,
     borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  headerTitle: {
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   labBody: {
+    flex: 1,
     flexDirection: 'row',
     padding: 16,
     gap: 16,
@@ -524,15 +564,15 @@ const styles = StyleSheet.create({
     flex: 1.3,
   },
   filterControlBlock: {
-    marginBottom: 12,
+    marginBottom: 10,
   },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 16,
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 14,
     borderWidth: 1.5,
   },
   searchInput: {
@@ -557,6 +597,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   flavorDesc: {
+    fontSize: 11,
     lineHeight: 14,
     marginTop: 2,
   },
@@ -565,11 +606,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
+    paddingVertical: 6,
     borderRadius: 10,
   },
   cardAddBtnText: {
     fontWeight: '900',
     letterSpacing: 0.5,
+    fontSize: 11,
+  },
+  mobileChamberCard: {
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    marginBottom: 12,
+  },
+  flavorCardsGridMobile: {
+    gap: 8,
+  },
+  mobileFlavorRowCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 10,
+    borderRadius: 14,
+    borderWidth: 1.5,
+  },
+  mobileAddBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mobileFixedFooter: {
+    padding: 12,
+    borderTopWidth: 1,
+    position: 'relative',
   },
   mixingChamberSide: {
     flex: 1,
@@ -590,33 +662,32 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   mixNameInput: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '900',
     borderBottomWidth: 1.5,
     paddingVertical: 2,
   },
   visualBowlContainer: {
-    borderRadius: 18,
+    borderRadius: 16,
     borderWidth: 2,
     overflow: 'hidden',
     backgroundColor: 'rgba(0,0,0,0.06)',
   },
   bowlTopRim: {
     backgroundColor: 'rgba(229,177,58,0.2)',
-    paddingVertical: 4,
+    paddingVertical: 3,
     alignItems: 'center',
   },
   rimText: {
     color: '#E5B13A',
     fontSize: 9,
     fontWeight: '900',
-    letterSpacing: 2,
+    letterSpacing: 1.5,
   },
   emptyChamber: {
-    flex: 1,
+    padding: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
   },
   emptyChamberTitle: {
     fontWeight: '900',
@@ -626,7 +697,7 @@ const styles = StyleSheet.create({
   },
   flavorLayer: {
     justifyContent: 'center',
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.3)',
   },
@@ -648,7 +719,7 @@ const styles = StyleSheet.create({
   removeLayerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.8)',
+    backgroundColor: 'rgba(239, 68, 68, 0.85)',
     borderRadius: 6,
   },
   bowlActionsRow: {
@@ -656,6 +727,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginTop: 6,
+  },
+  actionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1.5,
+  },
+  actionPillText: {
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.8,
   },
   addMixToOrderBtn: {
     flexDirection: 'row',
