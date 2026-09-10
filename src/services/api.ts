@@ -1,16 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 
-export const BACKEND_TUNNEL_URL = 'https://benzin-backend-833090629754.us-central1.run.app';
+export const BACKEND_TUNNEL_URL = 'https://hookah-lounge-backend-833090629754.us-central1.run.app';
 export const LOCAL_LAN_URL = 'http://192.168.1.206:3000';
 
 export const getBaseUrl = (): string => {
   if (typeof window !== 'undefined' && window.location) {
-    if (window.location.protocol === 'https:' || window.location.hostname.includes('run.app') || window.location.hostname.includes('exp.direct') || window.location.hostname.includes('ngrok') || window.location.hostname.includes('trycloudflare')) {
-      return BACKEND_TUNNEL_URL;
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return 'http://localhost:3000';
     }
-    if (window.location.hostname && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      return `http://${window.location.hostname}:3000`;
+    if (window.location.origin) {
+      return window.location.origin;
     }
   }
 
@@ -29,7 +29,7 @@ export const getBaseUrl = (): string => {
     }
   }
 
-  return BACKEND_TUNNEL_URL;
+  return 'http://localhost:3000';
 };
 
 export const getApiHeaders = (extraHeaders?: Record<string, string>): Record<string, string> => {

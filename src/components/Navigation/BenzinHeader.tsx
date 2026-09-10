@@ -168,7 +168,6 @@ const styles = StyleSheet.create({
   leftSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    minWidth: 100,
   },
   backBtn: {
     flexDirection: 'row',
@@ -191,8 +190,7 @@ const styles = StyleSheet.create({
   rightSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    minWidth: 200,
+    gap: 6,
     justifyContent: 'flex-end',
   },
   actionBtn: {

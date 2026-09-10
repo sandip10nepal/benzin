@@ -87,7 +87,7 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
                     styles.actionCard,
                     styles.largeActionCard,
                     { backgroundColor: theme.cardColor, borderColor: theme.primaryColor, borderWidth: 2.5 },
-                    isMobile && { padding: 14 }
+                    isMobile ? { padding: 14 } : undefined
                   ]}
                 >
                   <View style={styles.cardHeaderRow}>
@@ -119,7 +119,7 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
                     styles.actionCard,
                     styles.largeActionCard,
                     { backgroundColor: theme.cardColor, borderColor: theme.secondaryColor, borderWidth: 2.5 },
-                    isMobile && { padding: 14 }
+                    isMobile ? { padding: 14 } : undefined
                   ]}
                 >
                   <View style={styles.cardHeaderRow}>
@@ -152,7 +152,7 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
                   styles.actionCard,
                   styles.largeActionCard,
                   { backgroundColor: theme.cardColor, borderColor: theme.accentColor, borderWidth: 2.5 },
-                  isMobile && { padding: 14 }
+                  isMobile ? { padding: 14 } : undefined
                 ]}
               >
                 <View style={styles.cardHeaderRow}>
@@ -219,7 +219,7 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
                           </View>
                         )}
                         <View style={[styles.homeCategoryTag, { backgroundColor: 'rgba(0,0,0,0.75)' }]}>
-                          <Text style={styles.homeCategoryTagText}>{item.category.toUpperCase()}</Text>
+                          <Text style={styles.homeCategoryTagText}>{(item.category || 'MENU').toUpperCase()}</Text>
                         </View>
                       </View>
 

@@ -30,7 +30,7 @@ export const RestaurantPairing: React.FC<RestaurantPairingProps> = ({ onPairSucc
   const [customerName, setCustomerName] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [pairedRestaurantName, setPairedRestaurantName] = useState<string>('Cavali Hookah Lounge');
+  const [pairedRestaurantName, setPairedRestaurantName] = useState<string>('Cavalli');
 
   useEffect(() => {
     // Check if restaurant is already paired
@@ -148,8 +148,6 @@ export const RestaurantPairing: React.FC<RestaurantPairingProps> = ({ onPairSucc
                 </View>
               </View>
 
-              <Text style={styles.title}>Authorize Venue iPad</Text>
-
               {errorMsg && (
                 <View style={styles.errorBox}>
                   <Text style={styles.errorText}>{errorMsg}</Text>
@@ -160,7 +158,7 @@ export const RestaurantPairing: React.FC<RestaurantPairingProps> = ({ onPairSucc
               <View style={styles.sectionBlock}>
                 <TextInput
                   style={[styles.textInput, styles.codeInput]}
-                  placeholder="Enter Venue Code (e.g. 5505 or safar)"
+                  placeholder="Enter Venue Code"
                   placeholderTextColor="#6B5A4E"
                   value={floorCode}
                   onChangeText={setFloorCode}
@@ -171,9 +169,6 @@ export const RestaurantPairing: React.FC<RestaurantPairingProps> = ({ onPairSucc
                   returnKeyType="done"
                   onSubmitEditing={handleVerifyFloorCode}
                 />
-                <Text style={{ color: '#9C8C7E', fontSize: 12, marginTop: 8, textAlign: 'center' }}>
-                  💡 <strong>Cavali Code:</strong> 4821 • <strong>Safar Food Truck:</strong> 5505 • Or type venue name
-                </Text>
               </View>
 
               {/* Action Button */}

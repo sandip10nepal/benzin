@@ -96,137 +96,9 @@ export const MENU_IMAGES: Record<string, any> = {
   hookah_generic: require('../../assets/images/menu/hookah_generic.png'),
 };
 
-const ITEM_NAME_TO_IMAGE_KEY: Record<string, string> = {
-  'hummus': 'hummus',
-  'falafel': 'falafel',
-  'dynamite chicken': 'dyn_chk',
-  'bun kabab': 'bun_kab',
-  'bun kabob': 'bun_kab',
-  'samosa': 'samosa',
-  'papri chaat': 'papri',
-  'pani puri': 'pani',
-  'spicy potato': 'spy_pot',
-  'spicy potatoes': 'spy_pot',
-  'chicken tenders': 'tenders',
-  'tenders with fries': 'tenders',
-  'pita pizza bites': 'pizza_b',
-  'pizza bites': 'pizza_b',
-  'seasoned fries': 'fries',
-  'loaded fries': 'ld_fries',
-  'loaded nachos': 'ld_nachos',
-  'chips & queso': 'chips_q',
-  'chips and queso': 'chips_q',
-  'chips & guacamole': 'chips_g',
-  'chips and guacamole': 'chips_g',
-  'spicy aloo chaat': 'spy_pot',
-  'shawarma plate': 'shaw_pl',
-  'beef koobideh': 'koobideh',
-  'chicken boti': 'chk_boti',
-  'chicken kabob': 'chk_kab',
-  'chicken kabob plate': 'chk_kab',
-  'lamb chops': 'lamb_ch',
-  'butter chicken': 'but_chk',
-  'chicken dum biryani': 'biryani',
-  'chicken biryani': 'biryani',
-  'chicken parmesan': 'cordon',
-  '6 pc wings': 'wings6',
-  '10 pc wings': 'wings10',
-  'sauce choices': 'dyn_chk',
-  'papri chaat (v)': 'v_papri',
-  'pani puri (v)': 'v_pani',
-  'spicy potatoes (v)': 'v_spypot',
-  'falafel (v)': 'v_fal',
-  'hummus & pita (v)': 'v_hum',
-  'paneer momo': 'paneer_m',
-  'veggie samosa (v)': 'veg_sam',
-  'veg samosa': 'veg_sam',
-  'chips & queso (v)': 'v_chipsq',
-  'chips & guacamole (v)': 'v_chipsg',
-  'daal chawal (v)': 'daal_c',
-  'daal chawal': 'daal_c',
-  'seasoned fries (v)': 'v_fries',
-  'loaded fries (v)': 'v_ldfr',
-  'loaded nachos (v)': 'v_ldna',
-  'double smash burger': 'smash',
-  'beef smash': 'smash',
-  'zinger burger': 'zinger',
-  'chicken zinger': 'zinger',
-  'club sandwich': 'club',
-  'chicken club sandwich': 'club',
-  'swiss mushroom burger': 'swiss_m',
-  'swiss mushroom': 'swiss_m',
-  'shawarma wrap': 'shaw_w',
-  'dynamite wrap': 'dyn_w',
-  'dynamite chicken wrap': 'dyn_w',
-  'zinger wrap': 'zing_w',
-  'mirchi paratha roll': 'mir_p',
-  'chicken tacos': 'tacos',
-  'chili chicken': 'chili_c',
-  'mongolian chicken': 'mongo_c',
-  'chicken momo': 'momo',
-  'chow mein': 'chow',
-  'daal with shami': 'daal_s',
-  'daal chawal with beef shami': 'daal_s',
-  'chicken cordon bleu': 'cordon',
-  'caramel crunch': 'car_cr',
-  'pistachio cake': 'pis_ck',
-  'raspberry white chocolate': 'rasp_ck',
-  'raspberry white chocolate cake': 'rasp_ck',
-  'chocolate cake': 'choc_ck',
-  'butterscotch bliss': 'butt_b',
-  'classic mint mojito': 'cl_moj',
-  'lychee mojito': 'ly_moj',
-  'mango mojito': 'mn_moj',
-  'mint margarita': 'mt_marg',
-  'rim fire melon': 'rm_fire',
-  'watermelon juice': 'wm_jce',
-  'orange juice': 'or_jce',
-  'mango shake': 'mn_shk',
-  'sweet lassi': 'sw_las',
-  'ocean\'s secret': 'cl_moj',
-  'pina colada': 'mn_shk',
-  'red affair': 'rm_fire',
-  'karak chai': 'karak',
-  'kashmiri chai': 'kash_c',
-  'moroccan tea': 'moroc_t',
-  'mint tea': 'mint_t',
-  'desi coffee': 'desi_c',
-  'cold coffee': 'cold_c',
-  'pistachio latte': 'cold_c',
-  // ── HOOKAH HOUSE MIXES ──
-  'anarkali': 'hookah_anarkali',
-  'sokha': 'hookah_zalim',
-  'cavali crush': 'hookah_white_king',
-  'shah jahan': 'hookah_anarkali',
-  'white king': 'hookah_white_king',
-  'dragon': 'hookah_zalim',
-  'dubai nights': 'hookah_zalim',
-  'habibi nights': 'hookah_anarkali',
-  'kashmiri chai hookah': 'hookah_anarkali',
-  'bombay pan': 'hookah_anarkali',
-  'hawaiian breeze': 'hookah_generic',
-  // ── SOFT DRINKS & ENERGY & WATER ──
-  'coca-cola': 'or_jce',
-  'coca cola': 'or_jce',
-  'diet coke': 'or_jce',
-  'sprite': 'or_jce',
-  'fanta orange': 'orange_juice',
-  'fanta': 'orange_juice',
-  'ginger ale': 'or_jce',
-  'red bull energy drink': 'cl_moj',
-  'red bull': 'cl_moj',
-  'red bull sugarfree': 'cl_moj',
-  'red bull tropical edition': 'mn_moj',
-  'perrier sparkling water': 'cl_moj',
-  'perrier': 'cl_moj',
-  'bottled spring water': 'cl_moj',
-  'spring water': 'cl_moj',
-  'club soda': 'cl_moj',
-};
-
 /**
- * Universal image resolver that respects custom updated URLs from the Admin Panel
- * while leveraging instant local bundled WebP/PNG assets when appropriate.
+ * Universal dynamic image resolver that relies 100% on the database image_url.
+ * Respects custom web URLs, server paths, and bundled local assets.
  */
 export function getItemImageSource(item?: {
   id?: string;
@@ -234,68 +106,36 @@ export function getItemImageSource(item?: {
   category?: string;
   imageKey?: string;
   imageUrl?: string;
+  image_url?: string | null;
 } | null): any {
   if (!item) return null;
 
-  // 1. Explicit Custom URL (HTTP / HTTPS / Base64 / Remote Server URL)
-  if (item.imageUrl && typeof item.imageUrl === 'string' && item.imageUrl.trim().length > 0) {
-    const url = item.imageUrl.trim();
+  // 1. Database image_url / imageUrl is the 100% single source of truth
+  const rawUrl = item.imageUrl || item.image_url || (item as any).image;
+  if (rawUrl && typeof rawUrl === 'string' && rawUrl.trim().length > 0) {
+    const url = rawUrl.trim();
+    
+    // Absolute web URLs or Base64 data URIs MUST be used exactly as saved in the Admin Panel / DB
     if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
       return { uri: url };
     }
     
-    // Check if relative path matches a local bundled asset for instant display
+    // Check if relative path filename matches a local bundled asset for instant display (e.g. /images/menu/dyn_chk.webp -> dyn_chk)
     const match = url.match(/([^/]+)\.(webp|png|jpg|jpeg)$/i);
     if (match && match[1] && MENU_IMAGES[match[1]]) {
       return MENU_IMAGES[match[1]];
     }
 
-    // Otherwise resolve against server base URL
+    // Otherwise resolve relative server URL against API base URL
     if (url.startsWith('/')) {
       return { uri: `${getBaseUrl()}${url}` };
     }
     return { uri: `${getBaseUrl()}/${url}` };
   }
 
-  // 2. Direct match on imageKey
+  // 2. Fallback: if item has an explicit imageKey
   if (item.imageKey && MENU_IMAGES[item.imageKey]) {
     return MENU_IMAGES[item.imageKey];
-  }
-
-  // 3. Exact match from item name dictionary
-  if (item.name) {
-    const normalizedName = item.name.toLowerCase().trim();
-    const mappedKey = ITEM_NAME_TO_IMAGE_KEY[normalizedName];
-    if (mappedKey && MENU_IMAGES[mappedKey]) {
-      return MENU_IMAGES[mappedKey];
-    }
-  }
-
-  // 4. Clean key from ID (e.g. "MI_hummus_1" -> "hummus")
-  if (item.id) {
-    const cleanId = item.id
-      .replace(/^MI_/, '')
-      .replace(/^cav_[a-z]+_/, '')
-      .replace(/_\d+$/, '')
-      .toLowerCase();
-    if (MENU_IMAGES[cleanId]) {
-      return MENU_IMAGES[cleanId];
-    }
-  }
-
-  // 5. Fuzzy match from item name
-  if (item.name) {
-    const cleanName = item.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
-    for (const key of Object.keys(MENU_IMAGES)) {
-      if (cleanName.startsWith(key) || key.startsWith(cleanName)) {
-        return MENU_IMAGES[key];
-      }
-    }
-  }
-
-  // 6. Hookah fallback
-  if (item.category === 'hookah') {
-    return MENU_IMAGES['hookah_anarkali'] || MENU_IMAGES['hookah_generic'];
   }
 
   return null;

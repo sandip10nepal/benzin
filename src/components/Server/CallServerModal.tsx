@@ -5,10 +5,12 @@ import {
   StyleSheet, 
   Modal, 
   TouchableOpacity, 
-  TextInput 
+  TextInput,
+  ScrollView
 } from 'react-native';
-import { X, Bell, Flame, Droplets, Utensils, CreditCard, UserCheck, CheckCircle2 } from 'lucide-react-native';
+import { X, Bell, Flame, Droplets, Utensils, CreditCard, UserCheck, CheckCircle2, ArrowLeft } from 'lucide-react-native';
 import { useRestaurantTheme } from '../../theme/ThemeContext';
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { ServerRequestType, ServerRequestStatus } from '../../types';
 
 interface CallServerModalProps {
@@ -27,6 +29,9 @@ export const CallServerModal: React.FC<CallServerModalProps> = ({
   onCancelRequest,
 }) => {
   const { theme } = useRestaurantTheme();
+  const layout = useResponsiveLayout();
+  const isMobile = layout.isMobilePhone;
+
   const [showCustomInput, setShowCustomInput] = useState<boolean>(false);
   const [customText, setCustomText] = useState<string>('');
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
@@ -48,7 +53,7 @@ export const CallServerModal: React.FC<CallServerModalProps> = ({
     {
       type: 'server',
       title: 'I Need a Server',
-      subtitle: 'Staff assistance at Table 12',
+      subtitle: 'Staff assistance at your table',
       icon: UserCheck,
       color: '#E5B13A',
     },
@@ -58,13 +63,6 @@ export const CallServerModal: React.FC<CallServerModalProps> = ({
       subtitle: 'Heat up or replace hookah coals',
       icon: Flame,
       color: '#0099FF',
-    },
-    {
-      type: 'water',
-      title: 'Ice Water Pitcher',
-      subtitle: 'Fresh cold water & glasses',
-      icon: Droplets,
-      color: '#3B82F6',
     },
     {
       type: 'utensils',
@@ -96,44 +94,54 @@ export const CallServerModal: React.FC<CallServerModalProps> = ({
 
   return (
     <Modal visible={visible} animationType="fade" transparent>
-      <View style={styles.overlay}>
-        <View style={[styles.modalContainer, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}>
+      <View style={[styles.overlay, isMobile && { padding: 12 }]}>
+        <View style={[
+          styles.modalContainer, 
+          { backgroundColor: theme.cardColor, borderColor: theme.borderColor },
+          isMobile && { padding: 14, maxHeight: '92%' }
+        ]}>
           {/* Header */}
           <View style={[styles.modalHeader, { borderBottomColor: theme.borderColor }]}>
             <View style={styles.headerLeft}>
-              <View style={[styles.iconBg, { backgroundColor: 'rgba(20,184,166,0.12)' }]}>
-                <Bell size={24} color={theme.accentColor} />
-              </View>
-              <View>
-                <Text style={[styles.modalTitle, { color: theme.textColor }]}>
-                  {activeRequest ? 'SERVER NOTIFIED' : 'HOW CAN WE HELP?'}
-                </Text>
-                <Text style={[styles.modalSubtitle, { color: theme.mutedTextColor }]}>
-                  TABLE {theme.tableNumber} • {theme.name || 'LOUNGE'} ASSISTANCE
-                </Text>
-              </View>
+              <TouchableOpacity
+                onPress={onClose}
+                activeOpacity={0.7}
+                style={[styles.backNavBtn, { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: theme.borderColor }]}
+              >
+                <ArrowLeft size={18} color={theme.textColor} />
+                <Text style={[styles.backNavText, { color: theme.textColor }]}>BACK TO MENU</Text>
+              </TouchableOpacity>
             </View>
 
             <TouchableOpacity 
               onPress={onClose} 
               style={[styles.closeBtn, { backgroundColor: 'rgba(255,255,255,0.06)' }]}
+              accessibilityLabel="Close call server modal"
             >
               <X size={20} color={theme.textColor} />
             </TouchableOpacity>
+          </View>
+
+          {/* Subtitle Banner */}
+          <View style={styles.titleBanner}>
+            <Bell size={20} color={theme.accentColor} />
+            <Text style={[styles.modalTitle, { color: theme.textColor, fontSize: isMobile ? 15 : 18 }]}>
+              {activeRequest ? 'SERVER NOTIFIED' : 'CALL SERVER ASSISTANCE'}
+            </Text>
           </View>
 
           {/* Body */}
           {activeRequest ? (
             <View style={styles.activeRequestContainer}>
               <View style={[styles.pulseCircle, { borderColor: theme.accentColor }]}>
-                <CheckCircle2 size={64} color={theme.accentColor} />
+                <CheckCircle2 size={isMobile ? 48 : 64} color={theme.accentColor} />
               </View>
 
-              <Text style={[styles.activeTitle, { color: theme.textColor }]}>
+              <Text style={[styles.activeTitle, { color: theme.textColor, fontSize: isMobile ? 18 : 22 }]}>
                 {activeRequest.label}
               </Text>
 
-              <Text style={[styles.activeDesc, { color: theme.mutedTextColor }]}>
+              <Text style={[styles.activeDesc, { color: theme.mutedTextColor, fontSize: isMobile ? 12 : 14 }]}>
                 Your request has been broadcasted to the {theme.name || 'service'} team floor.
               </Text>
 
@@ -153,7 +161,7 @@ export const CallServerModal: React.FC<CallServerModalProps> = ({
               </TouchableOpacity>
             </View>
           ) : (
-            <View style={styles.optionsContainer}>
+            <ScrollView style={styles.optionsContainer} showsVerticalScrollIndicator={false}>
               {serverOptions.map((opt, idx) => {
                 const Icon = opt.icon;
                 return (
@@ -161,13 +169,15 @@ export const CallServerModal: React.FC<CallServerModalProps> = ({
                     key={opt.type || `server_opt_${idx}`}
                     activeOpacity={0.8}
                     onPress={() => handleSelectOption(opt.type)}
-                    style={[styles.optionCard, { backgroundColor: 'rgba(255,255,255,0.03)', borderColor: theme.borderColor }]}
+                    {...({ onClick: () => handleSelectOption(opt.type) } as any)}
+                    style={[styles.optionCard, { backgroundColor: 'rgba(255,255,255,0.03)', borderColor: theme.borderColor, cursor: 'pointer' as any }, isMobile && { paddingHorizontal: 12, paddingVertical: 10, gap: 12 }]}
                   >
-                    <View style={[styles.optionIconBg, { backgroundColor: `${opt.color}15` }]}>
-                      <Icon size={24} color={opt.color} />
+                    <View style={[styles.optionIconBg, { backgroundColor: `${opt.color}15` }, isMobile && { width: 40, height: 40 }]}>
+                      <Icon size={isMobile ? 20 : 24} color={opt.color} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={[styles.optionTitle, { color: theme.textColor }]}>{opt.title}</Text>
+                      <Text style={[styles.optionTitle, { color: theme.textColor, fontSize: isMobile ? 14 : 16 }]}>{opt.title}</Text>
+                      <Text style={[styles.optionSubtitle, { color: theme.mutedTextColor, fontSize: isMobile ? 10 : 12 }]}>{opt.subtitle}</Text>
                     </View>
                   </TouchableOpacity>
                 );
@@ -177,7 +187,7 @@ export const CallServerModal: React.FC<CallServerModalProps> = ({
               {showCustomInput ? (
                 <View style={styles.customInputBlock}>
                   <TextInput
-                    style={[styles.customInput, { color: theme.textColor, borderColor: theme.accentColor }]}
+                    style={[styles.customInput, { color: theme.textColor, borderColor: theme.accentColor, fontSize: isMobile ? 14 : 15 }]}
                     placeholder="Type what you need..."
                     placeholderTextColor={theme.mutedTextColor}
                     value={customText}
@@ -195,17 +205,18 @@ export const CallServerModal: React.FC<CallServerModalProps> = ({
                 <TouchableOpacity
                   activeOpacity={0.8}
                   onPress={() => setShowCustomInput(true)}
-                  style={[styles.optionCard, { backgroundColor: 'rgba(255,255,255,0.02)', borderColor: theme.borderColor }]}
+                  style={[styles.optionCard, { backgroundColor: 'rgba(255,255,255,0.02)', borderColor: theme.borderColor }, isMobile && { paddingHorizontal: 12, paddingVertical: 10, gap: 12 }]}
                 >
-                  <View style={[styles.optionIconBg, { backgroundColor: 'rgba(255,255,255,0.05)' }]}>
-                    <Text style={{ fontSize: 20 }}>�</Text>
+                  <View style={[styles.optionIconBg, { backgroundColor: 'rgba(255,255,255,0.05)' }, isMobile && { width: 40, height: 40 }]}>
+                    <Text style={{ fontSize: isMobile ? 16 : 20 }}>💬</Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.optionTitle, { color: theme.textColor }]}>Something Else</Text>
+                    <Text style={[styles.optionTitle, { color: theme.textColor, fontSize: isMobile ? 14 : 16 }]}>Something Else</Text>
+                    <Text style={[styles.optionSubtitle, { color: theme.mutedTextColor, fontSize: isMobile ? 10 : 12 }]}>Send custom note to staff</Text>
                   </View>
                 </TouchableOpacity>
               )}
-            </View>
+            </ScrollView>
           )}
         </View>
       </View>
@@ -222,33 +233,54 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   modalContainer: {
-    width: 600,
+    width: '100%',
+    maxWidth: 580,
+    maxHeight: '90%',
     borderRadius: 24,
     borderWidth: 1,
     overflow: 'hidden',
-    padding: 24,
+    padding: 20,
   },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingBottom: 18,
+    paddingBottom: 14,
     borderBottomWidth: 1,
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+  },
+  backNavBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    minHeight: 44,
+  },
+  backNavText: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  titleBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
   },
   iconBg: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
   modalTitle: {
-    fontSize: 18,
     fontWeight: '900',
     letterSpacing: 1,
   },
@@ -259,9 +291,9 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   closeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },

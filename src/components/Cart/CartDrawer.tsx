@@ -144,7 +144,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         <View style={styles.modifiersContainer}>
                           {cartItem.selectedModifiers.map((m, idx) => (
                             <Text key={idx} style={[styles.modifierTag, { color: theme.mutedTextColor }]}>
-                              • {m.optionName} {m.price > 0 ? `(+$${m.price.toFixed(2)})` : ''}
+                              • {m.optionName || m.name} {m.price > 0 ? `(+$${m.price.toFixed(2)})` : ''}
                             </Text>
                           ))}
                         </View>
@@ -251,9 +251,9 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },

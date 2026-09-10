@@ -50,7 +50,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
             groupName: group.name,
             optionId: defaultOpt.id,
             optionName: defaultOpt.name,
-            price: defaultOpt.price,
+            price: Number(defaultOpt.price !== undefined ? defaultOpt.price : (defaultOpt as any).price_adjustment !== undefined ? (defaultOpt as any).price_adjustment : 0),
           });
         }
       });
@@ -63,6 +63,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   const imageSource = getItemImageSource(item);
 
   const handleToggleModifier = (groupId: string, groupName: string, option: ModifierOption, isSingleChoice: boolean) => {
+    const optPrice = Number(option.price !== undefined ? option.price : (option as any).price_adjustment !== undefined ? (option as any).price_adjustment : 0);
     setSelectedModifiers((prev) => {
       if (isSingleChoice) {
         // Replace selection in group
@@ -74,7 +75,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
             groupName,
             optionId: option.id,
             optionName: option.name,
-            price: option.price,
+            price: optPrice,
           },
         ];
       } else {
@@ -90,7 +91,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
               groupName,
               optionId: option.id,
               optionName: option.name,
-              price: option.price,
+              price: optPrice,
             },
           ];
         }
@@ -98,11 +99,50 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     });
   };
 
-  const modifierTotal = selectedModifiers.reduce((acc, m) => acc + m.price, 0);
-  const calculatedPrice = (item.price + modifierTotal) * quantity;
+  const isSoftDrink = (item.name || '').toLowerCase().includes('soft drink') || (item.name || '').toLowerCase().includes('soda');
+  const modifierTotal = selectedModifiers.reduce((acc, m) => acc + (Number(m.price) || 0), 0);
+  const drinkMultiplier = (isSoftDrink && selectedModifiers.length > 1) ? selectedModifiers.length : 1;
+  const baseUnit = (Number(item.price) || 0) * drinkMultiplier + modifierTotal;
+  const calculatedPrice = (Number(baseUnit) || 0) * (Number(quantity) || 1);
 
   const handleAdd = () => {
-    onAddToCart(item, quantity, selectedModifiers, specialInstructions);
+    if (isSoftDrink) {
+      const activeMods = selectedModifiers.length > 0 
+        ? selectedModifiers 
+        : (item.modifierGroups?.[0]?.options?.[0] ? [{
+            groupId: item.modifierGroups[0].id,
+            groupName: item.modifierGroups[0].name,
+            optionId: item.modifierGroups[0].options[0].id,
+            optionName: item.modifierGroups[0].options[0].name,
+            price: Number(item.modifierGroups[0].options[0].price || (item.modifierGroups[0].options[0] as any).price_adjustment || 0),
+          }] : []);
+
+      if (activeMods.length > 1) {
+        // Add each chosen soft drink as an individual item so customer sees exact drink names and staff receives exact items
+        activeMods.forEach((mod) => {
+          const singleDrinkItem: MenuItem = {
+            ...item,
+            id: `${item.id}_${mod.optionId}`,
+            name: mod.optionName,
+            description: `Chilled ${mod.optionName} served with ice.`,
+          };
+          onAddToCart(singleDrinkItem, quantity, [mod], specialInstructions);
+        });
+      } else if (activeMods.length === 1) {
+        // Single soft drink chosen - display the specific drink name!
+        const singleDrinkItem: MenuItem = {
+          ...item,
+          id: `${item.id}_${activeMods[0].optionId}`,
+          name: activeMods[0].optionName,
+          description: `Chilled ${activeMods[0].optionName} served with ice.`,
+        };
+        onAddToCart(singleDrinkItem, quantity, activeMods, specialInstructions);
+      } else {
+        onAddToCart(item, quantity, [], specialInstructions);
+      }
+    } else {
+      onAddToCart(item, quantity, selectedModifiers, specialInstructions);
+    }
     onClose();
   };
 
@@ -150,7 +190,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
             {item.modifierGroups && item.modifierGroups.length > 0 && (
               <View style={styles.modifiersSection}>
                 {item.modifierGroups.map((group, gIdx) => {
-                  const isSingleChoice = group.required || group.maxSelect === 1;
+                  const isSingleChoice = !isSoftDrink && (Boolean(group.required) || group.maxSelect === 1 || (group as any).max_selections === 1);
 
                   return (
                     <View key={group.id || `group_${gIdx}`} style={styles.groupBlock}>
@@ -295,9 +335,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 16,
     right: 16,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -55,7 +55,7 @@ function MainAppContent() {
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: theme.backgroundColor }]}>
-      <StatusBar barStyle="light-content" backgroundColor={theme.backgroundColor} />
+      <StatusBar barStyle={theme.mode === 'light' ? 'dark-content' : 'light-content'} backgroundColor={theme.backgroundColor} />
 
       {/* Screen Router */}
       {currentScreen === 'splash' && (
@@ -74,6 +74,7 @@ function MainAppContent() {
           onOpenCart={() => setIsCartDrawerOpen(true)}
           onLogOut={logOutSession}
           cartCount={totalCartCount}
+          allMenuItems={allMenuItems}
         />
       )}
 

@@ -33,6 +33,221 @@ interface MenuBrowsingProps {
   allMenuItems: MenuItem[];
 }
 
+interface HouseMixItemCardProps {
+  item: MenuItem;
+  theme: any;
+  isMobile: boolean;
+  cardWidth: any;
+  onAddToCart?: (item: MenuItem, qty: number, modifiers: SelectedModifier[], notes?: string) => void;
+  count: number;
+  onUpdateQuantity?: (item: MenuItem, delta: number, e: any) => void;
+  onSelectItem: (item: MenuItem) => void;
+}
+
+const HouseMixItemCard: React.FC<HouseMixItemCardProps> = ({
+  item,
+  theme,
+  isMobile,
+  cardWidth,
+  onAddToCart,
+  count,
+  onUpdateQuantity,
+  onSelectItem,
+}) => {
+  const [iceBase, setIceBase] = useState(false);
+  const [iceHose, setIceHose] = useState(false);
+
+  const totalPrice = item.price + (iceBase ? 2 : 0) + (iceHose ? 6 : 0);
+
+  const handleAdd = (e: any) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    const selectedOpts: SelectedModifier[] = [];
+    if (iceBase) selectedOpts.push({ id: 'OPT_ICE_BASE', name: 'Ice Base', optionName: 'Ice Base', price: 2 });
+    if (iceHose) selectedOpts.push({ id: 'OPT_ICE_HOSE', name: 'Ice Hose', optionName: 'Ice Hose', price: 6 });
+    const noteParts: string[] = [];
+    if (iceBase) noteParts.push('Ice Base (+$2)');
+    if (iceHose) noteParts.push('Ice Hose (+$6)');
+    if (onAddToCart) {
+      onAddToCart(item, 1, selectedOpts, noteParts.join(' · '));
+    }
+  };
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.9}
+      onPress={() => onSelectItem(item)}
+      style={[
+        styles.itemCard,
+        {
+          width: cardWidth,
+          backgroundColor: theme.cardColor,
+          borderColor: count > 0 ? '#10B981' : theme.borderColor,
+          borderWidth: count > 0 ? 2 : 1.5,
+          padding: isMobile ? 12 : 16,
+          marginBottom: 10,
+          borderRadius: 18,
+          justifyContent: 'space-between',
+        }
+      ]}
+    >
+      <View>
+        {/* Title and Price Row */}
+        <View style={[styles.titleRow, { alignItems: 'center', marginBottom: 6 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+            <Text style={{ fontSize: isMobile ? 16 : 20 }}>💨</Text>
+            <Text
+              style={[styles.itemName, { color: theme.textColor, fontSize: isMobile ? 15 : 18, fontWeight: '900' }]}
+              numberOfLines={1}
+            >
+              {item.name}
+            </Text>
+          </View>
+          <Text style={[styles.itemPrice, { color: theme.secondaryColor, fontSize: isMobile ? 15 : 18, fontWeight: '900' }]}>
+            ${totalPrice.toFixed(2)}
+          </Text>
+        </View>
+
+        {/* Description / Base Note */}
+        {item.description ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 }}>
+            <Text style={{ fontSize: 11 }}>🍇</Text>
+            <Text
+              style={[styles.itemDesc, { color: '#E5B13A', fontSize: isMobile ? 11 : 12, fontWeight: '700' }]}
+              numberOfLines={1}
+            >
+              {item.description}
+            </Text>
+          </View>
+        ) : null}
+
+        {/* Inline Add-On Options (Ice Base & Ice Hose) */}
+        <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
+          {/* Ice Base Toggle Pill */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={(e) => {
+              if (e && e.stopPropagation) e.stopPropagation();
+              setIceBase(!iceBase);
+            }}
+            style={{
+              flex: 1,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 4,
+              paddingVertical: isMobile ? 7 : 9,
+              paddingHorizontal: 6,
+              borderRadius: 10,
+              borderWidth: 1.5,
+              borderColor: iceBase ? '#0099FF' : 'rgba(255,255,255,0.18)',
+              backgroundColor: iceBase ? 'rgba(0,153,255,0.22)' : 'rgba(255,255,255,0.05)',
+            }}
+          >
+            <Text style={{ fontSize: isMobile ? 13 : 15 }}>🧊</Text>
+            <Text
+              style={{
+                color: iceBase ? '#0099FF' : theme.textColor,
+                fontSize: isMobile ? 11 : 12,
+                fontWeight: '900',
+              }}
+            >
+              {iceBase ? '✓ ICE BASE +$2' : '+ ICE BASE $2'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Ice Hose Toggle Pill */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={(e) => {
+              if (e && e.stopPropagation) e.stopPropagation();
+              setIceHose(!iceHose);
+            }}
+            style={{
+              flex: 1,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 4,
+              paddingVertical: isMobile ? 7 : 9,
+              paddingHorizontal: 6,
+              borderRadius: 10,
+              borderWidth: 1.5,
+              borderColor: iceHose ? '#14B8A6' : 'rgba(255,255,255,0.18)',
+              backgroundColor: iceHose ? 'rgba(20,184,166,0.22)' : 'rgba(255,255,255,0.05)',
+            }}
+          >
+            <Text style={{ fontSize: isMobile ? 13 : 15 }}>❄️</Text>
+            <Text
+              style={{
+                color: iceHose ? '#14B8A6' : theme.textColor,
+                fontSize: isMobile ? 11 : 12,
+                fontWeight: '900',
+              }}
+            >
+              {iceHose ? '✓ ICE HOSE +$6' : '+ ICE HOSE $6'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Action Button Row */}
+      {count === 0 ? (
+        <TouchableOpacity
+          onPress={handleAdd}
+          activeOpacity={0.85}
+          style={[
+            styles.quickAddBtn,
+            {
+              backgroundColor: '#22C55E',
+              borderColor: '#22C55E',
+              borderWidth: 1.5,
+              paddingVertical: isMobile ? 9 : 11,
+              width: '100%',
+              borderRadius: 12,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+            }
+          ]}
+        >
+          <Plus size={isMobile ? 15 : 17} color="#FFFFFF" />
+          <Text style={[styles.quickAddText, { color: '#FFFFFF', fontSize: isMobile ? 12 : 13, fontWeight: '900' }]}>
+            ADD TO ORDER (${totalPrice.toFixed(2)})
+          </Text>
+        </TouchableOpacity>
+      ) : (
+        <View style={[styles.browseStepperRow, { width: '100%', justifyContent: 'space-between' }]}>
+          <TouchableOpacity
+            onPress={(e) => {
+              if (onUpdateQuantity) onUpdateQuantity(item, -1, e);
+            }}
+            activeOpacity={0.8}
+            style={[styles.browseStepBtn, { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: theme.borderColor, width: 34, height: 34, borderRadius: 10 }]}
+          >
+            <Minus size={14} color={theme.textColor} />
+          </TouchableOpacity>
+
+          <View style={[styles.browseCountBadge, { backgroundColor: '#10B981', height: 34, paddingHorizontal: 14, borderRadius: 10 }]}>
+            <Check size={13} color="#FFFFFF" />
+            <Text style={[styles.browseCountText, { fontSize: 13, color: '#FFFFFF', fontWeight: '900', marginLeft: 4 }]}>
+              {count} IN ORDER
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            onPress={handleAdd}
+            activeOpacity={0.8}
+            style={[styles.browseStepBtn, { backgroundColor: '#22C55E', borderColor: '#22C55E', width: 34, height: 34, borderRadius: 10 }]}
+          >
+            <Plus size={14} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+};
+
 export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
   onBack,
   onSelectItem,
@@ -63,46 +278,64 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
   const isGlobalSearch = searchQuery.trim().length > 0;
 
   // 1. Super Categories (parent_id === null && active !== false)
+  // Ordered intuitively: ALL ITEMS, FOOD & DINING, BEVERAGES, HOOKAH & SHISHA
   const superCategories = useMemo(() => {
+    const list: Array<{ _id: string; name: string; icon?: string }> = [
+      { _id: 'ALL', name: 'ALL ITEMS', icon: '✨' }
+    ];
     if (allCategories && allCategories.length > 0) {
       const supers = allCategories
-        .filter(c => c.parent_id === null && c.active !== false)
-        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+        .filter(c => (c.parent_id === null || !c.parent_id) && c.active !== false)
+        .sort((a, b) => {
+          const nameA = (a.name || a.title || '').toLowerCase();
+          const nameB = (b.name || b.title || '').toLowerCase();
+          const rank = (name: string) => {
+            if (name.includes('food') || name.includes('dining')) return 1;
+            if (name.includes('beverage') || name.includes('drink')) return 2;
+            if (name.includes('hookah') || name.includes('shisha')) return 3;
+            return 4;
+          };
+          const rA = rank(nameA);
+          const rB = rank(nameB);
+          if (rA !== rB) return rA - rB;
+          return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+        });
+
       if (supers.length > 0) {
-        return supers.map(s => ({
-          _id: s._id || s.id,
-          name: (s.name || s.title || 'Category').toUpperCase(),
-          icon: s.icon || '📋',
-        }));
+        supers.forEach(s => {
+          list.push({
+            _id: s._id || s.id,
+            name: (s.name || s.title || 'Category').toUpperCase(),
+            icon: s.icon || (s.name?.toLowerCase().includes('food') ? '🍔' : s.name?.toLowerCase().includes('drink') ? '🍹' : '💨'),
+          });
+        });
+        return list;
       }
     }
 
-    // Fallback if allCategories is empty
-    const list: Array<{ _id: string; name: string; icon?: string }> = [];
-    const hasFood = (allMenuItems || []).some(i => i.category === 'food');
-    const hasHookah = (allMenuItems || []).some(i => i.category === 'hookah');
-    const hasDrinks = (allMenuItems || []).some(i => i.category === 'drinks');
-    if (hasFood || (!hasHookah && !hasDrinks)) list.push({ _id: 'cat_super_food', name: 'FOOD & DINING', icon: '🍔' });
-    if (hasHookah) list.push({ _id: 'cat_super_hookah', name: 'HOOKAH', icon: '💨' });
-    if (hasDrinks) list.push({ _id: 'cat_super_drinks', name: 'BEVERAGES', icon: '🍸' });
+    list.push(
+      { _id: 'cat_super_food', name: 'FOOD & DINING', icon: '🍔' },
+      { _id: 'cat_super_drinks', name: 'BEVERAGES', icon: '🍹' },
+      { _id: 'cat_super_hookah', name: 'HOOKAH', icon: '💨' }
+    );
     return list;
-  }, [allCategories, allMenuItems]);
+  }, [allCategories]);
 
-  const [activeSuperCatId, setActiveSuperCatId] = useState<string>('');
-
-  React.useEffect(() => {
-    if (superCategories.length > 0 && (!activeSuperCatId || !superCategories.some(s => s._id === activeSuperCatId))) {
-      setActiveSuperCatId(superCategories[0]._id);
-    }
-  }, [superCategories]);
+  const [activeSuperCatId, setActiveSuperCatId] = useState<string>('ALL');
 
   // 2. Sub Categories for active Super Category
   const activeSubCategories = useMemo(() => {
+    if (activeSuperCatId === 'ALL') {
+      return [{ _id: 'ALL', name: 'ALL' }];
+    }
+
     if (allCategories && allCategories.length > 0) {
       const subs = allCategories
         .filter(c => c.parent_id === activeSuperCatId && c.active !== false)
         .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-      return [{ _id: 'ALL', name: 'ALL' }, ...subs.map(s => ({ _id: s._id || s.id, name: s.name || s.title || s._id }))];
+      if (subs.length > 0) {
+        return [{ _id: 'ALL', name: 'ALL' }, ...subs.map(s => ({ _id: s._id || s.id, name: s.name || s.title || s._id }))];
+      }
     }
 
     const legacyCat = activeSuperCatId.replace('cat_super_', '');
@@ -131,34 +364,58 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
       ).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
     }
 
-    if (!allCategories || allCategories.length === 0) {
-      const legacyCat = activeSuperCatId.replace('cat_super_', '');
-      return activeItems.filter((item) => {
-        const matchesCategory = item.category === legacyCat;
-        const matchesSubcategory = activeSubCatId === 'ALL' || item.subcategory === activeSubCatId;
-        return matchesCategory && matchesSubcategory;
-      }).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    if (activeSuperCatId === 'ALL') {
+      if (activeSubCatId === 'ALL') {
+        return activeItems.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+      }
+      return activeItems.filter(item => 
+        item.category_id === activeSubCatId || 
+        item.category === activeSubCatId ||
+        item.subcategory === activeSubCatId
+      ).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
     }
 
-    const validSubIds = activeSubCategories.filter(s => s._id !== 'ALL').map(s => s._id);
     const activeSuperObj = superCategories.find(s => s._id === activeSuperCatId);
     const superName = (activeSuperObj?.name || '').toLowerCase();
     let legacyCat: 'hookah' | 'food' | 'drinks' = 'food';
-    if (superName.includes('hookah')) legacyCat = 'hookah';
+    if (superName.includes('hookah') || superName.includes('shisha')) legacyCat = 'hookah';
     else if (superName.includes('beverage') || superName.includes('drink')) legacyCat = 'drinks';
 
-    return activeItems.filter((item) => {
+    const validSubIds = activeSubCategories.filter(s => s._id !== 'ALL').map(s => s._id);
+
+    const list = activeItems.filter((item) => {
       if (activeSubCatId === 'ALL') {
-        return validSubIds.includes(item.category_id) || item.category === legacyCat;
+        return (
+          validSubIds.includes(item.category_id) || 
+          validSubIds.includes(item.category) || 
+          item.category === legacyCat || 
+          item.category_id === activeSuperCatId
+        );
       }
-      return item.category_id === activeSubCatId;
+      return (
+        item.category_id === activeSubCatId || 
+        item.category === activeSubCatId ||
+        item.subcategory === activeSubCatId
+      );
     }).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+
+    return list.length > 0 ? list : activeItems;
   }, [allMenuItems, allCategories, activeSuperCatId, superCategories, activeSubCategories, activeSubCatId, searchQuery, isGlobalSearch]);
 
   const [itemQuantities, setItemQuantities] = useState<Record<string, number>>({});
 
+  // Synchronize item quantities with cart
+  React.useEffect(() => {
+    if (!cartItems) return;
+    const counts: Record<string, number> = {};
+    cartItems.forEach(ci => {
+      counts[ci.item.id] = (counts[ci.item.id] || 0) + ci.quantity;
+    });
+    setItemQuantities(counts);
+  }, [cartItems]);
+
   const handleUpdateItemQty = (item: MenuItem, delta: number, e: any) => {
-    e.stopPropagation();
+    if (e && e.stopPropagation) e.stopPropagation();
     if (item.available === false && delta > 0) return;
 
     const currentQty = itemQuantities[item.id] || 0;
@@ -213,83 +470,6 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
 
       {/* Main Content Area */}
       <View style={[styles.content, { paddingHorizontal: layout.contentPadding }]}>
-        {/* Super Category Touch Cards - Arranged Like Welcome Page */}
-        {!isGlobalSearch && (
-          <View style={styles.menuSuperCategorySection}>
-            <View style={[styles.topCardsRow, isMobile && { flexDirection: 'column', gap: 12 }]}>
-              {/* 1. HOOKAH CARD */}
-              <TouchableOpacity
-                activeOpacity={0.88}
-                onPress={() => {
-                  const hookahCat = superCategories.find(s => s.name.includes('HOOKAH'));
-                  if (hookahCat) setActiveSuperCatId(hookahCat._id);
-                }}
-                style={[
-                  styles.superTouchCard,
-                  { backgroundColor: theme.cardColor, borderColor: activeSuperCatId.toLowerCase().includes('hookah') ? '#0099FF' : theme.borderColor, borderWidth: activeSuperCatId.toLowerCase().includes('hookah') ? 2.5 : 1.5 },
-                  isMobile && { width: '100%', padding: 12 }
-                ]}
-              >
-                <View style={styles.superCardHeader}>
-                  <Text style={{ fontSize: isMobile ? 22 : 28 }}>💨</Text>
-                  <View style={[styles.superBadge, { backgroundColor: '#0099FF' }]}>
-                    <Text style={styles.superBadgeText}>POPULAR</Text>
-                  </View>
-                </View>
-                <Text style={[styles.superCardTitle, { color: theme.textColor }, isMobile && { fontSize: 16 }]}>HOOKAH</Text>
-                <Text style={[styles.superCardSub, { color: theme.mutedTextColor }, isMobile && { fontSize: 10 }]}>Shisha & Blends</Text>
-              </TouchableOpacity>
-
-              {/* 2. FOOD & DINING CARD */}
-              <TouchableOpacity
-                activeOpacity={0.88}
-                onPress={() => {
-                  const foodCat = superCategories.find(s => s.name.includes('FOOD'));
-                  if (foodCat) setActiveSuperCatId(foodCat._id);
-                }}
-                style={[
-                  styles.superTouchCard,
-                  { backgroundColor: theme.cardColor, borderColor: (activeSuperCatId.toLowerCase().includes('food') || activeSuperCatId.includes('cat_super_food')) ? '#E5B13A' : theme.borderColor, borderWidth: (activeSuperCatId.toLowerCase().includes('food') || activeSuperCatId.includes('cat_super_food')) ? 2.5 : 1.5 },
-                  isMobile && { width: '100%', padding: 12 }
-                ]}
-              >
-                <View style={styles.superCardHeader}>
-                  <Text style={{ fontSize: isMobile ? 22 : 28 }}>🍔</Text>
-                  <View style={[styles.superBadge, { backgroundColor: '#E5B13A' }]}>
-                    <Text style={[styles.superBadgeText, { color: '#000000' }]}>GOURMET</Text>
-                  </View>
-                </View>
-                <Text style={[styles.superCardTitle, { color: theme.textColor }, isMobile && { fontSize: 16 }]}>FOOD & DINING</Text>
-                <Text style={[styles.superCardSub, { color: theme.mutedTextColor }, isMobile && { fontSize: 10 }]}>Lounge Dishes & Plates</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* 3. BEVERAGES & DRINKS CARD (CENTERED BELOW) */}
-            <TouchableOpacity
-              activeOpacity={0.88}
-              onPress={() => {
-                const drinkCat = superCategories.find(s => s.name.includes('BEVERAGE') || s.name.includes('DRINK'));
-                if (drinkCat) setActiveSuperCatId(drinkCat._id);
-              }}
-              style={[
-                styles.superTouchCard,
-                styles.bottomSuperCard,
-                { backgroundColor: theme.cardColor, borderColor: (activeSuperCatId.toLowerCase().includes('drink') || activeSuperCatId.toLowerCase().includes('beverage')) ? '#14B8A6' : theme.borderColor, borderWidth: (activeSuperCatId.toLowerCase().includes('drink') || activeSuperCatId.toLowerCase().includes('beverage')) ? 2.5 : 1.5 },
-                isMobile && { width: '100%', marginTop: 12, padding: 12 }
-              ]}
-            >
-              <View style={styles.superCardHeader}>
-                <Text style={{ fontSize: isMobile ? 22 : 28 }}>🍹</Text>
-                <View style={[styles.superBadge, { backgroundColor: '#14B8A6' }]}>
-                  <Text style={styles.superBadgeText}>REFRESHING</Text>
-                </View>
-              </View>
-              <Text style={[styles.superCardTitle, { color: theme.textColor }, isMobile && { fontSize: 16 }]}>BEVERAGES & DRINKS</Text>
-              <Text style={[styles.superCardSub, { color: theme.mutedTextColor }, isMobile && { fontSize: 10 }]}>Craft Cocktails, Tea & Beverages</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
         {/* Global Search Box */}
         <View style={[styles.searchBoxRow, isMobile && { paddingVertical: 4 }]}>
           <View style={[styles.searchBox, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }, isMobile && { minWidth: '100%', paddingVertical: 8 }]}>
@@ -315,6 +495,41 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
             <Text style={[styles.globalSearchText, { color: theme.secondaryColor }]}>
               🔍 GLOBAL SEARCH RESULT: {filteredItems.length} ITEMS FOUND FOR "{searchQuery.toUpperCase()}"
             </Text>
+          </View>
+        )}
+
+        {/* Super Categories Selector Tabs */}
+        {!isGlobalSearch && superCategories.length > 1 && (
+          <View style={styles.supercatRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.supercatScroll}>
+              {superCategories.map((sup, idx) => {
+                const isActive = activeSuperCatId === sup._id;
+                return (
+                  <TouchableOpacity
+                    key={sup._id || `sup_${idx}`}
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      setActiveSuperCatId(sup._id);
+                      setActiveSubCatId('ALL');
+                    }}
+                    style={[
+                      styles.supercatTab,
+                      { backgroundColor: theme.cardColor, borderColor: theme.borderColor },
+                      isActive && { backgroundColor: 'rgba(229,177,58,0.18)', borderColor: theme.secondaryColor },
+                      isMobile && { paddingHorizontal: 12, paddingVertical: 7 }
+                    ]}
+                  >
+                    <Text style={{ fontSize: isMobile ? 13 : 15, marginRight: 6 }}>{sup.icon || '🍽️'}</Text>
+                    <Text style={[
+                      styles.supercatText,
+                      { color: isActive ? theme.secondaryColor : theme.textColor, fontWeight: isActive ? '900' : '700', fontSize: isMobile ? 11 : 12 }
+                    ]}>
+                      {sup.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
           </View>
         )}
 
@@ -376,8 +591,29 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
         {/* Menu Items Grid */}
         <ScrollView contentContainerStyle={[styles.gridContainer, { gap: isMobile ? 12 : 20 }]} showsVerticalScrollIndicator={false}>
           {filteredItems.map((item, idx) => {
+            const isHookahItem = item.category === 'hookah' || 
+              (item.category_id && String(item.category_id).toLowerCase().includes('hookah')) ||
+              item.subcategory === 'House Mixes' ||
+              /cavalli crush|cavali crush|shah jahan|habibi nights|kashmiri chai|anarkali|white king|zaalim|shokha|dubai nights|dragon/i.test(item.name || '');
+
+            if (isHookahItem) {
+              return (
+                <HouseMixItemCard
+                  key={item.id || `item_${idx}`}
+                  item={item}
+                  theme={theme}
+                  isMobile={isMobile}
+                  cardWidth={cardWidth}
+                  onAddToCart={onAddToCart}
+                  count={itemQuantities[item.id] || 0}
+                  onUpdateQuantity={handleUpdateItemQty}
+                  onSelectItem={onSelectItem}
+                />
+              );
+            }
+
             const imageSource = getItemImageSource(item);
-            const isPortraitCategory = item.category === 'drinks' || item.category === 'hookah';
+            const isPortraitCategory = item.category === 'drinks';
 
             return (
               <TouchableOpacity
@@ -436,7 +672,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
                 {/* Card Body */}
                 <View style={[styles.cardBody, isMobile && { padding: 12, gap: 4 }]}>
                   <View style={styles.titleRow}>
-                    <Text style={[styles.itemName, { color: theme.textColor, fontSize: isMobile ? 14 : 18 }]} numberOfLines={1}>
+                    <Text style={[styles.itemName, { color: theme.textColor, fontSize: isMobile ? 13 : 17 }]} numberOfLines={2}>
                       {item.name}
                     </Text>
                     <Text style={[styles.itemPrice, { color: theme.secondaryColor, fontSize: isMobile ? 14 : 18 }]}>
@@ -444,7 +680,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
                     </Text>
                   </View>
 
-                  <Text style={[styles.itemDesc, { color: theme.mutedTextColor, fontSize: isMobile ? 10 : 12, height: isMobile ? 28 : 36 }]} numberOfLines={2}>
+                  <Text style={[styles.itemDesc, { color: theme.mutedTextColor, fontSize: isMobile ? 11 : 12, minHeight: isMobile ? 26 : 32 }]} numberOfLines={2}>
                     {item.description}
                   </Text>
 
@@ -639,6 +875,23 @@ const styles = StyleSheet.create({
   globalSearchText: {
     fontSize: 10,
     fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  supercatRow: {
+    marginBottom: 8,
+  },
+  supercatScroll: {
+    gap: 8,
+  },
+  supercatTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 14,
+    borderWidth: 1.5,
+  },
+  supercatText: {
     letterSpacing: 0.5,
   },
   subcatRow: {

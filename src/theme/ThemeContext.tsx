@@ -80,6 +80,50 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const activeBaseTheme = themeMode === 'light' ? CAVALLI_LIGHT_THEME : CAVALLI_DARK_THEME;
   const currentTheme = { ...activeBaseTheme, ...themeOverrides };
 
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      const activeMode = currentTheme.mode || themeMode;
+      const chromeColor = currentTheme.backgroundColor || (activeMode === 'light' ? '#F7F4EE' : '#0C0806');
+
+      document.documentElement.style.setProperty('--browser-chrome-color', chromeColor);
+      document.documentElement.style.setProperty('--theme-bg', chromeColor);
+      document.documentElement.setAttribute('data-theme', activeMode);
+
+      document.documentElement.style.backgroundColor = chromeColor;
+      document.body.style.backgroundColor = chromeColor;
+      const rootElem = document.getElementById('root');
+      if (rootElem) rootElem.style.backgroundColor = chromeColor;
+
+      const metaThemeList = document.querySelectorAll('meta[name="theme-color"]');
+      if (metaThemeList.length > 0) {
+        metaThemeList.forEach((meta) => {
+          (meta as HTMLMetaElement).content = chromeColor;
+        });
+      } else {
+        const metaTheme = document.createElement('meta');
+        metaTheme.name = 'theme-color';
+        metaTheme.content = chromeColor;
+        document.head.appendChild(metaTheme);
+      }
+
+      let metaColorScheme = document.querySelector('meta[name="color-scheme"]') as HTMLMetaElement;
+      if (!metaColorScheme) {
+        metaColorScheme = document.createElement('meta');
+        metaColorScheme.name = 'color-scheme';
+        document.head.appendChild(metaColorScheme);
+      }
+      metaColorScheme.content = activeMode;
+
+      let metaAppleStatus = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]') as HTMLMetaElement;
+      if (!metaAppleStatus) {
+        metaAppleStatus = document.createElement('meta');
+        metaAppleStatus.name = 'apple-mobile-web-app-status-bar-style';
+        document.head.appendChild(metaAppleStatus);
+      }
+      metaAppleStatus.content = 'black-translucent';
+    }
+  }, [currentTheme.backgroundColor, currentTheme.mode, themeMode]);
+
   const toggleThemeMode = () => {
     setThemeMode((prev) => (prev === 'light' ? 'dark' : 'light'));
   };

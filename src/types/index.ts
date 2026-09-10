@@ -76,6 +76,8 @@ export type SelectedModifier = {
   optionId: string;
   optionName: string;
   price: number;
+  id?: string;
+  name?: string;
 };
 
 export type CartItem = {
