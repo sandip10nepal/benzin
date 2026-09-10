@@ -728,7 +728,7 @@
         </svg>
         <div>
           <h1>BENZIN</h1>
-          <p id="currentRestaurantName">Cavali Hookah Lounge</p>
+          <p id="currentRestaurantName">Cavalli</p>
         </div>
       </a>
       
@@ -2037,23 +2037,34 @@
       const map = new Map();
       itemList.forEach(item => {
         if (!item) return;
-        const nameStr = typeof item === 'string' ? item : (item.name || item.flavor?.name || item.title || 'Item');
-        const normKey = nameStr.trim().toLowerCase();
+        let nameStr = typeof item === 'string' ? item : (item.name || item.item?.name || item.flavor?.name || item.title || 'Item');
+        const modsList = Array.isArray(item.modifiers) ? item.modifiers : (Array.isArray(item.selectedModifiers) ? item.selectedModifiers : (Array.isArray(item.item?.modifiers) ? item.item.modifiers : []));
+        const modStr = modsList.map(m => m.optionName || m.name || m.label).filter(Boolean).join(' · ');
+        const rawNote = item.notes || item.note || item.item?.note || item.item?.notes || '';
+        let noteStr = [rawNote, modStr && !rawNote.includes(modStr) ? modStr : ''].filter(Boolean).join(' · ');
+        
+        // If name is generic Soft Drinks, enrich it with the selected flavor if available
+        if ((nameStr.toLowerCase().includes('soft drink') || nameStr.toLowerCase().includes('soda')) && noteStr) {
+          const cleanNote = noteStr.replace(/^Choice:\s*/i, '').trim();
+          if (cleanNote) {
+            nameStr = `${nameStr} (${cleanNote})`;
+          }
+        }
+
+        const normKey = `${nameStr}:::${noteStr}`.trim().toLowerCase();
         const existing = map.get(normKey);
         const itemQty = Number(item.qty || item.quantity) || 1;
 
         if (existing) {
           existing.qty += itemQty;
-          if (item.notes && !existing.notes.includes(item.notes)) {
-            existing.notes = existing.notes ? `${existing.notes}; ${item.notes}` : item.notes;
-          }
         } else {
           map.set(normKey, {
             name: nameStr,
-            price: item.price !== undefined ? Number(item.price) : 0,
+            price: item.price !== undefined ? Number(item.price) : (item.item?.price !== undefined ? Number(item.item.price) : 0),
             qty: itemQty,
-            notes: item.notes || item.note || '',
-            emoji: item.emoji || ''
+            notes: noteStr,
+            modifiers: modsList,
+            emoji: item.emoji || item.item?.emoji || ''
           });
         }
       });
@@ -2124,6 +2135,45 @@
       const displayId = String(orderId).slice(-6).toUpperCase();
       const timeStr = order.createdAt ? new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now';
 
+      // ── SPECIAL RENDERING FOR SERVER CALL ASSISTANCE REQUESTS ──
+      if (order.kind === 'server_request' || order.requestType) {
+        const reqLabels = {
+          server: 'Server Assistance Needed 🛎️',
+          coals: 'Hookah Coal Refill 🔥',
+          water: 'Ice Water Refresh 💧',
+          utensils: 'Plates & Utensils 🍽️',
+          check: 'Bill / Check Requested 💳',
+        };
+        const reqTitle = order.notes || order.note || reqLabels[order.requestType] || 'Server Assistance Needed 🛎️';
+        return `
+          <div class="ticket-card server-call-ticket ${isFulfilledOrder ? 'fulfilled' : ''}" style="border: 2px solid ${isFulfilledOrder ? 'var(--border)' : '#e11d48'}; box-shadow: ${isFulfilledOrder ? 'none' : '0 0 24px rgba(225,29,72,0.28)'};">
+            <div class="ticket-header" style="background: ${isFulfilledOrder ? 'transparent' : 'rgba(225,29,72,0.12)'}; padding: 8px 12px; border-radius: 8px; margin-bottom: 12px;">
+              <div>
+                <div class="ticket-title" style="color: ${isFulfilledOrder ? 'var(--muted)' : '#f43f5e'}; font-size: 19px; font-weight: 900; letter-spacing: 0.5px;">
+                  🛎️ Table ${order.table || '?'} <span style="font-size:12px; color:var(--muted);">#${displayId}</span>
+                </div>
+                <div class="ticket-meta">👤 Table ${order.table || '?'} • 🕒 ${timeStr}</div>
+              </div>
+              <span class="ticket-badge" style="background: ${isFulfilledOrder ? 'var(--muted)' : '#e11d48'}; color: #fff; font-weight: 900; padding: 4px 10px; border-radius: 6px; font-size: 11px;">
+                ${isFulfilledOrder ? 'RESOLVED' : 'STAFF CALL'}
+              </span>
+            </div>
+            <div style="font-size: 16px; font-weight: 800; color: #fff; padding: 12px; background: rgba(225,29,72,0.1); border-left: 4px solid #f43f5e; border-radius: 6px; margin-bottom: 16px;">
+              ${reqTitle}
+            </div>
+            <div class="ticket-actions">
+              ${!isFulfilledOrder ? `
+                <button class="btn btn-primary" onclick="fulfillOrder('${orderId}')" style="background: #e11d48; border-color: #e11d48; font-weight: 900; flex: 1; justify-content: center;">
+                  <i data-lucide="check-circle" style="width:16px;height:16px;"></i> Mark Resolved
+                </button>
+              ` : `
+                <span style="color: var(--muted); font-size: 13px; font-weight: 700;">✓ Request Fulfilled</span>
+              `}
+            </div>
+          </div>
+        `;
+      }
+
       const foodItems = consolidateItems(order.food || []);
       const drinkItems = consolidateItems(order.drinks || []);
       const hookahItems = consolidateItems(order.hookahs || []);
@@ -2133,7 +2183,6 @@
       const barDone = fulDeps.includes('bar');
       const hookahDone = fulDeps.includes('hookah');
 
-      // Decreased font size & padding for pending department badges as requested
       let readinessBadges = '';
       if (foodItems.length > 0) readinessBadges += `<span style="background:${foodDone ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'}; color:${foodDone ? 'var(--success)' : 'var(--danger)'}; border:1px solid ${foodDone ? 'var(--success)' : 'var(--danger)'}; border-radius:4px; padding:1px 5px; font-size:9px; font-weight:700;">${foodDone ? '✅ Food Ready' : '⏳ Food Pending'}</span> `;
       if (drinkItems.length > 0) readinessBadges += `<span style="background:${barDone ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'}; color:${barDone ? 'var(--success)' : 'var(--danger)'}; border:1px solid ${barDone ? 'var(--success)' : 'var(--danger)'}; border-radius:4px; padding:1px 5px; font-size:9px; font-weight:700;">${barDone ? '✅ Bar Ready' : '⏳ Bar Pending'}</span> `;
@@ -2174,7 +2223,15 @@
         itemsHtml += `<div class="ticket-item-group-title">💨 HOOKAH</div>`;
         hookahItems.forEach(item => {
           const qtyTag = item.qty > 1 ? `<span style="color:var(--gold); font-weight:900;">x${item.qty}</span>` : '';
-          itemsHtml += `<div class="ticket-item-line"><span>💨 ${item.name} ${qtyTag}</span></div>`;
+          let badges = '';
+          const fullNotes = (item.notes || '') + ' ' + (item.modifiers ? item.modifiers.map(m=>m.optionName||m.name||'').join(' ') : '');
+          if (fullNotes.toLowerCase().includes('ice base')) {
+            badges += `<span style="display:inline-block; background:rgba(0,153,255,0.22); color:#38BDF8; border:1px solid #38BDF8; border-radius:6px; padding:2px 7px; font-size:10px; font-weight:900; margin-left:6px; box-shadow:0 0 8px rgba(56,189,248,0.3);">🧊 ICE BASE (+$2)</span>`;
+          }
+          if (fullNotes.toLowerCase().includes('ice hose')) {
+            badges += `<span style="display:inline-block; background:rgba(168,85,247,0.22); color:#C084FC; border:1px solid #C084FC; border-radius:6px; padding:2px 7px; font-size:10px; font-weight:900; margin-left:6px; box-shadow:0 0 8px rgba(192,132,252,0.3);">❄️ ICE HOSE (+$6)</span>`;
+          }
+          itemsHtml += `<div class="ticket-item-line"><span>💨 ${item.name} ${qtyTag} ${badges}</span></div>`;
           if (item.notes) itemsHtml += `<div class="ticket-item-note">Note: ${item.notes}</div>`;
         });
       }
@@ -4262,7 +4319,7 @@
             return;
           }
 
-          if (data.id || data.type === 'order_created' || data.type === 'new_order' || data.type === 'order_updated') {
+          if (data.id || data.type === 'order_created' || data.type === 'new_order' || data.type === 'order_updated' || data.type === 'server_request' || data.kind === 'server_request') {
             const chime = document.getElementById('orderChime');
             if (chime) chime.play().catch(e => console.log('Autoplay audio blocked by browser policy.'));
           }
