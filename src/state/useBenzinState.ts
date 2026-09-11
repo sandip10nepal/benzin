@@ -33,6 +33,8 @@ export function useBenzinState() {
   const [pairedSlug, setPairedSlug] = useState<string | null>(null);
   const [pairedTableNumber, setPairedTableNumber] = useState<string>('1');
   const [customerName, setCustomerName] = useState<string>('Guest');
+  const [activeCoalRefill, setActiveCoalRefill] = useState<any | null>(null);
+  const [isRequestingCoalRefill, setIsRequestingCoalRefill] = useState<boolean>(false);
 
   const loadLiveMenu = useCallback(async () => {
     try {
@@ -124,11 +126,20 @@ export function useBenzinState() {
                 modifierGroups: i.modifier_groups || i.modifierGroups || [],
                 recipe: i.recipe || [],
                 variants: i.variants || [],
+                category_sort_order: subCat?.sort_order ?? 9999,
                 category: cat,
                 subcategory,
               };
             })
-            .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+            .sort((a, b) => {
+              const catOrderA = (a as any).category_sort_order ?? 9999;
+              const catOrderB = (b as any).category_sort_order ?? 9999;
+              if (catOrderA !== catOrderB) return catOrderA - catOrderB;
+              const itemOrderA = a.sort_order ?? 0;
+              const itemOrderB = b.sort_order ?? 0;
+              if (itemOrderA !== itemOrderB) return itemOrderA - itemOrderB;
+              return (a.name || '').localeCompare(b.name || '');
+            });
           setLiveMenuItems(itemList);
         }
       }
@@ -136,6 +147,16 @@ export function useBenzinState() {
       console.warn('Could not fetch live menu config in mobile app:', err);
     }
   }, [updateTheme]);
+
+  const refreshActiveCoalRefill = useCallback(async () => {
+    try {
+      const table = `Table ${pairedTableNumber || '1'}`;
+      const active = await TenantApiService.getActiveCoalRefill(table);
+      setActiveCoalRefill(active);
+    } catch (err) {
+      // silently ignore
+    }
+  }, [pairedTableNumber]);
 
   useEffect(() => {
     const handleNfcUrlRouting = async () => {
@@ -149,47 +170,43 @@ export function useBenzinState() {
         let tableNum: string | null = urlParams.get('table') || urlParams.get('t');
 
         if (!venueCode && pathParts.length >= 1) {
-          venueCode = pathParts[0];
-          if (pathParts.length >= 2) {
-            tableNum = pathParts[1];
+          const firstPart = pathParts[0];
+          if (!['menu', 'pairing', 'admin', 'api', 'staff', 'kds'].includes(firstPart)) {
+            venueCode = firstPart;
           }
+        }
+        if (!tableNum && pathParts.length >= 2) {
+          tableNum = pathParts[1];
         }
 
         if (venueCode) {
-          const cleanTable = tableNum || '1';
-          
-          setPairedTableNumber(cleanTable);
-          updateTheme({ tableNumber: cleanTable });
-          await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_TABLE_NUMBER, cleanTable);
-
-          const isNumeric = /^[0-9]+$/.test(venueCode);
           try {
-            const payload: any = {
-              table_number: cleanTable,
-              device_name: 'NFC Mobile Tap Device',
-            };
+            const config = await TenantApiService.fetchConfigBySlug(venueCode);
+            if (config && config.restaurant) {
+              await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_RESTAURANT_ID, config.restaurant.id);
+              await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_RESTAURANT_SLUG, config.restaurant.slug);
+              await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_RESTAURANT_NAME, config.restaurant.name);
+              setPairedSlug(config.restaurant.slug);
 
-            if (isNumeric) {
-              payload.pin = venueCode.length === 8 ? `${venueCode.slice(0, 4)}-${venueCode.slice(4)}` : venueCode;
-            } else {
-              payload.restaurant_name = venueCode;
-              payload.pin = '1234';
-            }
+              if (tableNum) {
+                const cleanT = tableNum.replace(/[^0-9]/g, '') || '1';
+                await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_TABLE_NUMBER, cleanT);
+                setPairedTableNumber(cleanT);
+                updateTheme({
+                  name: config.restaurant.name,
+                  tableNumber: cleanT,
+                  primaryColor: config.restaurant.branding?.primary_color || '#E5B13A',
+                });
+              } else {
+                updateTheme({
+                  name: config.restaurant.name,
+                  primaryColor: config.restaurant.branding?.primary_color || '#E5B13A',
+                });
+              }
 
-            const res = await TenantApiService.configureTableDevice(payload);
-            if (res.success && res.restaurant) {
-              await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_TABLE_NUMBER, cleanTable);
-              await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_RESTAURANT_NAME, res.restaurant.name);
-              setPairedTableNumber(cleanTable);
-              setPairedSlug(res.restaurant.slug || venueCode);
-              updateTheme({
-                tableNumber: cleanTable,
-                name: res.restaurant.name.toUpperCase(),
-                primaryColor: res.restaurant.branding?.primary_color || '#0099FF',
-                secondaryColor: res.restaurant.branding?.secondary_color || '#E5B13A',
-              });
               setCurrentScreen('home');
               loadLiveMenu();
+              refreshActiveCoalRefill();
               return;
             }
           } catch (e) {
@@ -216,6 +233,7 @@ export function useBenzinState() {
 
     handleNfcUrlRouting();
     loadLiveMenu();
+    refreshActiveCoalRefill();
 
     let eventSource: any = null;
     if (typeof window !== 'undefined' && (window as any).EventSource) {
@@ -229,6 +247,14 @@ export function useBenzinState() {
             if (data && (data.type === 'menu_update' || data.type === 'inventory_update' || data.type === 'category_update')) {
               loadLiveMenu();
             }
+            if (data && (
+              data.type === 'coal_refill_updated' || 
+              data.type === 'coal_refill_request' || 
+              data.type === 'service_request_updated' ||
+              data.type === 'server_call'
+            )) {
+              refreshActiveCoalRefill();
+            }
           } catch (e) {}
         };
       } catch (err) {
@@ -238,7 +264,8 @@ export function useBenzinState() {
 
     const intervalId = setInterval(() => {
       loadLiveMenu();
-    }, 2000);
+      refreshActiveCoalRefill();
+    }, 3000);
 
     return () => {
       clearInterval(intervalId);
@@ -246,7 +273,7 @@ export function useBenzinState() {
         try { eventSource.close(); } catch (e) {}
       }
     };
-  }, [loadLiveMenu]);
+  }, [loadLiveMenu, refreshActiveCoalRefill, updateTheme]);
 
   const allCategories = useMemo(() => liveCategories, [liveCategories]);
   const allMenuItems = useMemo(() => liveMenuItems, [liveMenuItems]);
@@ -309,16 +336,20 @@ export function useBenzinState() {
   }, []);
 
   const cartSubtotal = useMemo(() => {
-    return cart.reduce((sum, item) => sum + (Number(item.itemTotal) || 0), 0);
+    return Number(cart.reduce((sum, item) => sum + (Number(item.itemTotal) || 0), 0).toFixed(2));
   }, [cart]);
 
   const cartTax = useMemo(() => {
-    return (Number(cartSubtotal) || 0) * 0.0825; // 8.25% tax placeholder
+    return Number(((Number(cartSubtotal) || 0) * 0.0825).toFixed(2));
+  }, [cartSubtotal]);
+
+  const cartGratuity = useMemo(() => {
+    return Number(((Number(cartSubtotal) || 0) * 0.18).toFixed(2));
   }, [cartSubtotal]);
 
   const cartTotal = useMemo(() => {
-    return (Number(cartSubtotal) || 0) + (Number(cartTax) || 0);
-  }, [cartSubtotal, cartTax]);
+    return Number(((Number(cartSubtotal) || 0) + (Number(cartTax) || 0) + (Number(cartGratuity) || 0)).toFixed(2));
+  }, [cartSubtotal, cartTax, cartGratuity]);
 
   const totalCartCount = useMemo(() => {
     return cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -329,6 +360,7 @@ export function useBenzinState() {
       server: 'Request Server Assistance',
       water: 'Water & Ice Refresh',
       coals: 'Hookah Coal Refill',
+      COAL_REFILL: 'Hookah Coal Refill',
       utensils: 'Plates & Utensils',
       check: 'Request Check / Bill',
       custom: customNote || 'Custom Request',
@@ -354,6 +386,59 @@ export function useBenzinState() {
   const cancelServerRequest = useCallback(() => {
     setActiveServerRequest(null);
   }, []);
+
+  /**
+   * Unified single implementation for Coal Refill across customer screens
+   */
+  const requestCoalRefill = useCallback(async (customNote?: string): Promise<{ success: boolean; duplicate?: boolean; request?: any; error?: string }> => {
+    if (
+      activeCoalRefill &&
+      (activeCoalRefill.status === 'PENDING' ||
+        activeCoalRefill.status === 'IN_PROGRESS' ||
+        activeCoalRefill.status === 'pending' ||
+        activeCoalRefill.status === 'in_progress')
+    ) {
+      return {
+        success: false,
+        duplicate: true,
+        request: activeCoalRefill,
+        error: 'A coal refill request is already pending or in progress for your table.',
+      };
+    }
+
+    setIsRequestingCoalRefill(true);
+    try {
+      const table = `Table ${pairedTableNumber || '1'}`;
+      const res = await TenantApiService.requestCoalRefill({
+        table,
+        customerName: customerName || `Guest (Table ${pairedTableNumber || '1'})`,
+        note: customNote || 'Hookah Coal Refill 🔥',
+      });
+
+      if (res.duplicate) {
+        if (res.request) setActiveCoalRefill(res.request);
+        return {
+          success: false,
+          duplicate: true,
+          request: res.request,
+          error: res.error || 'A coal refill request is already pending or in progress for your table.',
+        };
+      }
+
+      if (res.success && res.request) {
+        setActiveCoalRefill(res.request);
+        return { success: true, request: res.request };
+      }
+
+      return {
+        success: false,
+        error: res.error || 'Could not request coal refill at this time.',
+      };
+    } finally {
+      setIsRequestingCoalRefill(false);
+      refreshActiveCoalRefill();
+    }
+  }, [activeCoalRefill, pairedTableNumber, customerName, refreshActiveCoalRefill]);
 
   const placeOrder = useCallback(() => {
     if (cart.length === 0) return;
@@ -419,7 +504,12 @@ export function useBenzinState() {
       table: `Table ${pairedTableNumber || '1'}`,
       customerName: customerName || `Guest (Table ${pairedTableNumber || '1'})`,
       name: customerName || `Guest (Table ${pairedTableNumber || '1'})`,
+      subtotal: cartSubtotal,
+      taxAmount: cartTax,
+      gratuityAmount: cartGratuity,
+      tipAmount: cartGratuity,
       total: cartTotal,
+      grandTotal: cartTotal,
       items: itemsList,
       hookahs,
       food,
@@ -433,7 +523,7 @@ export function useBenzinState() {
     setDraftHookah(null);
     setDraftFood(null);
     setDraftDrink(null);
-  }, [cart, cartTotal, navigate, pairedTableNumber]);
+  }, [cart, cartSubtotal, cartTax, cartGratuity, cartTotal, customerName, navigate, pairedTableNumber]);
 
   const logOutSession = useCallback(async () => {
     setCart([]);
@@ -457,6 +547,7 @@ export function useBenzinState() {
     clearCart,
     cartSubtotal,
     cartTax,
+    cartGratuity,
     cartTotal,
     totalCartCount,
     activeItemForDetail,
@@ -470,6 +561,10 @@ export function useBenzinState() {
     activeServerRequest,
     requestServer,
     cancelServerRequest,
+    activeCoalRefill,
+    isRequestingCoalRefill,
+    requestCoalRefill,
+    refreshActiveCoalRefill,
     conversationStep,
     setConversationStep,
     draftHookah,

@@ -1,4 +1,4 @@
-import { ArrowRight, Bell, BookOpen, Bot, Plus, Sparkles } from 'lucide-react-native';
+import { ArrowRight, Bell, Bot, Check, Flame, Plus, Sparkles } from 'lucide-react-native';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Animated,
@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { BenzinHeader } from '../components/Navigation/BenzinHeader';
 import { TouchCard } from '../components/ui/TouchCard';
+import { BenzinAttribution } from '../components/ui/BenzinAttribution';
 import { getItemImageSource } from '../data/menu_images';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { useRestaurantTheme } from '../theme/ThemeContext';
@@ -26,6 +27,9 @@ interface RestaurantHomeProps {
   allMenuItems?: MenuItem[];
   onLogOut?: () => void;
   cartCount: number;
+  activeCoalRefill?: any | null;
+  isRequestingCoalRefill?: boolean;
+  onRequestCoalRefill?: (customNote?: string) => Promise<any>;
 }
 
 export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
@@ -38,6 +42,9 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
   allMenuItems = [],
   onLogOut,
   cartCount,
+  activeCoalRefill,
+  isRequestingCoalRefill = false,
+  onRequestCoalRefill,
 }) => {
   const { theme } = useRestaurantTheme();
   const layout = useResponsiveLayout();
@@ -49,6 +56,14 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
   }, [allMenuItems]);
 
   const isMobile = layout.isMobilePhone;
+
+  const isCoalRefillActive = Boolean(
+    activeCoalRefill &&
+    (activeCoalRefill.status === 'PENDING' ||
+     activeCoalRefill.status === 'IN_PROGRESS' ||
+     activeCoalRefill.status === 'pending' ||
+     activeCoalRefill.status === 'in_progress')
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
@@ -77,7 +92,7 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
 
           {/* Prominent Action Cards Container */}
           <View style={styles.topCardsSection}>
-            {/* Top Row: START ORDER & VIEW MENU */}
+            {/* Top Row: START ORDER & COAL REFILL */}
             <View style={[styles.topCardsRow, isMobile && { flexDirection: 'column', gap: 12 }]}>
               {/* 1. START ORDER (AI HOST CARD) */}
               <View style={[styles.topCardWrapper, isMobile && { height: 'auto', width: '100%' }]}>
@@ -87,7 +102,7 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
                     styles.actionCard,
                     styles.largeActionCard,
                     { backgroundColor: theme.cardColor, borderColor: theme.primaryColor, borderWidth: 2.5 },
-                    isMobile ? { padding: 14 } : undefined
+                    isMobile ? { padding: 14 } : {}
                   ]}
                 >
                   <View style={styles.cardHeaderRow}>
@@ -111,34 +126,58 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
                 </TouchCard>
               </View>
 
-              {/* 2. VIEW MENU */}
+              {/* 2. COAL REFILL (REPLACES VIEW MENU) */}
               <View style={[styles.topCardWrapper, isMobile && { height: 'auto', width: '100%' }]}>
                 <TouchCard
-                  onPress={onOpenMenu}
+                  onPress={() => {
+                    if (!isCoalRefillActive && onRequestCoalRefill) {
+                      onRequestCoalRefill();
+                    }
+                  }}
+                  disabled={isCoalRefillActive || isRequestingCoalRefill}
                   style={[
                     styles.actionCard,
                     styles.largeActionCard,
-                    { backgroundColor: theme.cardColor, borderColor: theme.secondaryColor, borderWidth: 2.5 },
-                    isMobile ? { padding: 14 } : undefined
+                    {
+                      backgroundColor: isCoalRefillActive ? 'rgba(255, 107, 53, 0.08)' : theme.cardColor,
+                      borderColor: isCoalRefillActive ? '#10B981' : '#FF6B35',
+                      borderWidth: 2.5,
+                      opacity: isRequestingCoalRefill ? 0.7 : 1,
+                    },
+                    isMobile ? { padding: 14 } : {}
                   ]}
                 >
                   <View style={styles.cardHeaderRow}>
-                    <View style={[styles.cardIconBg, styles.largeIconBg, { backgroundColor: 'rgba(229,177,58,0.18)' }, isMobile && { width: 42, height: 42 }]}>
-                      <BookOpen size={isMobile ? 24 : 36} color={theme.secondaryColor} />
+                    <View style={[styles.cardIconBg, styles.largeIconBg, { backgroundColor: isCoalRefillActive ? 'rgba(16, 185, 129, 0.18)' : 'rgba(255, 107, 53, 0.18)' }, isMobile && { width: 42, height: 42 }]}>
+                      {isCoalRefillActive ? (
+                        <Check size={isMobile ? 24 : 36} color="#10B981" />
+                      ) : (
+                        <Flame size={isMobile ? 24 : 36} color="#FF6B35" />
+                      )}
                     </View>
-                    <View style={[styles.badgeTag, { backgroundColor: 'rgba(229,177,58,0.15)' }]}>
-                      <Text style={[styles.badgeTagText, { color: theme.secondaryColor }]}>CATALOG</Text>
+                    <View style={[styles.badgeTag, { backgroundColor: isCoalRefillActive ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 107, 53, 0.15)' }]}>
+                      <Text style={[styles.badgeTagText, { color: isCoalRefillActive ? '#10B981' : '#FF6B35' }]}>HOOKAH STATION</Text>
                     </View>
                   </View>
 
                   <View style={styles.cardTextContent}>
-                    <Text style={[styles.cardTitle, styles.largeCardTitle, { color: theme.textColor }, isMobile && { fontSize: 18 }]}>VIEW MENU</Text>
-                    <Text style={[styles.cardSubtitle, styles.largeCardSubtitle, { color: theme.mutedTextColor }, isMobile && { fontSize: 11 }]}>Explore Full Menu Catalog</Text>
+                    <Text style={[styles.cardTitle, styles.largeCardTitle, { color: theme.textColor }, isMobile && { fontSize: 18 }]}>Coal Refill</Text>
+                    <Text style={[styles.cardSubtitle, styles.largeCardSubtitle, { color: theme.mutedTextColor }, isMobile && { fontSize: 11 }]}>
+                      {isCoalRefillActive 
+                        ? (activeCoalRefill?.status === 'IN_PROGRESS' || activeCoalRefill?.status === 'in_progress' ? 'Coals are being brought to your table 🔥' : 'Refill requested — master notified')
+                        : 'Request fresh coals for your hookah'}
+                    </Text>
                   </View>
 
                   <View style={styles.cardFooterRow}>
-                    <Text style={[styles.cardActionText, styles.largeCardActionText, { color: theme.secondaryColor }, isMobile && { fontSize: 11 }]}>EXPLORE MENU</Text>
-                    <ArrowRight size={isMobile ? 16 : 20} color={theme.secondaryColor} />
+                    <Text style={[styles.cardActionText, styles.largeCardActionText, { color: isCoalRefillActive ? '#10B981' : '#FF6B35' }, isMobile && { fontSize: 11 }]}>
+                      {isRequestingCoalRefill ? 'REQUESTING...' : isCoalRefillActive ? 'Coal refill requested ✓' : 'Request Coal Refill'}
+                    </Text>
+                    {isCoalRefillActive ? (
+                      <Check size={isMobile ? 16 : 20} color="#10B981" />
+                    ) : (
+                      <ArrowRight size={isMobile ? 16 : 20} color="#FF6B35" />
+                    )}
                   </View>
                 </TouchCard>
               </View>
@@ -152,7 +191,7 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
                   styles.actionCard,
                   styles.largeActionCard,
                   { backgroundColor: theme.cardColor, borderColor: theme.accentColor, borderWidth: 2.5 },
-                  isMobile ? { padding: 14 } : undefined
+                  isMobile ? { padding: 14 } : {}
                 ]}
               >
                 <View style={styles.cardHeaderRow}>
@@ -253,6 +292,9 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
 
         </View>
       </ScrollView>
+
+      {/* Subtle Benzin Branding at bottom-left */}
+      <BenzinAttribution />
     </View>
   );
 };

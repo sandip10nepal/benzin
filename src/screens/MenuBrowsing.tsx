@@ -351,28 +351,68 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
     setActiveSubCatId('ALL');
   }, [activeSuperCatId]);
 
-  // 3. Filtered Items
+  // 3. Filtered Items with deterministic category-sequence grouping
   const filteredItems = useMemo(() => {
     const activeItems = (allMenuItems || []).filter(i => i.active !== false);
 
+    const catMap = new Map<string, { sort_order: number; title: string }>();
+    (allCategories || []).forEach((c: any) => {
+      const id = c.id || c._id;
+      if (id) {
+        catMap.set(String(id), { 
+          sort_order: typeof c.sort_order === 'number' ? c.sort_order : 9999, 
+          title: c.title || c.name || '' 
+        });
+      }
+    });
+
+    const sortWithCategorySequence = (items: MenuItem[]) => {
+      return [...items].sort((a, b) => {
+        const catA = a.category_id ? catMap.get(String(a.category_id)) : undefined;
+        const catB = b.category_id ? catMap.get(String(b.category_id)) : undefined;
+
+        const catOrderA = (a as any).category_sort_order ?? catA?.sort_order ?? 9999;
+        const catOrderB = (b as any).category_sort_order ?? catB?.sort_order ?? 9999;
+
+        if (catOrderA !== catOrderB) return catOrderA - catOrderB;
+
+        const catIdA = String(a.category_id || a.subcategory || '');
+        const catIdB = String(b.category_id || b.subcategory || '');
+        if (catIdA !== catIdB) {
+          const titleA = catA?.title || catIdA;
+          const titleB = catB?.title || catIdB;
+          const comp = titleA.localeCompare(titleB);
+          if (comp !== 0) return comp;
+        }
+
+        const itemOrderA = typeof a.sort_order === 'number' ? a.sort_order : 9999;
+        const itemOrderB = typeof b.sort_order === 'number' ? b.sort_order : 9999;
+        if (itemOrderA !== itemOrderB) return itemOrderA - itemOrderB;
+
+        return (a.name || '').localeCompare(b.name || '');
+      });
+    };
+
     if (isGlobalSearch) {
       const q = searchQuery.toLowerCase().trim();
-      return activeItems.filter((item) => 
+      const matched = activeItems.filter((item) => 
         item.name.toLowerCase().includes(q) ||
         (item.description && item.description.toLowerCase().includes(q)) ||
         (item.subcategory && item.subcategory.toLowerCase().includes(q))
-      ).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+      );
+      return sortWithCategorySequence(matched);
     }
 
     if (activeSuperCatId === 'ALL') {
       if (activeSubCatId === 'ALL') {
-        return activeItems.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+        return sortWithCategorySequence(activeItems);
       }
-      return activeItems.filter(item => 
+      const filtered = activeItems.filter(item => 
         item.category_id === activeSubCatId || 
         item.category === activeSubCatId ||
         item.subcategory === activeSubCatId
-      ).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+      );
+      return sortWithCategorySequence(filtered);
     }
 
     const activeSuperObj = superCategories.find(s => s._id === activeSuperCatId);
@@ -397,9 +437,9 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
         item.category === activeSubCatId ||
         item.subcategory === activeSubCatId
       );
-    }).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    });
 
-    return list.length > 0 ? list : activeItems;
+    return sortWithCategorySequence(list.length > 0 ? list : activeItems);
   }, [allMenuItems, allCategories, activeSuperCatId, superCategories, activeSubCategories, activeSubCatId, searchQuery, isGlobalSearch]);
 
   const [itemQuantities, setItemQuantities] = useState<Record<string, number>>({});

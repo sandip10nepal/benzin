@@ -9,6 +9,9 @@ interface OrderConfirmationProps {
   onOrderMore: () => void;
   onLogOut?: () => void;
   cart: CartItem[];
+  subtotal?: number;
+  tax?: number;
+  gratuity?: number;
   total: number;
 }
 
@@ -17,9 +20,16 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
   onOrderMore,
   onLogOut,
   cart,
+  subtotal,
+  tax,
+  gratuity,
   total,
 }) => {
   const { theme } = useRestaurantTheme();
+
+  const computedSubtotal = subtotal !== undefined ? subtotal : cart.reduce((acc, ci) => acc + (ci.itemTotal || 0), 0);
+  const computedTax = tax !== undefined ? tax : computedSubtotal * 0.0825;
+  const computedGratuity = gratuity !== undefined ? gratuity : computedSubtotal * 0.18;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
@@ -48,8 +58,22 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
                 <Text style={[styles.itemPrice, { color: theme.secondaryColor }]}>${ci.itemTotal.toFixed(2)}</Text>
               </View>
             ))}
+
+            <View style={[styles.subtotalBreakdownRow, { borderTopColor: theme.borderColor }]}>
+              <Text style={[styles.breakdownLabel, { color: theme.mutedTextColor }]}>Subtotal</Text>
+              <Text style={[styles.breakdownVal, { color: theme.textColor }]}>${computedSubtotal.toFixed(2)}</Text>
+            </View>
+            <View style={styles.subtotalBreakdownRow}>
+              <Text style={[styles.breakdownLabel, { color: theme.mutedTextColor }]}>Sales Tax (8.25%)</Text>
+              <Text style={[styles.breakdownVal, { color: theme.textColor }]}>${computedTax.toFixed(2)}</Text>
+            </View>
+            <View style={styles.subtotalBreakdownRow}>
+              <Text style={[styles.breakdownLabel, { color: theme.mutedTextColor }]}>Gratuity (18%)</Text>
+              <Text style={[styles.breakdownVal, { color: theme.textColor }]}>${computedGratuity.toFixed(2)}</Text>
+            </View>
+
             <View style={[styles.totalRow, { borderTopColor: theme.borderColor }]}>
-              <Text style={[styles.totalLabel, { color: theme.textColor }]}>TOTAL</Text>
+              <Text style={[styles.totalLabel, { color: theme.textColor }]}>FINAL TOTAL</Text>
               <Text style={[styles.totalVal, { color: theme.secondaryColor }]}>${total.toFixed(2)}</Text>
             </View>
           </View>
@@ -157,6 +181,20 @@ const styles = StyleSheet.create({
   },
   itemPrice: {
     fontSize: 15,
+    fontWeight: '800',
+  },
+  subtotalBreakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 8,
+  },
+  breakdownLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  breakdownVal: {
+    fontSize: 14,
     fontWeight: '800',
   },
   totalRow: {

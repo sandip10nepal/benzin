@@ -21,6 +21,7 @@ interface CartDrawerProps {
   cart: CartItem[];
   subtotal: number;
   tax: number;
+  gratuity?: number;
   total: number;
   onUpdateQuantity: (cartItemId: string, newQty: number) => void;
   onRemoveItem: (cartItemId: string) => void;
@@ -33,6 +34,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   cart,
   subtotal,
   tax,
+  gratuity,
   total,
   onUpdateQuantity,
   onRemoveItem,
@@ -183,12 +185,17 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               </View>
 
               <View style={styles.summaryRow}>
-                <Text style={[styles.summaryLabel, { color: theme.mutedTextColor }]}>Estimated Tax (8.25%)</Text>
+                <Text style={[styles.summaryLabel, { color: theme.mutedTextColor }]}>Sales Tax (8.25%)</Text>
                 <Text style={[styles.summaryVal, { color: theme.textColor }]}>${tax.toFixed(2)}</Text>
               </View>
 
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, { color: theme.mutedTextColor }]}>Gratuity (18%)</Text>
+                <Text style={[styles.summaryVal, { color: theme.textColor }]}>${(gratuity !== undefined ? gratuity : subtotal * 0.18).toFixed(2)}</Text>
+              </View>
+
               <View style={[styles.summaryRow, styles.totalRow]}>
-                <Text style={[styles.totalLabel, { color: theme.textColor }]}>TOTAL</Text>
+                <Text style={[styles.totalLabel, { color: theme.textColor }]}>FINAL TOTAL</Text>
                 <Text style={[styles.totalVal, { color: theme.secondaryColor, fontSize: isMobile ? 20 : 24 }]}>${total.toFixed(2)}</Text>
               </View>
 

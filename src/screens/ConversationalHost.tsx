@@ -33,6 +33,8 @@ interface ConversationalHostProps {
   onSelectItem?: (item: MenuItem) => void;
   cartCount: number;
   cartSubtotal: number;
+  cartGratuity?: number;
+  cartTotal?: number;
   cartItems?: CartItem[];
   onUpdateQuantity?: (cartItemId: string, newQty: number) => void;
   onRemoveItem?: (cartItemId: string) => void;
@@ -60,6 +62,8 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
   onSelectItem,
   cartCount,
   cartSubtotal,
+  cartGratuity,
+  cartTotal,
   cartItems,
   onUpdateQuantity,
   onRemoveItem,
@@ -285,17 +289,57 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
     return ['ALL', ...Array.from(subs)];
   }, [allCategories, allMenuItems]);
 
+  const sortItemsByCategoryAndOrder = (items: MenuItem[], categories: any[] = []) => {
+    const catMap = new Map<string, { sort_order: number; title: string }>();
+    categories.forEach((c: any) => {
+      const id = c.id || c._id;
+      if (id) {
+        catMap.set(String(id), { 
+          sort_order: typeof c.sort_order === 'number' ? c.sort_order : 9999, 
+          title: c.title || c.name || '' 
+        });
+      }
+    });
+
+    return [...items].sort((a, b) => {
+      const catA = a.category_id ? catMap.get(String(a.category_id)) : undefined;
+      const catB = b.category_id ? catMap.get(String(b.category_id)) : undefined;
+
+      const catOrderA = (a as any).category_sort_order ?? catA?.sort_order ?? 9999;
+      const catOrderB = (b as any).category_sort_order ?? catB?.sort_order ?? 9999;
+
+      if (catOrderA !== catOrderB) return catOrderA - catOrderB;
+
+      const catIdA = String(a.category_id || a.subcategory || '');
+      const catIdB = String(b.category_id || b.subcategory || '');
+      if (catIdA !== catIdB) {
+        const titleA = catA?.title || catIdA;
+        const titleB = catB?.title || catIdB;
+        const comp = titleA.localeCompare(titleB);
+        if (comp !== 0) return comp;
+      }
+
+      const itemOrderA = typeof a.sort_order === 'number' ? a.sort_order : 9999;
+      const itemOrderB = typeof b.sort_order === 'number' ? b.sort_order : 9999;
+      if (itemOrderA !== itemOrderB) return itemOrderA - itemOrderB;
+
+      return (a.name || '').localeCompare(b.name || '');
+    });
+  };
+
   const filteredFoodItems = useMemo(() => {
     const source = (allMenuItems || []).filter(item => item.category === 'food');
-    if (foodSubcategory === 'ALL') return source;
-    return source.filter(item => item.subcategory === foodSubcategory || item.category_id === foodSubcategory);
-  }, [allMenuItems, foodSubcategory]);
+    if (foodSubcategory === 'ALL') return sortItemsByCategoryAndOrder(source, allCategories);
+    const filtered = source.filter(item => item.subcategory === foodSubcategory || item.category_id === foodSubcategory);
+    return sortItemsByCategoryAndOrder(filtered, allCategories);
+  }, [allMenuItems, foodSubcategory, allCategories]);
 
   const filteredDrinkItems = useMemo(() => {
     const source = (allMenuItems || []).filter(item => item.category === 'drinks');
-    if (drinkSubcategory === 'ALL') return source;
-    return source.filter(item => item.subcategory === drinkSubcategory || item.category_id === drinkSubcategory);
-  }, [allMenuItems, drinkSubcategory]);
+    if (drinkSubcategory === 'ALL') return sortItemsByCategoryAndOrder(source, allCategories);
+    const filtered = source.filter(item => item.subcategory === drinkSubcategory || item.category_id === drinkSubcategory);
+    return sortItemsByCategoryAndOrder(filtered, allCategories);
+  }, [allMenuItems, drinkSubcategory, allCategories]);
 
   const hookahList = useMemo(() => {
     return (allMenuItems || []).filter(item => item.category === 'hookah');
@@ -993,27 +1037,49 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
               </ScrollView>
 
               <View style={[styles.reviewFooter, { borderTopColor: theme.borderColor }]}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <Text style={{ color: theme.mutedTextColor, fontSize: 12, fontWeight: '700' }}>TOTAL ORDER</Text>
-                  <Text style={{ color: theme.secondaryColor, fontSize: 18, fontWeight: '900' }}>${cartSubtotal.toFixed(2)}</Text>
-                </View>
+                {(() => {
+                  const hostTax = Number((cartSubtotal * 0.0825).toFixed(2));
+                  const hostGratuity = cartGratuity !== undefined ? cartGratuity : Number((cartSubtotal * 0.18).toFixed(2));
+                  const hostFinalTotal = cartTotal !== undefined ? cartTotal : Number((cartSubtotal + hostTax + hostGratuity).toFixed(2));
 
-                <TouchableOpacity
-                  onPress={() => {
-                    setDraftCounts({});
-                    onPlaceOrder();
-                  }}
-                  disabled={!cartItems || cartItems.length === 0}
-                  activeOpacity={0.88}
-                  style={[
-                    styles.finalPlaceBtn, 
-                    { backgroundColor: theme.primaryColor },
-                    (!cartItems || cartItems.length === 0) && { opacity: 0.4 }
-                  ]}
-                >
-                  <ShoppingBag size={18} color="#FFFFFF" />
-                  <Text style={styles.finalPlaceText}>SEND ORDER TO KITCHEN (${cartSubtotal.toFixed(2)})</Text>
-                </TouchableOpacity>
+                  return (
+                    <>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <Text style={{ color: theme.mutedTextColor, fontSize: 11, fontWeight: '700' }}>Subtotal</Text>
+                        <Text style={{ color: theme.textColor, fontSize: 13, fontWeight: '800' }}>${cartSubtotal.toFixed(2)}</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <Text style={{ color: theme.mutedTextColor, fontSize: 11, fontWeight: '700' }}>Sales Tax (8.25%)</Text>
+                        <Text style={{ color: theme.textColor, fontSize: 13, fontWeight: '800' }}>${hostTax.toFixed(2)}</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <Text style={{ color: theme.mutedTextColor, fontSize: 11, fontWeight: '700' }}>Gratuity (18%)</Text>
+                        <Text style={{ color: theme.textColor, fontSize: 13, fontWeight: '800' }}>${hostGratuity.toFixed(2)}</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingTop: 6, borderTopWidth: 1, borderTopColor: theme.borderColor }}>
+                        <Text style={{ color: theme.textColor, fontSize: 13, fontWeight: '900', letterSpacing: 1 }}>FINAL TOTAL</Text>
+                        <Text style={{ color: theme.secondaryColor, fontSize: 18, fontWeight: '900' }}>${hostFinalTotal.toFixed(2)}</Text>
+                      </View>
+
+                      <TouchableOpacity
+                        onPress={() => {
+                          setDraftCounts({});
+                          onPlaceOrder();
+                        }}
+                        disabled={!cartItems || cartItems.length === 0}
+                        activeOpacity={0.88}
+                        style={[
+                          styles.finalPlaceBtn, 
+                          { backgroundColor: theme.primaryColor },
+                          (!cartItems || cartItems.length === 0) && { opacity: 0.4 }
+                        ]}
+                      >
+                        <ShoppingBag size={18} color="#FFFFFF" />
+                        <Text style={styles.finalPlaceText}>SEND ORDER TO KITCHEN (${hostFinalTotal.toFixed(2)})</Text>
+                      </TouchableOpacity>
+                    </>
+                  );
+                })()}
               </View>
             </View>
           )}

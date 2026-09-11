@@ -12,17 +12,13 @@ import { CartDrawer } from '../components/Cart/CartDrawer';
 import { ItemDetailModal } from '../components/ItemDetail/ItemDetailModal';
 import { CallServerModal } from '../components/Server/CallServerModal';
 import { HookahMixLabModal } from '../components/HookahMixLab/HookahMixLabModal';
+import { BenzinAttribution } from '../components/ui/BenzinAttribution';
 
 import { ConversationStep } from '../types';
 
 function MainAppContent() {
   const { theme } = useRestaurantTheme();
   const [hostInitialStep, setHostInitialStep] = React.useState<ConversationStep>('welcome_category');
-
-  const handleStartOrder = (step?: ConversationStep) => {
-    setHostInitialStep(step || 'welcome_category');
-    navigate('start_order');
-  };
 
   const {
     currentScreen,
@@ -33,6 +29,7 @@ function MainAppContent() {
     updateQuantity,
     cartSubtotal,
     cartTax,
+    cartGratuity,
     cartTotal,
     totalCartCount,
     activeItemForDetail,
@@ -46,6 +43,9 @@ function MainAppContent() {
     activeServerRequest,
     requestServer,
     cancelServerRequest,
+    activeCoalRefill,
+    isRequestingCoalRefill,
+    requestCoalRefill,
     placeOrder,
     allCategories,
     allMenuItems,
@@ -53,9 +53,14 @@ function MainAppContent() {
     logOutSession,
   } = useBenzinState();
 
+  const handleStartOrder = (step?: ConversationStep) => {
+    setHostInitialStep(step || 'welcome_category');
+    navigate('start_order');
+  };
+
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: theme.backgroundColor }]}>
-      <StatusBar barStyle={theme.mode === 'light' ? 'dark-content' : 'light-content'} backgroundColor={theme.backgroundColor} />
+      <StatusBar barStyle="light-content" backgroundColor={theme.backgroundColor} />
 
       {/* Screen Router */}
       {currentScreen === 'splash' && (
@@ -75,6 +80,9 @@ function MainAppContent() {
           onLogOut={logOutSession}
           cartCount={totalCartCount}
           allMenuItems={allMenuItems}
+          activeCoalRefill={activeCoalRefill}
+          isRequestingCoalRefill={isRequestingCoalRefill}
+          onRequestCoalRefill={requestCoalRefill}
         />
       )}
 
@@ -107,6 +115,8 @@ function MainAppContent() {
           onSelectItem={(item) => setActiveItemForDetail(item)}
           cartCount={totalCartCount}
           cartSubtotal={cartSubtotal}
+          cartGratuity={cartGratuity}
+          cartTotal={cartTotal}
           cartItems={cart}
           onUpdateQuantity={updateQuantity}
           onRemoveItem={removeFromCart}
@@ -123,6 +133,9 @@ function MainAppContent() {
           onOrderMore={() => navigate('menu')}
           onLogOut={logOutSession}
           cart={cart}
+          subtotal={cartSubtotal}
+          tax={cartTax}
+          gratuity={cartGratuity}
           total={cartTotal}
         />
       )}
@@ -134,6 +147,7 @@ function MainAppContent() {
         cart={cart}
         subtotal={cartSubtotal}
         tax={cartTax}
+        gratuity={cartGratuity}
         total={cartTotal}
         onUpdateQuantity={updateQuantity}
         onRemoveItem={removeFromCart}
@@ -168,6 +182,9 @@ function MainAppContent() {
           setIsMixLabOpen(false);
         }}
       />
+
+      {/* Platform Attribution at bottom-left corner */}
+      <BenzinAttribution />
     </SafeAreaView>
   );
 }

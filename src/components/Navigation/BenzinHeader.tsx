@@ -69,15 +69,11 @@ export const BenzinHeader: React.FC<BenzinHeaderProps> = ({
         ) : null}
       </View>
 
-      {/* Center: BENZIN | RESTAURANT NAME */}
+      {/* Center: RESTAURANT BRANDING (Restaurant-first header) */}
       <View style={styles.centerSection}>
         <TouchableOpacity onPress={onGoHome} activeOpacity={0.8} style={{ alignItems: 'center' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <BenzinLogo size={isMobilePhone ? "micro" : "small"} showSubtitle={false} />
-            <Text style={{ color: theme.secondaryColor, fontWeight: '700', fontSize: isMobilePhone ? 14 : 18, marginHorizontal: isMobilePhone ? 4 : 6 }}>
-              |
-            </Text>
-            <Text style={{ color: theme.textColor, fontWeight: '900', fontSize: isMobilePhone ? 14 : 20, letterSpacing: 0.8 }}>
+            <Text style={{ color: theme.textColor, fontWeight: '900', fontSize: isMobilePhone ? 16 : 22, letterSpacing: 1.2 }}>
               {theme.name || 'CAVALLI'}
             </Text>
           </View>

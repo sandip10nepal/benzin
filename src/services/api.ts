@@ -447,6 +447,81 @@ export class TenantApiService {
   }
 
   /**
+   * Dispatch Coal Refill request to backend (routed strictly to Hookah Station)
+   */
+  static async requestCoalRefill(params: { table: string; customerName?: string; note?: string; sessionId?: string }): Promise<{ success: boolean; request?: any; duplicate?: boolean; error?: string }> {
+    try {
+      const pairedRestId = await AsyncStorage.getItem(STORAGE_KEYS.PAIRED_RESTAURANT_ID);
+      const jwtToken = await AsyncStorage.getItem(STORAGE_KEYS.JWT_TOKEN);
+
+      const headers: Record<string, string> = {};
+      if (jwtToken) headers['Authorization'] = `Bearer ${jwtToken}`;
+      if (pairedRestId) headers['X-Restaurant-ID'] = pairedRestId;
+
+      const payload = {
+        table: params.table,
+        table_id: params.table,
+        requestType: 'COAL_REFILL',
+        note: params.note || 'Hookah Coal Refill 🔥',
+        customerName: params.customerName,
+        sessionId: params.sessionId,
+        ...(pairedRestId ? { restaurant_id: pairedRestId } : {})
+      };
+
+      // Try dedicated service-requests endpoint first
+      let res = await this.resilientFetch('/api/service-requests/coal-refill', {
+        method: 'POST',
+        headers: getApiHeaders(headers),
+        body: JSON.stringify(payload),
+      });
+
+      // Fallback to /server-call if needed
+      if (res.status === 404) {
+        res = await this.resilientFetch('/api/orders/server-call', {
+          method: 'POST',
+          headers: getApiHeaders(headers),
+          body: JSON.stringify(payload),
+        });
+      }
+
+      const data = await res.json();
+      if (res.status === 409 || data.code === 'DUPLICATE_ACTIVE_REQUEST') {
+        return { success: false, duplicate: true, request: data.details?.activeRequest || data.activeRequest, error: data.message };
+      }
+      return { success: Boolean(data.success), request: data.request };
+    } catch (err: any) {
+      console.warn('[TenantApi] Coal refill error:', err.message);
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Check if there is an active coal refill request for this table
+   */
+  static async getActiveCoalRefill(table: string): Promise<any | null> {
+    try {
+      const pairedRestId = await AsyncStorage.getItem(STORAGE_KEYS.PAIRED_RESTAURANT_ID);
+      const jwtToken = await AsyncStorage.getItem(STORAGE_KEYS.JWT_TOKEN);
+
+      const headers: Record<string, string> = {};
+      if (jwtToken) headers['Authorization'] = `Bearer ${jwtToken}`;
+      if (pairedRestId) headers['X-Restaurant-ID'] = pairedRestId;
+
+      const cleanTable = encodeURIComponent(table);
+      const res = await this.resilientFetch(`/api/service-requests/active?table=${cleanTable}`, {
+        headers: getApiHeaders(headers),
+      });
+      const data = await res.json();
+      if (data.success) {
+        return data.activeRequest || null;
+      }
+      return null;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  /**
    * Unpair current device (e.g. for re-assigning table)
    */
   static async unpairDevice(): Promise<void> {

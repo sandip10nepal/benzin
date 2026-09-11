@@ -48,7 +48,7 @@ export type MenuItem = {
   id: string;
   _id?: string;
   restaurant_id?: string;
-  category_id: string;
+  category_id?: string;
   name: string;
   price: number;
   description: string;
@@ -71,9 +71,9 @@ export type MenuItem = {
 };
 
 export type SelectedModifier = {
-  groupId: string;
-  groupName: string;
-  optionId: string;
+  groupId?: string;
+  groupName?: string;
+  optionId?: string;
   optionName: string;
   price: number;
   id?: string;
@@ -90,6 +90,7 @@ export type CartItem = {
 };
 
 export type ServerRequestType = 
+  | 'COAL_REFILL'
   | 'server'
   | 'water'
   | 'coals'
@@ -101,9 +102,11 @@ export type ServerRequestStatus = {
   id: string;
   type: ServerRequestType;
   label: string;
-  requestedAt: Date;
+  requestedAt: Date | string;
   customNote?: string;
-  status: 'pending' | 'acknowledged' | 'completed';
+  status: 'pending' | 'acknowledged' | 'in_progress' | 'completed' | 'cancelled' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  tableNumber?: string;
+  table_id?: string;
 };
 
 export type ScreenState = 
