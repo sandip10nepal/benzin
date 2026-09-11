@@ -16,7 +16,7 @@ import { useRestaurantTheme } from '../theme/ThemeContext';
 
 export function useBenzinState() {
   const { updateTheme } = useRestaurantTheme();
-  const [currentScreen, setCurrentScreen] = useState<ScreenState>('menu');
+  const [currentScreen, setCurrentScreen] = useState<ScreenState>('pairing');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [activeItemForDetail, setActiveItemForDetail] = useState<MenuItem | null>(null);
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState<boolean>(false);
@@ -188,26 +188,31 @@ export function useBenzinState() {
               await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_RESTAURANT_NAME, config.restaurant.name);
               setPairedSlug(config.restaurant.slug);
 
-              if (tableNum) {
-                const cleanT = tableNum.replace(/[^0-9]/g, '') || '1';
-                await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_TABLE_NUMBER, cleanT);
-                setPairedTableNumber(cleanT);
+              let effectiveTable = tableNum ? tableNum.replace(/[^0-9]/g, '') : null;
+              if (!effectiveTable) {
+                effectiveTable = await AsyncStorage.getItem(STORAGE_KEYS.PAIRED_TABLE_NUMBER);
+              }
+
+              if (effectiveTable) {
+                await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_TABLE_NUMBER, effectiveTable);
+                setPairedTableNumber(effectiveTable);
                 updateTheme({
                   name: config.restaurant.name,
-                  tableNumber: cleanT,
+                  tableNumber: effectiveTable,
                   primaryColor: config.restaurant.branding?.primary_color || '#E5B13A',
                 });
+                setCurrentScreen('home');
+                loadLiveMenu();
+                refreshActiveCoalRefill();
+                return;
               } else {
                 updateTheme({
                   name: config.restaurant.name,
                   primaryColor: config.restaurant.branding?.primary_color || '#E5B13A',
                 });
+                setCurrentScreen('pairing');
+                return;
               }
-
-              setCurrentScreen('home');
-              loadLiveMenu();
-              refreshActiveCoalRefill();
-              return;
             }
           } catch (e) {
             console.warn('NFC auto-configure note:', e);
@@ -215,19 +220,16 @@ export function useBenzinState() {
         }
       }
 
-      let storedRestId = await AsyncStorage.getItem(STORAGE_KEYS.PAIRED_RESTAURANT_ID);
-      let storedSlug = await AsyncStorage.getItem(STORAGE_KEYS.PAIRED_RESTAURANT_SLUG);
+      const storedRestId = await AsyncStorage.getItem(STORAGE_KEYS.PAIRED_RESTAURANT_ID);
+      const storedSlug = await AsyncStorage.getItem(STORAGE_KEYS.PAIRED_RESTAURANT_SLUG);
+      const storedTable = await AsyncStorage.getItem(STORAGE_KEYS.PAIRED_TABLE_NUMBER);
 
-      if (!storedRestId && !storedSlug) {
-        await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_RESTAURANT_SLUG, 'cavali');
-        await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_RESTAURANT_ID, 'RES_EED4E9D266DF');
-        await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_RESTAURANT_NAME, 'Cavalli');
-        storedSlug = 'cavali';
-        storedRestId = 'RES_EED4E9D266DF';
-      }
-
-      if (storedRestId || storedSlug) {
-        setCurrentScreen(prev => (prev === 'splash' || prev === 'pairing' ? 'menu' : prev));
+      if ((storedRestId || storedSlug) && storedTable) {
+        setPairedSlug(storedSlug || storedRestId);
+        setPairedTableNumber(storedTable);
+        setCurrentScreen('home');
+      } else {
+        setCurrentScreen('pairing');
       }
     };
 

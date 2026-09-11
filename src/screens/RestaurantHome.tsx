@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import { BenzinHeader } from '../components/Navigation/BenzinHeader';
 import { TouchCard } from '../components/ui/TouchCard';
-import { BenzinAttribution } from '../components/ui/BenzinAttribution';
 import { getItemImageSource } from '../data/menu_images';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { useRestaurantTheme } from '../theme/ThemeContext';
@@ -293,8 +292,6 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
         </View>
       </ScrollView>
 
-      {/* Subtle Benzin Branding at bottom-left */}
-      <BenzinAttribution />
     </View>
   );
 };

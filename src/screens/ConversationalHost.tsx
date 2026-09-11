@@ -54,6 +54,209 @@ type ConversationalStep =
   | 'select_drink'
   | 'review_summary';
 
+interface HostHookahCardProps {
+  hookah: MenuItem;
+  theme: any;
+  isMobile: boolean;
+  count: number;
+  onAddWithAddons: (hookah: MenuItem, qty: number, modifiers: SelectedModifier[], notes?: string) => void;
+  onItemQuantityChange: (item: MenuItem, delta: number) => void;
+  onSelectItem?: (item: MenuItem) => void;
+}
+
+const HostHookahCard: React.FC<HostHookahCardProps> = ({
+  hookah,
+  theme,
+  isMobile,
+  count,
+  onAddWithAddons,
+  onItemQuantityChange,
+  onSelectItem,
+}) => {
+  const [iceBase, setIceBase] = useState(false);
+  const [iceHose, setIceHose] = useState(false);
+
+  const totalPrice = hookah.price + (iceBase ? 2 : 0) + (iceHose ? 6 : 0);
+
+  const handleAdd = () => {
+    const selectedOpts: SelectedModifier[] = [];
+    if (iceBase) selectedOpts.push({ id: 'OPT_ICE_BASE', name: 'Ice Base', optionName: 'Ice Base', price: 2 });
+    if (iceHose) selectedOpts.push({ id: 'OPT_ICE_HOSE', name: 'Ice Hose', optionName: 'Ice Hose', price: 6 });
+    const noteParts: string[] = [];
+    if (iceBase) noteParts.push('Ice Base (+$2)');
+    if (iceHose) noteParts.push('Ice Hose (+$6)');
+    onAddWithAddons(hookah, 1, selectedOpts, noteParts.join(' · '));
+  };
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.9}
+      onPress={() => onSelectItem ? onSelectItem(hookah) : handleAdd()}
+      style={[
+        styles.hostHookahCard,
+        {
+          backgroundColor: theme.cardColor,
+          borderColor: count > 0 ? '#10B981' : theme.borderColor,
+          borderWidth: count > 0 ? 2 : 1.5,
+        },
+        isMobile ? { width: '100%' } : { width: 340, maxWidth: 360 }
+      ]}
+    >
+      <View style={{ width: '100%' }}>
+        {/* Title and Price Row */}
+        <View style={styles.hostHookahTitleRow}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+            <Text style={{ fontSize: isMobile ? 18 : 20 }}>💨</Text>
+            <Text
+              style={[styles.hostHookahName, { color: theme.textColor, fontSize: isMobile ? 15 : 17 }]}
+              numberOfLines={1}
+            >
+              {hookah.name}
+            </Text>
+          </View>
+          <Text style={[styles.hostHookahPrice, { color: theme.secondaryColor, fontSize: isMobile ? 15 : 17 }]}>
+            ${totalPrice.toFixed(2)}
+          </Text>
+        </View>
+
+        {/* Description / Base Note */}
+        {hookah.description ? (
+          <Text
+            style={[styles.hostHookahDesc, { color: theme.mutedTextColor, fontSize: isMobile ? 11 : 12 }]}
+            numberOfLines={2}
+          >
+            {hookah.description}
+          </Text>
+        ) : null}
+
+        {/* Inline Add-On Options (Ice Base & Ice Hose) */}
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 10, marginBottom: 12 }}>
+          {/* Ice Base Toggle Pill */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={(e) => {
+              if (e && e.stopPropagation) e.stopPropagation();
+              setIceBase(!iceBase);
+            }}
+            style={{
+              flex: 1,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 4,
+              paddingVertical: isMobile ? 7 : 9,
+              paddingHorizontal: 6,
+              borderRadius: 10,
+              borderWidth: 1.5,
+              borderColor: iceBase ? '#0099FF' : 'rgba(255,255,255,0.18)',
+              backgroundColor: iceBase ? 'rgba(0,153,255,0.22)' : 'rgba(255,255,255,0.05)',
+            }}
+          >
+            <Text style={{ fontSize: isMobile ? 13 : 15 }}>🧊</Text>
+            <Text
+              style={{
+                color: iceBase ? '#0099FF' : theme.textColor,
+                fontSize: isMobile ? 11 : 12,
+                fontWeight: '900',
+              }}
+            >
+              {iceBase ? '✓ ICE BASE +$2' : '+ ICE BASE $2'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Ice Hose Toggle Pill */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={(e) => {
+              if (e && e.stopPropagation) e.stopPropagation();
+              setIceHose(!iceHose);
+            }}
+            style={{
+              flex: 1,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 4,
+              paddingVertical: isMobile ? 7 : 9,
+              paddingHorizontal: 6,
+              borderRadius: 10,
+              borderWidth: 1.5,
+              borderColor: iceHose ? '#14B8A6' : 'rgba(255,255,255,0.18)',
+              backgroundColor: iceHose ? 'rgba(20,184,166,0.22)' : 'rgba(255,255,255,0.05)',
+            }}
+          >
+            <Text style={{ fontSize: isMobile ? 13 : 15 }}>❄️</Text>
+            <Text
+              style={{
+                color: iceHose ? '#14B8A6' : theme.textColor,
+                fontSize: isMobile ? 11 : 12,
+                fontWeight: '900',
+              }}
+            >
+              {iceHose ? '✓ ICE HOSE +$6' : '+ ICE HOSE $6'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Action Button */}
+      {count === 0 ? (
+        <TouchableOpacity
+          onPress={(e) => {
+            if (e && e.stopPropagation) e.stopPropagation();
+            handleAdd();
+          }}
+          activeOpacity={0.85}
+          style={[
+            styles.hostHookahAddBtn,
+            {
+              backgroundColor: '#22C55E',
+              borderColor: '#22C55E',
+              borderWidth: 1.5,
+              paddingVertical: isMobile ? 9 : 11,
+              borderRadius: 12,
+            }
+          ]}
+        >
+          <Plus size={isMobile ? 15 : 17} color="#FFFFFF" />
+          <Text style={{ color: '#FFFFFF', fontSize: isMobile ? 12 : 13, fontWeight: '900' }}>
+            ADD TO ORDER (${totalPrice.toFixed(2)})
+          </Text>
+        </TouchableOpacity>
+      ) : (
+        <View style={[styles.quantityStepperRow, { width: '100%', justifyContent: 'space-between' }]}>
+          <TouchableOpacity
+            onPress={(e) => {
+              if (e && e.stopPropagation) e.stopPropagation();
+              onItemQuantityChange(hookah, -1);
+            }}
+            activeOpacity={0.8}
+            style={[styles.stepperBtn, { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: theme.borderColor }]}
+          >
+            <Minus size={14} color={theme.textColor} />
+          </TouchableOpacity>
+
+          <View style={[styles.stepperCountBadge, { backgroundColor: '#2C2B2A', minWidth: 110 }]}>
+            <Check size={12} color="#10B981" />
+            <Text style={[styles.stepperCountText, { color: '#10B981', marginLeft: 4 }]}>{count} in order</Text>
+          </View>
+
+          <TouchableOpacity
+            onPress={(e) => {
+              if (e && e.stopPropagation) e.stopPropagation();
+              handleAdd();
+            }}
+            activeOpacity={0.8}
+            style={[styles.stepperBtn, { backgroundColor: '#2C2B2A', borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1 }]}
+          >
+            <Plus size={14} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+};
+
 export const ConversationalHost: React.FC<ConversationalHostProps> = ({
   onBackToHome,
   onOpenCart,
@@ -221,6 +424,15 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
         }
       }
     }
+  };
+
+  const handleAddHookahWithAddons = (hookah: MenuItem, qty: number, modifiers: SelectedModifier[], notes?: string) => {
+    setDraftCounts(prev => ({
+      ...prev,
+      [hookah.id]: (prev[hookah.id] || 0) + qty,
+    }));
+    onAddToCart(hookah, qty, modifiers, notes);
+    showToast(hookah.name);
   };
 
   // Dynamic Super Categories
@@ -572,93 +784,29 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
               )}
 
               <ScrollView
-                horizontal={!isMobile}
                 showsHorizontalScrollIndicator={false}
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={[styles.cardsScrollRow, isMobile && { flexDirection: 'column', gap: 12 }]}
+                contentContainerStyle={[
+                  styles.cardsScrollRow,
+                  isMobile
+                    ? { flexDirection: 'column', gap: 12, paddingHorizontal: 4 }
+                    : { flexDirection: 'row', flexWrap: 'wrap', gap: 16, justifyContent: 'center', maxWidth: 1100, alignSelf: 'center' }
+                ]}
               >
                 {hookahList.map((hookah, idx) => {
-                  const imageSource = getItemImageSource(hookah);
                   const count = draftCounts[hookah.id] || 0;
 
                   return (
-                    <TouchableOpacity
+                    <HostHookahCard
                       key={hookah.id || `hookah_${idx}`}
-                      activeOpacity={0.88}
-                      onPress={() => onSelectItem ? onSelectItem(hookah) : handleItemQuantityChange(hookah, 1)}
-                      style={[
-                        styles.portraitProductCard,
-                        { backgroundColor: theme.cardColor, borderColor: theme.borderColor },
-                        isMobile && { width: '100%' },
-                        count > 0 && { borderColor: '#10B981', borderWidth: 2.5 }
-                      ]}
-                    >
-                      <View style={[styles.portraitImageWrapper, isMobile && { height: 160 }]}>
-                        {imageSource ? (
-                          <Image source={imageSource} style={styles.portraitImage} resizeMode="contain" />
-                        ) : (
-                          <View style={styles.productPlaceholder}>
-                            <Text style={{ fontSize: isMobile ? 36 : 48 }}>💨</Text>
-                          </View>
-                        )}
-                        {count > 0 && (
-                          <View style={[styles.selectedCountBadge, { backgroundColor: '#10B981' }]}>
-                            <Check size={12} color="#FFFFFF" />
-                            <Text style={styles.selectedCountText}>{count} in order</Text>
-                          </View>
-                        )}
-                      </View>
-
-                      <View style={[styles.productBody, isMobile && { padding: 10, gap: 2 }]}>
-                        <View style={styles.productTitleRow}>
-                          <Text style={[styles.productName, { color: theme.textColor, fontSize: isMobile ? 14 : 17 }]} numberOfLines={1}>
-                            {hookah.name}
-                          </Text>
-                          <Text style={[styles.productPrice, { color: theme.secondaryColor, fontSize: isMobile ? 14 : 17 }]}>
-                            ${hookah.price.toFixed(2)}
-                          </Text>
-                        </View>
-
-                        <Text style={[styles.productDesc, { color: theme.mutedTextColor, fontSize: isMobile ? 11 : 12, height: isMobile ? 26 : 32 }]} numberOfLines={2}>
-                          {hookah.description}
-                        </Text>
-
-                        <View style={styles.cardActionsRow}>
-                          {count === 0 ? (
-                            <TouchableOpacity
-                              onPress={() => handleItemQuantityChange(hookah, 1)}
-                              activeOpacity={0.8}
-                              style={[styles.multiAddBtn, { backgroundColor: 'transparent', borderColor: '#22C55E', borderWidth: 1.5, flex: 1 }, isMobile && { paddingVertical: 6 }]}
-                            >
-                              <Plus size={14} color="#22C55E" />
-                              <Text style={[styles.multiAddBtnText, { color: '#22C55E', fontSize: 11 }]}>+ ADD TO ORDER</Text>
-                            </TouchableOpacity>
-                          ) : (
-                            <View style={styles.quantityStepperRow}>
-                              <TouchableOpacity
-                                onPress={() => handleItemQuantityChange(hookah, -1)}
-                                activeOpacity={0.8}
-                                style={[styles.stepperBtn, { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: theme.borderColor }]}
-                              >
-                                <Minus size={14} color={theme.textColor} />
-                              </TouchableOpacity>
-
-                              <View style={[styles.stepperCountBadge, { backgroundColor: '#2C2B2A' }]}>
-                                <Text style={styles.stepperCountText}>{count}</Text>
-                              </View>
-
-                              <TouchableOpacity
-                                onPress={() => handleItemQuantityChange(hookah, 1)}
-                                activeOpacity={0.8}
-                                style={[styles.stepperBtn, { backgroundColor: '#2C2B2A', borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1 }]}
-                              >
-                                <Plus size={14} color="#FFFFFF" />
-                              </TouchableOpacity>
-                            </View>
-                          )}
-                        </View>
-                      </View>
-                    </TouchableOpacity>
+                      hookah={hookah}
+                      theme={theme}
+                      isMobile={isMobile}
+                      count={count}
+                      onAddWithAddons={handleAddHookahWithAddons}
+                      onItemQuantityChange={handleItemQuantityChange}
+                      onSelectItem={onSelectItem}
+                    />
                   );
                 })}
               </ScrollView>
@@ -1618,5 +1766,36 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '900',
     letterSpacing: 1,
+  },
+  hostHookahCard: {
+    borderRadius: 20,
+    padding: 16,
+    justifyContent: 'space-between',
+    alignSelf: 'center',
+    marginBottom: 10,
+  },
+  hostHookahTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  hostHookahName: {
+    fontWeight: '900',
+    flex: 1,
+  },
+  hostHookahPrice: {
+    fontWeight: '900',
+  },
+  hostHookahDesc: {
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  hostHookahAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    width: '100%',
   },
 });
