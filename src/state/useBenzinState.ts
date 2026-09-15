@@ -14,6 +14,12 @@ import { CAVALLI_HOOKAH_ITEMS, CAVALLI_FOOD_ITEMS, CAVALLI_DRINK_ITEMS } from '.
 import { TenantApiService, STORAGE_KEYS, getBaseUrl } from '../services/api';
 import { useRestaurantTheme } from '../theme/ThemeContext';
 
+function formatTableStr(t?: string | null): string {
+  if (!t) return 'Table 1';
+  const clean = t.trim();
+  return clean.toLowerCase().startsWith('table') ? clean : `Table ${clean}`;
+}
+
 export function useBenzinState() {
   const { updateTheme } = useRestaurantTheme();
   const [currentScreen, setCurrentScreen] = useState<ScreenState>('pairing');
@@ -148,10 +154,11 @@ export function useBenzinState() {
     }
   }, [updateTheme]);
 
-  const refreshActiveCoalRefill = useCallback(async () => {
+  const refreshActiveCoalRefill = useCallback(async (tableOverride?: string) => {
     try {
-      const table = `Table ${pairedTableNumber || '1'}`;
-      const active = await TenantApiService.getActiveCoalRefill(table);
+      const activeTable = tableOverride || pairedTableNumber;
+      const formattedTable = activeTable ? (activeTable.toLowerCase().startsWith('table') ? activeTable : `Table ${activeTable}`) : 'Table 1';
+      const active = await TenantApiService.getActiveCoalRefill(formattedTable);
       setActiveCoalRefill(active);
     } catch (err) {
       // silently ignore
@@ -161,13 +168,30 @@ export function useBenzinState() {
   useEffect(() => {
     const handleNfcUrlRouting = async () => {
       if (typeof window !== 'undefined' && window.location) {
-        const pathParts = window.location.pathname
+        let pathParts = window.location.pathname
           .split('/')
           .filter(p => p && p !== 'explore' && p !== '_sitemap' && p !== 'index.html');
         const urlParams = new URLSearchParams(window.location.search);
 
         let venueCode: string | null = urlParams.get('venue') || urlParams.get('v');
         let tableNum: string | null = urlParams.get('table') || urlParams.get('t');
+
+        // Support hash routing as well e.g. #/4821/1 or #/4821/P1
+        if (window.location.hash) {
+          const hashClean = window.location.hash.replace(/^#\/?/, '');
+          const [hashPath, hashQuery] = hashClean.split('?');
+          if (hashQuery) {
+            const hashParams = new URLSearchParams(hashQuery);
+            if (!venueCode) venueCode = hashParams.get('venue') || hashParams.get('v');
+            if (!tableNum) tableNum = hashParams.get('table') || hashParams.get('t');
+          }
+          const hashParts = (hashPath || '').split('/').filter(Boolean);
+          if (pathParts.length === 0 && hashParts.length > 0) {
+            pathParts = hashParts;
+          } else if (pathParts.length === 1 && !tableNum && hashParts.length >= 1) {
+            tableNum = hashParts[0];
+          }
+        }
 
         if (!venueCode && pathParts.length >= 1) {
           const firstPart = pathParts[0];
@@ -188,7 +212,15 @@ export function useBenzinState() {
               await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_RESTAURANT_NAME, config.restaurant.name);
               setPairedSlug(config.restaurant.slug);
 
-              let effectiveTable = tableNum ? tableNum.replace(/[^0-9]/g, '') : null;
+              let cleanTable: string | null = null;
+              if (tableNum) {
+                const decoded = decodeURIComponent(tableNum).trim();
+                // Clean optional "table-" / "table_" prefix while preserving alphanumeric codes like P1 or 1
+                cleanTable = decoded.replace(/^table[\s\-_]*/i, '') || decoded;
+              }
+
+              // Explicit table in NFC URL takes precedence over previously paired table
+              let effectiveTable = cleanTable;
               if (!effectiveTable) {
                 effectiveTable = await AsyncStorage.getItem(STORAGE_KEYS.PAIRED_TABLE_NUMBER);
               }
@@ -203,7 +235,7 @@ export function useBenzinState() {
                 });
                 setCurrentScreen('home');
                 loadLiveMenu();
-                refreshActiveCoalRefill();
+                refreshActiveCoalRefill(effectiveTable);
                 return;
               } else {
                 updateTheme({
@@ -377,11 +409,12 @@ export function useBenzinState() {
       status: 'pending',
     });
     setIsCallServerModalOpen(true);
+    const effectiveTable = formatTableStr(pairedTableNumber);
     TenantApiService.requestServer({ 
-      table: `Table ${pairedTableNumber || '1'}`, 
+      table: effectiveTable, 
       requestType: type, 
       note: customNote,
-      customerName: customerName || `Guest (Table ${pairedTableNumber || '1'})`
+      customerName: customerName || `Guest (${effectiveTable})`
     });
   }, [pairedTableNumber, customerName]);
 
@@ -410,10 +443,10 @@ export function useBenzinState() {
 
     setIsRequestingCoalRefill(true);
     try {
-      const table = `Table ${pairedTableNumber || '1'}`;
+      const effectiveTable = formatTableStr(pairedTableNumber);
       const res = await TenantApiService.requestCoalRefill({
-        table,
-        customerName: customerName || `Guest (Table ${pairedTableNumber || '1'})`,
+        table: effectiveTable,
+        customerName: customerName || `Guest (${effectiveTable})`,
         note: customNote || 'Hookah Coal Refill 🔥',
       });
 
@@ -447,13 +480,19 @@ export function useBenzinState() {
 
     // Build rich order payload for backend & KDS Admin Dashboard
     const itemsList = cart.map(i => {
-      const itemEmoji = (i.item as any).emoji || (i.item.category === 'hookah' ? '💨' : i.item.category === 'drinks' ? '🥤' : '🍔');
+      const itemCat = (i.item.category || '').toLowerCase();
+      const itemName = (i.item.name || '').toLowerCase();
+      const isDrink = itemCat === 'drinks' || itemCat === 'beverages' || itemCat.includes('drink') || itemCat.includes('beverage') || itemCat.includes('soft') || itemName.includes('cola') || itemName.includes('coca') || itemName.includes('coke') || itemName.includes('sprite') || itemName.includes('fanta') || itemName.includes('ginger ale') || itemName.includes('pepper') || itemName.includes('soda') || itemName.includes('water') || itemName.includes('juice') || itemName.includes('tea') || itemName.includes('chai') || itemName.includes('coffee') || itemName.includes('red bull') || (i.item as any).emoji === '🥤' || (i.item as any).emoji === '🍹';
+      const determinedCat = (i.item.category === 'hookah' || itemName.includes('hookah')) ? 'hookah' : isDrink ? 'drinks' : 'food';
+      const itemEmoji = (i.item as any).emoji || (determinedCat === 'hookah' ? '💨' : determinedCat === 'drinks' ? '🥤' : '🍔');
       const modNames = (i.selectedModifiers || []).map(m => m.optionName || m.name || '').filter(Boolean);
       const instr = i.specialInstructions || '';
       const combinedNotes = [instr, ...modNames.filter(mn => mn && !instr.includes(mn))].filter(Boolean).join(' · ');
       return {
         id: i.item.id,
         name: i.item.name,
+        category: determinedCat,
+        category_id: i.item.category_id,
         price: i.item.price,
         emoji: itemEmoji,
         qty: i.quantity,
@@ -481,12 +520,22 @@ export function useBenzinState() {
         note: combinedNotes
       };
     });
-    const food = cart.filter(i => i.item.category === 'food').map(i => ({
+    const food = cart.filter(i => {
+      const cat = (i.item.category || '').toLowerCase();
+      const name = (i.item.name || '').toLowerCase();
+      const isHookah = cat === 'hookah' || name.includes('hookah') || (i.item as any).emoji === '💨' || (i.item as any).emoji === '🧪';
+      const isDrink = cat === 'drinks' || cat === 'beverages' || cat.includes('drink') || cat.includes('beverage') || cat.includes('soft') || name.includes('cola') || name.includes('coca') || name.includes('coke') || name.includes('sprite') || name.includes('fanta') || name.includes('ginger ale') || name.includes('pepper') || name.includes('soda') || name.includes('water') || name.includes('juice') || name.includes('tea') || name.includes('chai') || name.includes('coffee') || name.includes('red bull') || (i.item as any).emoji === '🥤' || (i.item as any).emoji === '🍹';
+      return cat === 'food' && !isHookah && !isDrink;
+    }).map(i => ({
       item: { name: i.item.name, price: i.item.price, emoji: (i.item as any).emoji || '🍔' },
       qty: i.quantity,
       note: i.specialInstructions
     }));
-    const drinks = cart.filter(i => i.item.category === 'drinks').map(i => {
+    const drinks = cart.filter(i => {
+      const cat = (i.item.category || '').toLowerCase();
+      const name = (i.item.name || '').toLowerCase();
+      return cat === 'drinks' || cat === 'beverages' || cat.includes('drink') || cat.includes('beverage') || cat.includes('soft') || name.includes('cola') || name.includes('coca') || name.includes('coke') || name.includes('sprite') || name.includes('fanta') || name.includes('ginger ale') || name.includes('pepper') || name.includes('soda') || name.includes('water') || name.includes('juice') || name.includes('tea') || name.includes('chai') || name.includes('coffee') || name.includes('red bull') || (i.item as any).emoji === '🥤' || (i.item as any).emoji === '🍹';
+    }).map(i => {
       const flavorNotes = (i.selectedModifiers || []).map(m => m.optionName).filter(Boolean);
       const combinedNote = [i.specialInstructions, ...flavorNotes].filter(Boolean).join(' · ');
       let drinkName = i.item.name;
@@ -502,10 +551,11 @@ export function useBenzinState() {
       };
     });
 
+    const effectiveTable = formatTableStr(pairedTableNumber);
     const orderPayload = {
-      table: `Table ${pairedTableNumber || '1'}`,
-      customerName: customerName || `Guest (Table ${pairedTableNumber || '1'})`,
-      name: customerName || `Guest (Table ${pairedTableNumber || '1'})`,
+      table: effectiveTable,
+      customerName: customerName || `Guest (${effectiveTable})`,
+      name: customerName || `Guest (${effectiveTable})`,
       subtotal: cartSubtotal,
       taxAmount: cartTax,
       gratuityAmount: cartGratuity,

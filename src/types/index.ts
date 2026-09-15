@@ -139,16 +139,17 @@ export type HookahFlavorCategory =
 export type HookahFlavor = {
   id: string;
   name: string;
-  category: HookahFlavorCategory;
+  brand?: string;
+  category: HookahFlavorCategory | string;
   description: string;
   color: string;
   emoji: string;
   tags: string[];
-  sweetness: number; // 1 to 5
-  freshness: number; // 1 to 5
-  fruitiness: number; // 1 to 5
-  intensity: number; // 1 to 5
-  coolness: number; // 1 to 5
+  sweetness?: number; // 1 to 5
+  freshness?: number; // 1 to 5
+  fruitiness?: number; // 1 to 5
+  intensity?: number; // 1 to 5
+  coolness?: number; // 1 to 5
 };
 
 export type FlavorInMix = {

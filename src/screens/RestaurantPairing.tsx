@@ -206,11 +206,12 @@ export const RestaurantPairing: React.FC<RestaurantPairingProps> = ({ onPairSucc
                 </View>
                 <TextInput
                   style={[styles.textInput, styles.tableInput]}
-                  placeholder="Table Number"
+                  placeholder="Table Number (e.g. 1, P1)"
                   placeholderTextColor="#6B5A4E"
                   value={tableNumber}
                   onChangeText={setTableNumber}
-                  keyboardType="number-pad"
+                  keyboardType="default"
+                  autoCapitalize="characters"
                   autoFocus={true}
                   returnKeyType="next"
                 />

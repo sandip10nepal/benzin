@@ -313,10 +313,18 @@ export class TenantApiService {
     try {
       const targetSlug = slug || (await AsyncStorage.getItem(STORAGE_KEYS.PAIRED_RESTAURANT_SLUG)) || 'cavali';
 
-      const res = await this.resilientFetch(`/api/restaurants/slug/${targetSlug}/config?_t=${Date.now()}`, {
+      let res = await this.resilientFetch(`/api/restaurants/slug/${targetSlug}/config?_t=${Date.now()}`, {
         headers: getApiHeaders({ 'Cache-Control': 'no-cache, no-store, must-revalidate' }),
       });
-      const data = await res.json();
+      let data = await res.json().catch(() => ({ success: false }));
+
+      if (!data.success) {
+        // Fallback to code config endpoint
+        res = await this.resilientFetch(`/api/restaurants/code/${targetSlug}/config?_t=${Date.now()}`, {
+          headers: getApiHeaders({ 'Cache-Control': 'no-cache, no-store, must-revalidate' }),
+        });
+        data = await res.json().catch(() => ({ success: false }));
+      }
 
       if (data.success && data.categories && data.menu_items) {
         await AsyncStorage.setItem(STORAGE_KEYS.RESTAURANT_CONFIG, JSON.stringify(data));

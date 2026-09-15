@@ -12,7 +12,6 @@ import { CartDrawer } from '../components/Cart/CartDrawer';
 import { ItemDetailModal } from '../components/ItemDetail/ItemDetailModal';
 import { CallServerModal } from '../components/Server/CallServerModal';
 import { HookahMixLabModal } from '../components/HookahMixLab/HookahMixLabModal';
-import { BenzinAttribution } from '../components/ui/BenzinAttribution';
 
 import { ConversationStep } from '../types';
 
@@ -183,8 +182,6 @@ function MainAppContent() {
         }}
       />
 
-      {/* Platform Attribution at bottom-left corner */}
-      <BenzinAttribution />
     </SafeAreaView>
   );
 }

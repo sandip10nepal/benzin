@@ -1,4 +1,4 @@
-import { ArrowRight, Bell, Bot, Check, Flame, Plus, Sparkles } from 'lucide-react-native';
+import { ArrowRight, Bell, Bot, Check, Flame, Plus } from 'lucide-react-native';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Animated,
@@ -220,7 +220,6 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
             <View style={styles.featuredSection}>
               <View style={styles.featuredHeaderRow}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
-                  <Sparkles size={isMobile ? 16 : 20} color={theme.secondaryColor} />
                   <Text style={[styles.featuredSectionTitle, { color: theme.textColor, fontSize: isMobile ? 13 : 16 }]} numberOfLines={1}>
                     FEATURED MENU & DISHES
                   </Text>
