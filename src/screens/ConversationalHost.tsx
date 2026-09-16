@@ -540,16 +540,30 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
   };
 
   const filteredFoodItems = useMemo(() => {
-    const source = (allMenuItems || []).filter(item => item.category === 'food');
+    const source = (allMenuItems || []).filter(item => {
+      if (item.category === 'food') return true;
+      const catIds = item.category_ids || [];
+      return catIds.some(cid => String(cid).toUpperCase().includes('FOOD') || String(cid).toUpperCase().includes('APPETIZER') || String(cid).toUpperCase().includes('VEGETARIAN') || String(cid).toUpperCase().includes('MAIN') || String(cid).toUpperCase().includes('WING') || String(cid).toUpperCase().includes('BURGER') || String(cid).toUpperCase().includes('WRAP') || String(cid).toUpperCase().includes('DESSERT'));
+    });
     if (foodSubcategory === 'ALL') return sortItemsByCategoryAndOrder(source, allCategories);
-    const filtered = source.filter(item => item.subcategory === foodSubcategory || item.category_id === foodSubcategory);
+    const filtered = source.filter(item => {
+      const catIds = item.category_ids || [];
+      return catIds.includes(foodSubcategory) || item.subcategory === foodSubcategory || item.category_id === foodSubcategory;
+    });
     return sortItemsByCategoryAndOrder(filtered, allCategories);
   }, [allMenuItems, foodSubcategory, allCategories]);
 
   const filteredDrinkItems = useMemo(() => {
-    const source = (allMenuItems || []).filter(item => item.category === 'drinks');
+    const source = (allMenuItems || []).filter(item => {
+      if (item.category === 'drinks') return true;
+      const catIds = item.category_ids || [];
+      return catIds.some(cid => String(cid).toUpperCase().includes('DRINK') || String(cid).toUpperCase().includes('BEVERAGE') || String(cid).toUpperCase().includes('REFRESHER') || String(cid).toUpperCase().includes('TEA') || String(cid).toUpperCase().includes('COFFEE'));
+    });
     if (drinkSubcategory === 'ALL') return sortItemsByCategoryAndOrder(source, allCategories);
-    const filtered = source.filter(item => item.subcategory === drinkSubcategory || item.category_id === drinkSubcategory);
+    const filtered = source.filter(item => {
+      const catIds = item.category_ids || [];
+      return catIds.includes(drinkSubcategory) || item.subcategory === drinkSubcategory || item.category_id === drinkSubcategory;
+    });
     return sortItemsByCategoryAndOrder(filtered, allCategories);
   }, [allMenuItems, drinkSubcategory, allCategories]);
 

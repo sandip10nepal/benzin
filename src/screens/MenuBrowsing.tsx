@@ -407,11 +407,17 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
       if (activeSubCatId === 'ALL') {
         return sortWithCategorySequence(activeItems);
       }
-      const filtered = activeItems.filter(item => 
-        item.category_id === activeSubCatId || 
-        item.category === activeSubCatId ||
-        item.subcategory === activeSubCatId
-      );
+      const filtered = activeItems.filter(item => {
+        const itemCatIds = (Array.isArray(item.category_ids) && item.category_ids.length > 0)
+          ? item.category_ids
+          : [item.category_id, item.category, item.subcategory].filter(Boolean) as string[];
+        return (
+          itemCatIds.includes(activeSubCatId) ||
+          item.category_id === activeSubCatId || 
+          item.category === activeSubCatId ||
+          item.subcategory === activeSubCatId
+        );
+      });
       return sortWithCategorySequence(filtered);
     }
 
@@ -424,15 +430,22 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
     const validSubIds = activeSubCategories.filter(s => s._id !== 'ALL').map(s => s._id);
 
     const list = activeItems.filter((item) => {
+      const itemCatIds = (Array.isArray(item.category_ids) && item.category_ids.length > 0)
+        ? item.category_ids
+        : [item.category_id, item.category, item.subcategory].filter(Boolean) as string[];
+
       if (activeSubCatId === 'ALL') {
         return (
-          validSubIds.includes(item.category_id) || 
-          validSubIds.includes(item.category) || 
+          validSubIds.some(subId => itemCatIds.includes(subId)) ||
+          validSubIds.includes(item.category_id || '') || 
+          validSubIds.includes(item.category || '') || 
           item.category === legacyCat || 
-          item.category_id === activeSuperCatId
+          item.category_id === activeSuperCatId ||
+          itemCatIds.includes(activeSuperCatId)
         );
       }
       return (
+        itemCatIds.includes(activeSubCatId) ||
         item.category_id === activeSubCatId || 
         item.category === activeSubCatId ||
         item.subcategory === activeSubCatId

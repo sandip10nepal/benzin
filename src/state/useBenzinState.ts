@@ -119,6 +119,7 @@ export function useBenzinState() {
                 _id: i._id || i.id,
                 restaurant_id: i.restaurant_id,
                 category_id: i.category_id,
+                category_ids: Array.isArray(i.category_ids) && i.category_ids.length > 0 ? i.category_ids : (i.category_id ? [i.category_id] : []),
                 name: i.name,
                 price: Number(i.price) || 0,
                 description: i.description || i.desc || '',

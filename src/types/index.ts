@@ -49,6 +49,7 @@ export type MenuItem = {
   _id?: string;
   restaurant_id?: string;
   category_id?: string;
+  category_ids?: string[];
   name: string;
   price: number;
   description: string;
