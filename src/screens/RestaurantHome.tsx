@@ -86,8 +86,17 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
 
           {/* Welcome Greeting Header */}
           <View style={styles.welcomeBanner}>
-            <Text style={[styles.welcomeSubtitle, { color: theme.secondaryColor, fontSize: isMobile ? 12 : 14 }]}>WELCOME TO</Text>
-            <Text style={[styles.welcomeTitle, { color: theme.textColor, fontSize: isMobile ? 32 : 42 }]}>{theme.name || 'LOUNGE'}</Text>
+            <Text style={[styles.welcomeSubtitle, { color: theme.secondaryColor, fontSize: isMobile ? 11 : 13, letterSpacing: 4 }]}>WELCOME TO</Text>
+            <View style={[styles.welcomeLogoContainer, isMobile ? { width: 230, height: 58, marginTop: 6 } : { width: 320, height: 80, marginTop: 8 }]}>
+              <Image
+                source={theme.mode === 'light'
+                  ? require('../../assets/images/cavalli_brand_logo_dark.png')
+                  : require('../../assets/images/cavalli_brand_logo.png')}
+                style={styles.welcomeLogoImage}
+                resizeMode="contain"
+                accessibilityLabel="Cavalli"
+              />
+            </View>
           </View>
 
           {/* Prominent Action Cards Container */}
@@ -323,13 +332,22 @@ const styles = StyleSheet.create({
   },
   welcomeBanner: {
     alignItems: 'center',
-    marginTop: 4,
-    marginBottom: 16,
+    marginTop: 6,
+    marginBottom: 20,
   },
   welcomeSubtitle: {
     fontWeight: '900',
-    letterSpacing: 2,
+    letterSpacing: 4,
     marginBottom: 2,
+    textTransform: 'uppercase',
+  },
+  welcomeLogoContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  welcomeLogoImage: {
+    width: '100%',
+    height: '100%',
   },
   welcomeTitle: {
     fontWeight: '900',

@@ -1,6 +1,6 @@
 import { ArrowLeft, Bell, Bot, LogOut, ShoppingBag, Sparkles, Sun, Moon } from 'lucide-react-native';
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, Image } from 'react-native';
 import { useRestaurantTheme } from '../../theme/ThemeContext';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { ConversationStep } from '../../types';
@@ -71,12 +71,15 @@ export const BenzinHeader: React.FC<BenzinHeaderProps> = ({
 
       {/* Center: RESTAURANT BRANDING (Restaurant-first header) */}
       <View style={styles.centerSection}>
-        <TouchableOpacity onPress={onGoHome} activeOpacity={0.8} style={{ alignItems: 'center' }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={{ color: theme.textColor, fontWeight: '900', fontSize: isMobilePhone ? 16 : 22, letterSpacing: 1.2 }}>
-              {theme.name || 'CAVALLI'}
-            </Text>
-          </View>
+        <TouchableOpacity onPress={onGoHome} activeOpacity={0.8} style={{ alignItems: 'center', justifyContent: 'center' }}>
+          <Image
+            source={themeMode === 'light'
+              ? require('../../../assets/images/cavalli_brand_logo_dark.png')
+              : require('../../../assets/images/cavalli_brand_logo.png')}
+            style={{ width: isMobilePhone ? 105 : 135, height: isMobilePhone ? 26 : 32 }}
+            resizeMode="contain"
+            accessibilityLabel={theme.name || 'CAVALLI'}
+          />
         </TouchableOpacity>
       </View>
 
