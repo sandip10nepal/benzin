@@ -76,6 +76,8 @@ function MainAppContent() {
           onStartOrder={handleStartOrder}
           onCallServer={() => setIsCallServerModalOpen(true)}
           onOpenCart={() => setIsCartDrawerOpen(true)}
+          onSelectItem={(item) => setActiveItemForDetail(item)}
+          onAddToCart={addToCart}
           onLogOut={logOutSession}
           cartCount={totalCartCount}
           allMenuItems={allMenuItems}
@@ -150,6 +152,7 @@ function MainAppContent() {
         total={cartTotal}
         onUpdateQuantity={updateQuantity}
         onRemoveItem={removeFromCart}
+        onSelectItem={(item) => setActiveItemForDetail(item)}
         onPlaceOrder={() => {
           setIsCartDrawerOpen(false);
           placeOrder();

@@ -15,6 +15,7 @@ import { getItemImageSource } from '../data/menu_images';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { useRestaurantTheme } from '../theme/ThemeContext';
 import { ConversationStep, MenuItem, SelectedModifier } from '../types';
+import { itemRequiresModifierSelection, getActionLabelForItem } from '../utils/modifierUtils';
 
 interface RestaurantHomeProps {
   onOpenMenu: () => void;
@@ -270,15 +271,26 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
 
                         <TouchableOpacity
                           onPress={() => {
-                            if (onAddToCart) onAddToCart(item, 1, []);
-                            else if (onSelectItem) onSelectItem(item);
-                            else onOpenMenu();
+                            if (itemRequiresModifierSelection(item) || !onAddToCart) {
+                              if (onSelectItem) onSelectItem(item);
+                              else onOpenMenu();
+                            } else {
+                              onAddToCart(item, 1, []);
+                            }
                           }}
                           activeOpacity={0.8}
-                          style={[styles.homeCardAddBtn, { backgroundColor: theme.secondaryColor, paddingVertical: isMobile ? 8 : 10 }]}
+                          style={[
+                            styles.homeCardAddBtn, 
+                            { 
+                              backgroundColor: itemRequiresModifierSelection(item) ? '#E5B13A' : theme.secondaryColor, 
+                              paddingVertical: isMobile ? 8 : 10 
+                            }
+                          ]}
                         >
                           <Plus size={isMobile ? 12 : 14} color="#000000" />
-                          <Text style={[styles.homeCardAddBtnText, { fontSize: isMobile ? 10 : 11 }]}>+ ADD</Text>
+                          <Text style={[styles.homeCardAddBtnText, { fontSize: isMobile ? 10 : 11, fontWeight: '800' }]}>
+                            {getActionLabelForItem(item)}
+                          </Text>
                         </TouchableOpacity>
                       </View>
                     </TouchableOpacity>

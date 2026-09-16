@@ -15,6 +15,7 @@ import { BenzinHeader } from '../components/Navigation/BenzinHeader';
 import { BottomNavigation } from '../components/Navigation/BottomNavigation';
 import { MenuItem, SelectedModifier, CartItem, ConversationStep } from '../types';
 import { MENU_IMAGES, getItemImageSource } from '../data/menu_images';
+import { itemRequiresModifierSelection, getActionLabelForItem } from '../utils/modifierUtils';
 
 interface MenuBrowsingProps {
   onBack: () => void;
@@ -541,6 +542,12 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
     if (e && e.stopPropagation) e.stopPropagation();
     if (item.available === false && delta > 0) return;
 
+    // If customer tries to add/increment item without choosing required modifiers (e.g. sauce for wings)
+    if (delta > 0 && itemRequiresModifierSelection(item)) {
+      onSelectItem(item);
+      return;
+    }
+
     const currentQty = itemQuantities[item.id] || 0;
     const newQty = Math.max(0, currentQty + delta);
 
@@ -566,7 +573,12 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
   };
 
   const handleQuickAdd = (item: MenuItem, e: any) => {
+    if (e && e.stopPropagation) e.stopPropagation();
     if (item.available === false) return;
+    if (itemRequiresModifierSelection(item)) {
+      onSelectItem(item);
+      return;
+    }
     handleUpdateItemQty(item, 1, e);
   };
 
@@ -820,16 +832,29 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
                     }
 
                     const qty = itemQuantities[item.id] || 0;
+                    const requiresChoice = itemRequiresModifierSelection(item);
+                    const actionLabel = getActionLabelForItem(item);
+
                     return (
                       <View style={[styles.cardBtnRow, isMobile && { gap: 6, marginTop: 4 }]}>
-                        {qty === 0 ? (
+                        {qty === 0 || requiresChoice ? (
                           <TouchableOpacity
                             onPress={(e) => handleQuickAdd(item, e)}
                             activeOpacity={0.8}
-                            style={[styles.quickAddBtn, { backgroundColor: 'transparent', borderColor: '#22C55E', borderWidth: 1.5 }, isMobile && { paddingVertical: 8 }]}
+                            style={[
+                              styles.quickAddBtn, 
+                              { 
+                                backgroundColor: requiresChoice ? 'rgba(229, 177, 58, 0.12)' : 'transparent', 
+                                borderColor: requiresChoice ? '#E5B13A' : '#22C55E', 
+                                borderWidth: 1.5 
+                              }, 
+                              isMobile && { paddingVertical: 8 }
+                            ]}
                           >
-                            <Plus size={isMobile ? 14 : 16} color="#22C55E" />
-                            <Text style={[styles.quickAddText, { color: '#22C55E', fontSize: isMobile ? 11 : 13 }]}>+ ADD</Text>
+                            <Plus size={isMobile ? 14 : 16} color={requiresChoice ? '#E5B13A' : '#22C55E'} />
+                            <Text style={[styles.quickAddText, { color: requiresChoice ? '#E5B13A' : '#22C55E', fontSize: isMobile ? 10 : 13, fontWeight: '800' }]}>
+                              {actionLabel}
+                            </Text>
                           </TouchableOpacity>
                         ) : (
                           <View style={styles.browseStepperRow}>
@@ -855,7 +880,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
                           </View>
                         )}
 
-                        {item.modifierGroups && item.modifierGroups.length > 0 && (
+                        {item.modifierGroups && item.modifierGroups.length > 0 && !requiresChoice && (
                           <TouchableOpacity
                             onPress={() => onSelectItem(item)}
                             activeOpacity={0.8}

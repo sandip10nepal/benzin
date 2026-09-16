@@ -13,6 +13,7 @@ import {
 import { CAVALLI_HOOKAH_ITEMS, CAVALLI_FOOD_ITEMS, CAVALLI_DRINK_ITEMS } from '../data/mockRestaurant';
 import { TenantApiService, STORAGE_KEYS, getBaseUrl } from '../services/api';
 import { useRestaurantTheme } from '../theme/ThemeContext';
+import { getMissingRequiredModifierGroup } from '../utils/modifierUtils';
 
 function formatTableStr(t?: string | null): string {
   if (!t) return 'Table 1';
@@ -323,6 +324,13 @@ export function useBenzinState() {
     selectedModifiers: SelectedModifier[] = [],
     specialInstructions: string = ''
   ) => {
+    // If the item requires modifier/sauce selection and no valid option was chosen, pop up modal!
+    const missingGroup = getMissingRequiredModifierGroup(item, selectedModifiers);
+    if (missingGroup) {
+      setActiveItemForDetail(item);
+      return;
+    }
+
     const modifierTotal = selectedModifiers.reduce((acc, m) => acc + (Number(m.price) || 0), 0);
     const basePrice = Number(item.price) || 0;
     const cleanQty = Number(quantity) || 1;
@@ -479,7 +487,12 @@ export function useBenzinState() {
   const placeOrder = useCallback(() => {
     if (cart.length === 0) return;
 
-    // Build rich order payload for backend & KDS Admin Dashboard
+    // Check if any item in cart is missing required sauce / modifiers
+    const itemMissingChoice = cart.find(ci => getMissingRequiredModifierGroup(ci.item, ci.selectedModifiers));
+    if (itemMissingChoice) {
+      setActiveItemForDetail(itemMissingChoice.item);
+      return;
+    }
     const itemsList = cart.map(i => {
       const itemCat = (i.item.category || '').toLowerCase();
       const itemName = (i.item.name || '').toLowerCase();

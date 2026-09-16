@@ -24,6 +24,7 @@ import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { BenzinHeader } from '../components/Navigation/BenzinHeader';
 import { MenuItem, SelectedModifier, CartItem, ConversationStep } from '../types';
 import { getItemImageSource } from '../data/menu_images';
+import { itemRequiresModifierSelection } from '../utils/modifierUtils';
 
 interface ConversationalHostProps {
   onBackToHome: () => void;
@@ -403,6 +404,11 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
 
   // Multi-selection & Cart sync helper
   const handleItemQuantityChange = (item: MenuItem, delta: number) => {
+    if (delta > 0 && itemRequiresModifierSelection(item)) {
+      if (onSelectItem) onSelectItem(item);
+      return;
+    }
+
     const currentQty = draftCounts[item.id] || 0;
     const newQty = Math.max(0, currentQty + delta);
 

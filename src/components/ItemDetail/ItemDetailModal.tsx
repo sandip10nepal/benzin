@@ -11,9 +11,10 @@ import {
 } from 'react-native';
 import { X, Check, Sparkles, Plus } from 'lucide-react-native';
 import { useRestaurantTheme } from '../../theme/ThemeContext';
-import { MenuItem, SelectedModifier, ModifierOption } from '../../types';
+import { MenuItem, SelectedModifier, ModifierOption, ModifierGroup } from '../../types';
 import { QuantitySelector } from '../ui/QuantitySelector';
 import { MENU_IMAGES, getItemImageSource } from '../../data/menu_images';
+import { getMissingRequiredModifierGroup } from '../../utils/modifierUtils';
 
 interface ItemDetailModalProps {
   item: MenuItem | null;
@@ -48,11 +49,42 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
   if (!item) return null;
 
+  const effectiveModifierGroups = React.useMemo<ModifierGroup[]>(() => {
+    if (!item) return [];
+    const groups: ModifierGroup[] = item.modifierGroups || (item as any).modifier_groups || [];
+    if (groups.length > 0) return groups;
+
+    const isWings = item.category_id === 'CAT_WINGS' || 
+      (Array.isArray(item.category_ids) && item.category_ids.includes('CAT_WINGS')) ||
+      (item.name || '').toLowerCase().includes('wing');
+
+    if (isWings) {
+      return [
+        {
+          id: 'grp_wing_sauces',
+          name: 'Sauce Choices',
+          required: true,
+          minSelect: 1,
+          maxSelect: 1,
+          options: [
+            { id: 'opt_buffalo', name: 'Buffalo', price: 0 },
+            { id: 'opt_bbq', name: 'BBQ', price: 0 },
+            { id: 'opt_garlic_parm', name: 'Garlic Parmesan', price: 0 },
+            { id: 'opt_lemon_pepper', name: 'Lemon Pepper', price: 0 },
+            { id: 'opt_honey_bbq', name: 'Honey BBQ', price: 0 },
+            { id: 'opt_mango_habanero', name: 'Mango Habanero', price: 0 },
+          ],
+        },
+      ];
+    }
+    return [];
+  }, [item]);
+
   const imageSource = getItemImageSource(item);
 
   const handleToggleModifier = (groupId: string, groupName: string, option: ModifierOption, isSingleChoice: boolean) => {
     setValidationError(null);
-    const optId = option.id || option._id || option.name;
+    const optId = option.id || (option as any)._id || option.name;
     const optPrice = Number(option.price !== undefined ? option.price : (option as any).price_adjustment !== undefined ? (option as any).price_adjustment : 0);
     setSelectedModifiers((prev) => {
       const isAlreadySelected = prev.some((m) => (m.groupId === groupId || m.groupName === groupName) && (m.optionId === optId || m.optionName === option.name));
@@ -98,29 +130,31 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   const calculatedPrice = (Number(baseUnit) || 0) * (Number(quantity) || 1);
 
   const handleAdd = () => {
-    // Check if any required modifier group is missing a selection
-    const missingGroup = (item.modifierGroups || []).find((group) => {
-      if (!group.required) return false;
-      const grpId = group.id || group._id || group.name;
-      return !selectedModifiers.some(
-        (m) => (m.groupId === grpId || m.groupName === group.name) && Boolean(m.optionName || m.optionId)
-      );
-    });
+    // Check if any required modifier group (such as sauce choice) is missing a selection
+    const missingGroup = getMissingRequiredModifierGroup(
+      { ...item, modifierGroups: effectiveModifierGroups },
+      selectedModifiers
+    );
 
     if (missingGroup) {
-      setValidationError(`Please select a choice for "${missingGroup.name}"`);
+      const isSauce = (missingGroup.name || '').toLowerCase().includes('sauce') || (item.name || '').toLowerCase().includes('wing');
+      setValidationError(
+        isSauce 
+          ? `⚠️ Please choose a sauce for your ${item.name} to continue!` 
+          : `⚠️ Please select a choice for "${missingGroup.name}" to continue!`
+      );
       return;
     }
 
     if (isSoftDrink) {
       const activeMods = selectedModifiers.length > 0 
         ? selectedModifiers 
-        : (item.modifierGroups?.[0]?.options?.[0] ? [{
-            groupId: item.modifierGroups[0].id,
-            groupName: item.modifierGroups[0].name,
-            optionId: item.modifierGroups[0].options[0].id,
-            optionName: item.modifierGroups[0].options[0].name,
-            price: Number(item.modifierGroups[0].options[0].price || (item.modifierGroups[0].options[0] as any).price_adjustment || 0),
+        : (effectiveModifierGroups[0]?.options?.[0] ? [{
+            groupId: effectiveModifierGroups[0].id,
+            groupName: effectiveModifierGroups[0].name,
+            optionId: effectiveModifierGroups[0].options[0].id,
+            optionName: effectiveModifierGroups[0].options[0].name,
+            price: Number(effectiveModifierGroups[0].options[0].price || (effectiveModifierGroups[0].options[0] as any).price_adjustment || 0),
           }] : []);
 
       if (activeMods.length > 1) {
@@ -162,7 +196,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
               <Image source={imageSource} style={styles.image} resizeMode="cover" />
             ) : (
               <View style={[styles.placeholderBanner, { backgroundColor: 'rgba(255,90,31,0.1)' }]}>
-                <Text style={{ fontSize: 54 }}>�</Text>
+                <Text style={{ fontSize: 54 }}>🍽️</Text>
               </View>
             )}
             <TouchableOpacity 
@@ -193,9 +227,10 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
             </Text>
 
             {/* Modifier Groups */}
-            {item.modifierGroups && item.modifierGroups.length > 0 && (
+            {effectiveModifierGroups && effectiveModifierGroups.length > 0 && (
               <View style={styles.modifiersSection}>
-                {item.modifierGroups.map((group, gIdx) => {
+                {effectiveModifierGroups.map((group, gIdx) => {
+                  const grpId = group.id || (group as any)._id || group.name || `group_${gIdx}`;
                   const isSingleChoice = !isSoftDrink && (
                     Boolean(group.required) || 
                     group.maxSelect === 1 || 
@@ -203,23 +238,57 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                     (group as any).max_selection === 1
                   );
 
+                  const isSauceOrFlavor = (group.name || '').toLowerCase().includes('sauce') || (group.name || '').toLowerCase().includes('flavor');
+                  const isWings = (item.name || '').toLowerCase().includes('wing');
+                  const isRequired = Boolean(group.required) || isSauceOrFlavor || isWings;
+
+                  const hasSelection = selectedModifiers.some(
+                    (m) => (m.groupId === grpId || m.groupName === group.name) && Boolean(m.optionName || m.optionId)
+                  );
+                  const isMissingThisGroup = Boolean(validationError) && isRequired && !hasSelection;
+
                   return (
-                    <View key={group.id || `group_${gIdx}`} style={styles.groupBlock}>
+                    <View 
+                      key={grpId} 
+                      style={[
+                        styles.groupBlock,
+                        isMissingThisGroup && {
+                          borderColor: '#EF4444',
+                          borderWidth: 2,
+                          backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                          borderRadius: 14,
+                          padding: 12,
+                        }
+                      ]}
+                    >
                       <View style={styles.groupHeader}>
                         <Text style={[styles.groupTitle, { color: theme.textColor }]}>
                           {group.name}
                         </Text>
-                        {group.required && (
-                          <Text style={[styles.requiredTag, { color: theme.primaryColor }]}>
-                            REQUIRED
+                        {isRequired && (
+                          <Text style={[
+                            styles.requiredTag, 
+                            { 
+                              color: hasSelection ? '#10B981' : '#EF4444',
+                              fontWeight: '900'
+                            }
+                          ]}>
+                            {hasSelection ? '✓ SAUCE SELECTED' : 'REQUIRED (SELECT 1)'}
                           </Text>
                         )}
                       </View>
 
+                      {isMissingThisGroup && (
+                        <View style={{ backgroundColor: 'rgba(239, 68, 68, 0.2)', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, marginBottom: 10 }}>
+                          <Text style={{ color: '#EF4444', fontSize: 12, fontWeight: '800' }}>
+                            👉 Please select a sauce below to proceed with your order
+                          </Text>
+                        </View>
+                      )}
+
                       <View style={styles.optionsGrid}>
                         {group.options.map((opt, oIdx) => {
-                          const grpId = group.id || group._id || group.name || `group_${gIdx}`;
-                          const optId = opt.id || opt._id || opt.name || `opt_${oIdx}`;
+                          const optId = opt.id || (opt as any)._id || opt.name || `opt_${oIdx}`;
                           const isSelected = selectedModifiers.some(
                             (m) => (m.groupId === grpId || m.groupName === group.name) && (m.optionId === optId || m.optionName === opt.name)
                           );

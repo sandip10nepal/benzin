@@ -11,9 +11,10 @@ import {
 import { X, Trash2, ArrowRight, ShoppingBag, Sparkles } from 'lucide-react-native';
 import { useRestaurantTheme } from '../../theme/ThemeContext';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
-import { CartItem } from '../../types';
+import { CartItem, MenuItem } from '../../types';
 import { QuantitySelector } from '../ui/QuantitySelector';
 import { MENU_IMAGES, getItemImageSource } from '../../data/menu_images';
+import { getMissingRequiredModifierGroup } from '../../utils/modifierUtils';
 
 interface CartDrawerProps {
   visible: boolean;
@@ -25,6 +26,7 @@ interface CartDrawerProps {
   total: number;
   onUpdateQuantity: (cartItemId: string, newQty: number) => void;
   onRemoveItem: (cartItemId: string) => void;
+  onSelectItem?: (item: MenuItem) => void;
   onPlaceOrder: () => void;
 }
 
@@ -38,6 +40,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   total,
   onUpdateQuantity,
   onRemoveItem,
+  onSelectItem,
   onPlaceOrder,
 }) => {
   const { theme } = useRestaurantTheme();
@@ -152,6 +155,35 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         </View>
                       )}
 
+                      {/* Missing required choice alert */}
+                      {(() => {
+                        const missingGroup = getMissingRequiredModifierGroup(cartItem.item, cartItem.selectedModifiers);
+                        if (!missingGroup) return null;
+                        return (
+                          <TouchableOpacity
+                            onPress={() => {
+                              onClose();
+                              if (onSelectItem) onSelectItem(cartItem.item);
+                            }}
+                            activeOpacity={0.8}
+                            style={{
+                              backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                              borderColor: '#EF4444',
+                              borderWidth: 1,
+                              borderRadius: 8,
+                              paddingVertical: 5,
+                              paddingHorizontal: 8,
+                              marginTop: 6,
+                              alignSelf: 'flex-start',
+                            }}
+                          >
+                            <Text style={{ color: '#EF4444', fontSize: 11, fontWeight: '800' }}>
+                              ⚠️ Sauce choice missing — Tap to select
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })()}
+
                       {cartItem.specialInstructions ? (
                         <Text style={[styles.instructionText, { color: theme.primaryColor }]}>
                           Note: {cartItem.specialInstructions}
@@ -200,7 +232,15 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               </View>
 
               <TouchableOpacity
-                onPress={onPlaceOrder}
+                onPress={() => {
+                  const itemWithMissing = cart.find(ci => getMissingRequiredModifierGroup(ci.item, ci.selectedModifiers));
+                  if (itemWithMissing) {
+                    onClose();
+                    if (onSelectItem) onSelectItem(itemWithMissing.item);
+                    return;
+                  }
+                  onPlaceOrder();
+                }}
                 activeOpacity={0.88}
                 style={[styles.checkoutBtn, { backgroundColor: '#10B981', paddingVertical: isMobile ? 12 : 16 }]}
               >
