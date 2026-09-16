@@ -497,19 +497,32 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
       return sortWithCategorySequence(matched);
     }
 
+    const dedupeByName = (items: MenuItem[]) => {
+      const seen = new Set<string>();
+      const result: MenuItem[] = [];
+      for (const item of items) {
+        const key = (item.name || '').trim().toLowerCase();
+        if (!seen.has(key)) {
+          seen.add(key);
+          result.push(item);
+        }
+      }
+      return result;
+    };
+
     if (activeSuperCatId === 'ALL') {
-      return sortWithCategorySequence(activeItems);
+      return sortWithCategorySequence(dedupeByName(activeItems));
     }
 
     // If sub-filter is active (e.g. Refreshers or House Mixes)
     if (activeSubCatId !== 'ALL') {
       const subFiltered = activeItems.filter(item => isItemInCat(item, activeSubCatId));
-      return sortWithCategorySequence(subFiltered.length > 0 ? subFiltered : activeItems);
+      return sortWithCategorySequence(dedupeByName(subFiltered.length > 0 ? subFiltered : activeItems));
     }
 
     // Filter by primary category (e.g. APPETIZERS, VEGETARIAN, CONTINENTAL)
     const list = activeItems.filter((item) => isItemInCat(item, activeSuperCatId));
-    return sortWithCategorySequence(list);
+    return sortWithCategorySequence(dedupeByName(list));
   }, [allMenuItems, allCategories, activeSuperCatId, superCategories, activeSubCategories, activeSubCatId, searchQuery, isGlobalSearch]);
 
   const [itemQuantities, setItemQuantities] = useState<Record<string, number>>({});

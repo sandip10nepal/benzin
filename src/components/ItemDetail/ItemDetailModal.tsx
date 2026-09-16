@@ -35,26 +35,14 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   const [quantity, setQuantity] = useState<number>(1);
   const [selectedModifiers, setSelectedModifiers] = useState<SelectedModifier[]>([]);
   const [specialInstructions, setSpecialInstructions] = useState<string>('');
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
     if (item) {
       setQuantity(1);
       setSpecialInstructions('');
-      // Pre-select defaults for required modifier groups
-      const initialMods: SelectedModifier[] = [];
-      item.modifierGroups?.forEach((group) => {
-        if (group.required && group.options.length > 0) {
-          const defaultOpt = group.options[0];
-          initialMods.push({
-            groupId: group.id,
-            groupName: group.name,
-            optionId: defaultOpt.id,
-            optionName: defaultOpt.name,
-            price: Number(defaultOpt.price !== undefined ? defaultOpt.price : (defaultOpt as any).price_adjustment !== undefined ? (defaultOpt as any).price_adjustment : 0),
-          });
-        }
-      });
-      setSelectedModifiers(initialMods);
+      setValidationError(null);
+      setSelectedModifiers([]);
     }
   }, [item]);
 
@@ -63,33 +51,37 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   const imageSource = getItemImageSource(item);
 
   const handleToggleModifier = (groupId: string, groupName: string, option: ModifierOption, isSingleChoice: boolean) => {
+    setValidationError(null);
+    const optId = option.id || option._id || option.name;
     const optPrice = Number(option.price !== undefined ? option.price : (option as any).price_adjustment !== undefined ? (option as any).price_adjustment : 0);
     setSelectedModifiers((prev) => {
+      const isAlreadySelected = prev.some((m) => (m.groupId === groupId || m.groupName === groupName) && (m.optionId === optId || m.optionName === option.name));
       if (isSingleChoice) {
-        // Replace selection in group
-        const filtered = prev.filter((m) => m.groupId !== groupId);
+        const filtered = prev.filter((m) => m.groupId !== groupId && m.groupName !== groupName);
+        if (isAlreadySelected) {
+          // Allow unselecting
+          return filtered;
+        }
         return [
           ...filtered,
           {
             groupId,
             groupName,
-            optionId: option.id,
+            optionId: optId,
             optionName: option.name,
             price: optPrice,
           },
         ];
       } else {
-        // Toggle option
-        const exists = prev.some((m) => m.groupId === groupId && m.optionId === option.id);
-        if (exists) {
-          return prev.filter((m) => !(m.groupId === groupId && m.optionId === option.id));
+        if (isAlreadySelected) {
+          return prev.filter((m) => !((m.groupId === groupId || m.groupName === groupName) && (m.optionId === optId || m.optionName === option.name)));
         } else {
           return [
             ...prev,
             {
               groupId,
               groupName,
-              optionId: option.id,
+              optionId: optId,
               optionName: option.name,
               price: optPrice,
             },
@@ -106,6 +98,20 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   const calculatedPrice = (Number(baseUnit) || 0) * (Number(quantity) || 1);
 
   const handleAdd = () => {
+    // Check if any required modifier group is missing a selection
+    const missingGroup = (item.modifierGroups || []).find((group) => {
+      if (!group.required) return false;
+      const grpId = group.id || group._id || group.name;
+      return !selectedModifiers.some(
+        (m) => (m.groupId === grpId || m.groupName === group.name) && Boolean(m.optionName || m.optionId)
+      );
+    });
+
+    if (missingGroup) {
+      setValidationError(`Please select a choice for "${missingGroup.name}"`);
+      return;
+    }
+
     if (isSoftDrink) {
       const activeMods = selectedModifiers.length > 0 
         ? selectedModifiers 
@@ -190,7 +196,12 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
             {item.modifierGroups && item.modifierGroups.length > 0 && (
               <View style={styles.modifiersSection}>
                 {item.modifierGroups.map((group, gIdx) => {
-                  const isSingleChoice = !isSoftDrink && (Boolean(group.required) || group.maxSelect === 1 || (group as any).max_selections === 1);
+                  const isSingleChoice = !isSoftDrink && (
+                    Boolean(group.required) || 
+                    group.maxSelect === 1 || 
+                    (group as any).max_selections === 1 || 
+                    (group as any).max_selection === 1
+                  );
 
                   return (
                     <View key={group.id || `group_${gIdx}`} style={styles.groupBlock}>
@@ -207,15 +218,17 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
                       <View style={styles.optionsGrid}>
                         {group.options.map((opt, oIdx) => {
+                          const grpId = group.id || group._id || group.name || `group_${gIdx}`;
+                          const optId = opt.id || opt._id || opt.name || `opt_${oIdx}`;
                           const isSelected = selectedModifiers.some(
-                            (m) => (m.groupId === group.id || m.groupId === `group_${gIdx}`) && (m.optionId === opt.id || m.optionId === `opt_${oIdx}`)
+                            (m) => (m.groupId === grpId || m.groupName === group.name) && (m.optionId === optId || m.optionName === opt.name)
                           );
 
                           return (
                             <TouchableOpacity
-                              key={opt.id || `opt_${oIdx}`}
+                              key={optId}
                               activeOpacity={0.7}
-                              onPress={() => handleToggleModifier(group.id, group.name, opt, isSingleChoice)}
+                              onPress={() => handleToggleModifier(grpId, group.name, { ...opt, id: optId }, isSingleChoice)}
                               style={[
                                 styles.optionCard,
                                 { backgroundColor: 'rgba(255,255,255,0.04)', borderColor: theme.borderColor },
@@ -268,6 +281,15 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
               />
             </View>
           </ScrollView>
+
+          {/* Validation Error Banner */}
+          {validationError && (
+            <View style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', borderColor: '#EF4444', borderWidth: 1, paddingVertical: 8, paddingHorizontal: 16, marginHorizontal: 20, marginBottom: 8, borderRadius: 10 }}>
+              <Text style={{ color: '#EF4444', fontSize: 12, fontWeight: '800', textAlign: 'center' }}>
+                ⚠️ {validationError}
+              </Text>
+            </View>
+          )}
 
           {/* Modal Footer */}
           <View style={[styles.modalFooter, { borderTopColor: theme.borderColor }]}>
