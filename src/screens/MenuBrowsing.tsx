@@ -277,45 +277,122 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
 
   const isGlobalSearch = searchQuery.trim().length > 0;
 
-  // 1. Super Categories (parent_id === null && active !== false)
-  // Ordered intuitively: ALL ITEMS, FOOD & DINING, BEVERAGES, HOOKAH & SHISHA
+  // Helper: robust category matching for multi-category items
+  const isItemInCat = (item: MenuItem, targetCatId: string) => {
+    if (!targetCatId || targetCatId === 'ALL') return true;
+    const targetLower = targetCatId.toLowerCase();
+    const targetClean = targetLower.replace(/^cat_/, '');
+
+    const itemCatIds = (Array.isArray(item.category_ids) && item.category_ids.length > 0)
+      ? item.category_ids
+      : [item.category_id, item.category, item.subcategory].filter(Boolean) as string[];
+
+    // 1. Direct or normalized ID match
+    for (const cid of itemCatIds) {
+      const cLower = String(cid).toLowerCase();
+      const cClean = cLower.replace(/^cat_/, '');
+      if (cLower === targetLower || cClean === targetClean) return true;
+      if (cClean.includes(targetClean) || targetClean.includes(cClean)) return true;
+    }
+
+    // 2. Direct string match on item properties
+    if (item.category_id && (item.category_id.toLowerCase() === targetLower || item.category_id.toLowerCase().replace(/^cat_/, '') === targetClean)) return true;
+    if (item.subcategory && (item.subcategory.toLowerCase() === targetLower || item.subcategory.toLowerCase().replace(/^cat_/, '') === targetClean)) return true;
+
+    // 3. Domain semantic mapping
+    if (targetClean.includes('drink') || targetClean.includes('beverage')) {
+      if (item.category === 'drinks') return true;
+      if (itemCatIds.some(c => String(c).toLowerCase().includes('drink') || String(c).toLowerCase().includes('refresher') || String(c).toLowerCase().includes('tea') || String(c).toLowerCase().includes('soft'))) return true;
+    }
+    if (targetClean.includes('hookah') || targetClean.includes('shisha')) {
+      if (item.category === 'hookah') return true;
+      if (itemCatIds.some(c => String(c).toLowerCase().includes('hookah'))) return true;
+    }
+    if (targetClean.includes('veg')) {
+      if (itemCatIds.some(c => String(c).toLowerCase().includes('veg'))) return true;
+      if ((item.subcategory || '').toLowerCase().includes('veg')) return true;
+    }
+    if (targetClean.includes('appetizer')) {
+      if (itemCatIds.some(c => String(c).toLowerCase().includes('appetizer'))) return true;
+      if ((item.subcategory || '').toLowerCase().includes('appetizer')) return true;
+    }
+    if (targetClean.includes('continental')) {
+      if (itemCatIds.some(c => String(c).toLowerCase().includes('continental'))) return true;
+      if ((item.subcategory || '').toLowerCase().includes('continental')) return true;
+    }
+    if (targetClean.includes('main')) {
+      if (itemCatIds.some(c => String(c).toLowerCase().includes('main'))) return true;
+      if ((item.subcategory || '').toLowerCase().includes('main')) return true;
+    }
+    if (targetClean.includes('wing')) {
+      if (itemCatIds.some(c => String(c).toLowerCase().includes('wing'))) return true;
+      if ((item.subcategory || '').toLowerCase().includes('wing')) return true;
+    }
+    if (targetClean.includes('burger')) {
+      if (itemCatIds.some(c => String(c).toLowerCase().includes('burger'))) return true;
+      if ((item.subcategory || '').toLowerCase().includes('burger')) return true;
+    }
+    if (targetClean.includes('wrap')) {
+      if (itemCatIds.some(c => String(c).toLowerCase().includes('wrap'))) return true;
+      if ((item.subcategory || '').toLowerCase().includes('wrap')) return true;
+    }
+    if (targetClean.includes('dessert')) {
+      if (itemCatIds.some(c => String(c).toLowerCase().includes('dessert'))) return true;
+      if ((item.subcategory || '').toLowerCase().includes('dessert')) return true;
+    }
+
+    return false;
+  };
+
+  // 1. Primary Categories matching cavallidallas.com
+  // [APPETIZERS][MAINS][WINGS][VEGETARIAN][BURGERS][WRAPS][CONTINENTAL STREET FOOD][DESSERTS][DRINKS][HOOKAH]
   const superCategories = useMemo(() => {
     const list: Array<{ _id: string; name: string; icon?: string }> = [
-      { _id: 'ALL', name: 'ALL ITEMS', icon: '✨' }
+      { _id: 'ALL', name: 'ALL', icon: '✨' }
     ];
-    if (allCategories && allCategories.length > 0) {
-      const supers = allCategories
-        .filter(c => (c.parent_id === null || !c.parent_id) && c.active !== false)
-        .sort((a, b) => {
-          const nameA = (a.name || a.title || '').toLowerCase();
-          const nameB = (b.name || b.title || '').toLowerCase();
-          const rank = (name: string) => {
-            if (name.includes('food') || name.includes('dining')) return 1;
-            if (name.includes('beverage') || name.includes('drink')) return 2;
-            if (name.includes('hookah') || name.includes('shisha')) return 3;
-            return 4;
-          };
-          const rA = rank(nameA);
-          const rB = rank(nameB);
-          if (rA !== rB) return rA - rB;
-          return (a.sort_order ?? 0) - (b.sort_order ?? 0);
-        });
 
-      if (supers.length > 0) {
-        supers.forEach(s => {
-          list.push({
-            _id: s._id || s.id,
-            name: (s.name || s.title || 'Category').toUpperCase(),
-            icon: s.icon || (s.name?.toLowerCase().includes('food') ? '🍔' : s.name?.toLowerCase().includes('drink') ? '🍹' : '💨'),
-          });
+    if (allCategories && allCategories.length > 0) {
+      // Find official subcategories or super categories and map them cleanly
+      const getCatId = (pattern: RegExp) => {
+        const found = allCategories.find(c => pattern.test(c.name || c.title || c._id || ''));
+        return found ? (found._id || found.id) : null;
+      };
+
+      const officialSpecs = [
+        { pattern: /appetizer/i, defaultId: 'CAT_APPETIZERS', name: 'APPETIZERS', icon: '🥗' },
+        { pattern: /main/i, defaultId: 'CAT_MAINS', name: 'MAINS', icon: '🥩' },
+        { pattern: /wing/i, defaultId: 'CAT_WINGS', name: 'WINGS', icon: '🍗' },
+        { pattern: /vegetar/i, defaultId: 'CAT_VEGETARIAN', name: 'VEGETARIAN', icon: '🌱' },
+        { pattern: /burger/i, defaultId: 'CAT_BURGERS', name: 'BURGERS', icon: '🍔' },
+        { pattern: /wrap/i, defaultId: 'CAT_WRAPS', name: 'WRAPS', icon: '🌯' },
+        { pattern: /continental/i, defaultId: 'CAT_CONTINENTAL', name: 'CONTINENTAL STREET FOOD', icon: '🍜' },
+        { pattern: /dessert/i, defaultId: 'CAT_DESSERTS', name: 'DESSERTS', icon: '🍰' },
+        { pattern: /beverage|drink/i, defaultId: 'cat_super_drinks', name: 'DRINKS', icon: '🍹' },
+        { pattern: /hookah|shisha/i, defaultId: 'cat_super_hookah', name: 'HOOKAH', icon: '💨' },
+      ];
+
+      officialSpecs.forEach(spec => {
+        const matchedId = getCatId(spec.pattern) || spec.defaultId;
+        list.push({
+          _id: matchedId,
+          name: spec.name,
+          icon: spec.icon,
         });
-        return list;
-      }
+      });
+
+      return list;
     }
 
     list.push(
-      { _id: 'cat_super_food', name: 'FOOD & DINING', icon: '🍔' },
-      { _id: 'cat_super_drinks', name: 'BEVERAGES', icon: '🍹' },
+      { _id: 'CAT_APPETIZERS', name: 'APPETIZERS', icon: '🥗' },
+      { _id: 'CAT_MAINS', name: 'MAINS', icon: '🥩' },
+      { _id: 'CAT_WINGS', name: 'WINGS', icon: '🍗' },
+      { _id: 'CAT_VEGETARIAN', name: 'VEGETARIAN', icon: '🌱' },
+      { _id: 'CAT_BURGERS', name: 'BURGERS', icon: '🍔' },
+      { _id: 'CAT_WRAPS', name: 'WRAPS', icon: '🌯' },
+      { _id: 'CAT_CONTINENTAL', name: 'CONTINENTAL STREET FOOD', icon: '🍜' },
+      { _id: 'CAT_DESSERTS', name: 'DESSERTS', icon: '🍰' },
+      { _id: 'cat_super_drinks', name: 'DRINKS', icon: '🍹' },
       { _id: 'cat_super_hookah', name: 'HOOKAH', icon: '💨' }
     );
     return list;
@@ -323,27 +400,53 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
 
   const [activeSuperCatId, setActiveSuperCatId] = useState<string>('ALL');
 
-  // 2. Sub Categories for active Super Category
+  // 2. Sub Categories for active Category (especially for Drinks and Hookah sub-groups)
   const activeSubCategories = useMemo(() => {
     if (activeSuperCatId === 'ALL') {
       return [{ _id: 'ALL', name: 'ALL' }];
     }
 
-    if (allCategories && allCategories.length > 0) {
-      const subs = allCategories
-        .filter(c => c.parent_id === activeSuperCatId && c.active !== false)
-        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    const activeKey = activeSuperCatId.toLowerCase();
+
+    // If DRINKS category selected -> expose Refreshers, Tea & Coffee, Soft Drinks
+    if (activeKey.includes('drink') || activeKey.includes('beverage')) {
+      const subs = (allCategories || []).filter(c => 
+        (c.parent_id && (c.parent_id.toLowerCase().includes('drink') || c.parent_id.toLowerCase().includes('beverage'))) ||
+        (c._id && c._id.toLowerCase().includes('drinks_'))
+      ).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+
       if (subs.length > 0) {
-        return [{ _id: 'ALL', name: 'ALL' }, ...subs.map(s => ({ _id: s._id || s.id, name: s.name || s.title || s._id }))];
+        return [{ _id: 'ALL', name: 'ALL DRINKS' }, ...subs.map(s => ({ _id: s._id || s.id, name: (s.name || s.title || s._id).toUpperCase() }))];
       }
+      return [
+        { _id: 'ALL', name: 'ALL DRINKS' },
+        { _id: 'CAT_DRINKS_REFRESHERS', name: 'REFRESHERS' },
+        { _id: 'CAT_DRINKS_TEA_COFFEE', name: 'TEA & COFFEE' },
+        { _id: 'CAT_DRINKS_SOFT', name: 'SOFT DRINKS & WATER' }
+      ];
     }
 
-    const legacyCat = activeSuperCatId.replace('cat_super_', '');
-    const categoryItems = (allMenuItems || []).filter(item => item.category === legacyCat);
-    const subSet = new Set<string>();
-    categoryItems.forEach(item => { if (item.subcategory) subSet.add(item.subcategory); });
-    return [{ _id: 'ALL', name: 'ALL' }, ...Array.from(subSet).map(s => ({ _id: s, name: s }))];
-  }, [allCategories, activeSuperCatId, allMenuItems]);
+    // If HOOKAH category selected -> expose House Mixes, Custom Mix Lab, Refills & Add-ons
+    if (activeKey.includes('hookah') || activeKey.includes('shisha')) {
+      const subs = (allCategories || []).filter(c => 
+        (c.parent_id && c.parent_id.toLowerCase().includes('hookah')) ||
+        (c._id && c._id.toLowerCase().includes('hookah_'))
+      ).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+
+      if (subs.length > 0) {
+        return [{ _id: 'ALL', name: 'ALL HOOKAH' }, ...subs.map(s => ({ _id: s._id || s.id, name: (s.name || s.title || s._id).toUpperCase() }))];
+      }
+      return [
+        { _id: 'ALL', name: 'ALL HOOKAH' },
+        { _id: 'CAT_HOOKAH_HOUSE_MIXES', name: 'HOUSE MIXES' },
+        { _id: 'CAT_HOOKAH_CUSTOM', name: 'CUSTOM MIX LAB' },
+        { _id: 'CAT_HOOKAH_EXTRAS', name: 'REFILLS & ADD-ONS' }
+      ];
+    }
+
+    // Otherwise (Appetizers, Vegetarian, Mains, Wings, Burgers, Wraps, Continental, Desserts)
+    return [{ _id: 'ALL', name: 'ALL' }];
+  }, [allCategories, activeSuperCatId]);
 
   const [activeSubCatId, setActiveSubCatId] = useState<string>('ALL');
 
@@ -351,7 +454,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
     setActiveSubCatId('ALL');
   }, [activeSuperCatId]);
 
-  // 3. Filtered Items with deterministic category-sequence grouping
+  // 3. Filtered Items with deterministic category-sequence grouping and multi-category support
   const filteredItems = useMemo(() => {
     const activeItems = (allMenuItems || []).filter(i => i.active !== false);
 
@@ -376,15 +479,6 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
 
         if (catOrderA !== catOrderB) return catOrderA - catOrderB;
 
-        const catIdA = String(a.category_id || a.subcategory || '');
-        const catIdB = String(b.category_id || b.subcategory || '');
-        if (catIdA !== catIdB) {
-          const titleA = catA?.title || catIdA;
-          const titleB = catB?.title || catIdB;
-          const comp = titleA.localeCompare(titleB);
-          if (comp !== 0) return comp;
-        }
-
         const itemOrderA = typeof a.sort_order === 'number' ? a.sort_order : 9999;
         const itemOrderB = typeof b.sort_order === 'number' ? b.sort_order : 9999;
         if (itemOrderA !== itemOrderB) return itemOrderA - itemOrderB;
@@ -404,55 +498,18 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
     }
 
     if (activeSuperCatId === 'ALL') {
-      if (activeSubCatId === 'ALL') {
-        return sortWithCategorySequence(activeItems);
-      }
-      const filtered = activeItems.filter(item => {
-        const itemCatIds = (Array.isArray(item.category_ids) && item.category_ids.length > 0)
-          ? item.category_ids
-          : [item.category_id, item.category, item.subcategory].filter(Boolean) as string[];
-        return (
-          itemCatIds.includes(activeSubCatId) ||
-          item.category_id === activeSubCatId || 
-          item.category === activeSubCatId ||
-          item.subcategory === activeSubCatId
-        );
-      });
-      return sortWithCategorySequence(filtered);
+      return sortWithCategorySequence(activeItems);
     }
 
-    const activeSuperObj = superCategories.find(s => s._id === activeSuperCatId);
-    const superName = (activeSuperObj?.name || '').toLowerCase();
-    let legacyCat: 'hookah' | 'food' | 'drinks' = 'food';
-    if (superName.includes('hookah') || superName.includes('shisha')) legacyCat = 'hookah';
-    else if (superName.includes('beverage') || superName.includes('drink')) legacyCat = 'drinks';
+    // If sub-filter is active (e.g. Refreshers or House Mixes)
+    if (activeSubCatId !== 'ALL') {
+      const subFiltered = activeItems.filter(item => isItemInCat(item, activeSubCatId));
+      return sortWithCategorySequence(subFiltered.length > 0 ? subFiltered : activeItems);
+    }
 
-    const validSubIds = activeSubCategories.filter(s => s._id !== 'ALL').map(s => s._id);
-
-    const list = activeItems.filter((item) => {
-      const itemCatIds = (Array.isArray(item.category_ids) && item.category_ids.length > 0)
-        ? item.category_ids
-        : [item.category_id, item.category, item.subcategory].filter(Boolean) as string[];
-
-      if (activeSubCatId === 'ALL') {
-        return (
-          validSubIds.some(subId => itemCatIds.includes(subId)) ||
-          validSubIds.includes(item.category_id || '') || 
-          validSubIds.includes(item.category || '') || 
-          item.category === legacyCat || 
-          item.category_id === activeSuperCatId ||
-          itemCatIds.includes(activeSuperCatId)
-        );
-      }
-      return (
-        itemCatIds.includes(activeSubCatId) ||
-        item.category_id === activeSubCatId || 
-        item.category === activeSubCatId ||
-        item.subcategory === activeSubCatId
-      );
-    });
-
-    return sortWithCategorySequence(list.length > 0 ? list : activeItems);
+    // Filter by primary category (e.g. APPETIZERS, VEGETARIAN, CONTINENTAL)
+    const list = activeItems.filter((item) => isItemInCat(item, activeSuperCatId));
+    return sortWithCategorySequence(list);
   }, [allMenuItems, allCategories, activeSuperCatId, superCategories, activeSubCategories, activeSubCatId, searchQuery, isGlobalSearch]);
 
   const [itemQuantities, setItemQuantities] = useState<Record<string, number>>({});
