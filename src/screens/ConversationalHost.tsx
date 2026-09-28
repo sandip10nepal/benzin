@@ -30,6 +30,8 @@ interface ConversationalHostProps {
   onBackToHome: () => void;
   onOpenCart: () => void;
   onCallServer: () => void;
+  onOpenTrackOrder?: () => void;
+  isTrackingActive?: boolean;
   onOpenMixLab?: () => void;
   onSelectItem?: (item: MenuItem) => void;
   cartCount: number;
@@ -262,6 +264,8 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
   onBackToHome,
   onOpenCart,
   onCallServer,
+  onOpenTrackOrder,
+  isTrackingActive = false,
   onOpenMixLab,
   onSelectItem,
   cartCount,
@@ -626,6 +630,8 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
         onBack={handleStepBack}
         onOpenCart={onOpenCart}
         onOpenCallServer={onCallServer}
+        onOpenTrackOrder={onOpenTrackOrder}
+        isTrackingActive={isTrackingActive}
         onOpenHost={() => setIsSpeechOverlayVisible(true)}
         hostSpeechText={currentSpeechText}
         cartCount={cartCount}

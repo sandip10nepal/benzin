@@ -10,7 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { User, Sparkles, X, Check } from 'lucide-react-native';
+import { User, Sparkles, X } from 'lucide-react-native';
 import { useRestaurantTheme } from '../../theme/ThemeContext';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 
@@ -33,8 +33,6 @@ export const OrderNicknameModal: React.FC<OrderNicknameModalProps> = ({
   const { isMobilePhone } = useResponsiveLayout();
   const [nickname, setNickname] = useState<string>(initialNickname || '');
   const [error, setError] = useState<string>('');
-
-  const quickPresets = ['Guest', 'Table Host', 'Alex', 'Sam'];
 
   const handleConfirm = () => {
     const trimmed = nickname.trim();
@@ -125,54 +123,6 @@ export const OrderNicknameModal: React.FC<OrderNicknameModalProps> = ({
                 {error ? (
                   <Text style={styles.errorText}>{error}</Text>
                 ) : null}
-
-                {/* Quick Selection Chips */}
-                <View style={styles.presetsContainer}>
-                  <Text style={[styles.presetsLabel, { color: theme.mutedTextColor }]}>
-                    QUICK PRESETS:
-                  </Text>
-                  <View style={styles.chipsRow}>
-                    {quickPresets.map((preset) => {
-                      const isSelected = nickname.trim().toLowerCase() === preset.toLowerCase();
-                      return (
-                        <TouchableOpacity
-                          key={preset}
-                          onPress={() => {
-                            setNickname(preset);
-                            if (error) setError('');
-                          }}
-                          activeOpacity={0.8}
-                          style={[
-                            styles.chip,
-                            {
-                              backgroundColor: isSelected
-                                ? 'rgba(229, 177, 58, 0.2)'
-                                : theme.backgroundColor,
-                              borderColor: isSelected ? theme.secondaryColor : theme.borderColor,
-                            },
-                          ]}
-                        >
-                          {isSelected && <Check size={12} color={theme.secondaryColor} style={{ marginRight: 4 }} />}
-                          <Text
-                            style={[
-                              styles.chipText,
-                              {
-                                color: isSelected ? theme.secondaryColor : theme.mutedTextColor,
-                                fontWeight: isSelected ? '700' : '500',
-                              },
-                            ]}
-                          >
-                            {preset}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </View>
-
-                <Text style={[styles.securityNote, { color: theme.mutedTextColor }]}>
-                  🔒 You will receive a 2-hour secure tracking link for real-time preparation updates.
-                </Text>
               </View>
 
               {/* Footer Actions */}
@@ -277,36 +227,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     marginTop: 6,
-  },
-  presetsContainer: {
-    marginTop: 16,
-  },
-  presetsLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1,
-    marginBottom: 8,
-  },
-  chipsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  chipText: {
-    fontSize: 12,
-  },
-  securityNote: {
-    fontSize: 11,
-    marginTop: 16,
-    lineHeight: 16,
   },
   footerRow: {
     flexDirection: 'row',

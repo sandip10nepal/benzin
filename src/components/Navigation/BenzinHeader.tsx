@@ -11,6 +11,7 @@ interface BenzinHeaderProps {
   onOpenCart?: () => void;
   onOpenCallServer?: () => void;
   onOpenTrackOrder?: () => void;
+  isTrackingActive?: boolean;
   onOpenHost?: (initialStep?: ConversationStep) => void;
   onLogOut?: () => void;
   cartCount?: number;
@@ -26,6 +27,7 @@ export const BenzinHeader: React.FC<BenzinHeaderProps> = ({
   onOpenCart,
   onOpenCallServer,
   onOpenTrackOrder,
+  isTrackingActive = false,
   onOpenHost,
   onLogOut,
   cartCount = 0,
@@ -119,29 +121,6 @@ export const BenzinHeader: React.FC<BenzinHeaderProps> = ({
           </TouchableOpacity>
         )}
 
-        {/* Track Order Navigation Item (Small top nav item, strictly no large banner/card/CTA) */}
-        {onOpenTrackOrder && (
-          <TouchableOpacity
-            onPress={onOpenTrackOrder}
-            activeOpacity={0.8}
-            style={[
-              styles.actionBtn,
-              {
-                backgroundColor: theme.cardColor,
-                borderColor: theme.borderColor,
-                paddingHorizontal: isMobilePhone ? 8 : 12,
-              },
-            ]}
-          >
-            <Clock size={isMobilePhone ? 15 : 17} color={theme.textColor} />
-            {!isMobilePhone && (
-              <Text style={[styles.actionBtnText, { color: theme.textColor }]}>
-                TRACK ORDER
-              </Text>
-            )}
-          </TouchableOpacity>
-        )}
-
         {onOpenCallServer && (
           <TouchableOpacity
             onPress={onOpenCallServer}
@@ -157,24 +136,101 @@ export const BenzinHeader: React.FC<BenzinHeaderProps> = ({
           </TouchableOpacity>
         )}
 
-        {onOpenCart && (
-          <TouchableOpacity
-            onPress={onOpenCart}
-            activeOpacity={0.8}
-            style={[styles.actionBtn, styles.cartBtn, { backgroundColor: theme.primaryColor, paddingHorizontal: isMobilePhone ? 10 : 14 }]}
+        {/* Integrated MY ORDER & TRACK ORDER Button */}
+        {(onOpenCart || onOpenTrackOrder) && (
+          <View
+            style={[
+              styles.actionBtn,
+              styles.cartBtn,
+              {
+                backgroundColor: theme.primaryColor,
+                paddingHorizontal: 0,
+                paddingVertical: 0,
+                flexDirection: 'row',
+                alignItems: 'center',
+                overflow: 'hidden',
+              },
+            ]}
           >
-            <ShoppingBag size={isMobilePhone ? 16 : 18} color="#FFFFFF" />
-            {!isMobilePhone && (
-              <Text style={[styles.actionBtnText, { color: '#FFFFFF' }]}>
-                MY ORDER
-              </Text>
+            {/* My Order Cart Segment */}
+            {onOpenCart && (
+              <TouchableOpacity
+                onPress={onOpenCart}
+                activeOpacity={0.8}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  paddingHorizontal: isMobilePhone ? 8 : 12,
+                  paddingVertical: isMobilePhone ? 6 : 8,
+                }}
+              >
+                <ShoppingBag size={isMobilePhone ? 15 : 17} color="#FFFFFF" />
+                {!isMobilePhone && (
+                  <Text style={[styles.actionBtnText, { color: '#FFFFFF' }]}>
+                    MY ORDER
+                  </Text>
+                )}
+                {cartCount > 0 && (
+                  <View style={[styles.cartBadge, { backgroundColor: '#FFFFFF' }]}>
+                    <Text style={[styles.cartBadgeText, { color: theme.primaryColor }]}>{cartCount}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
             )}
-            {cartCount > 0 && (
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>{cartCount}</Text>
-              </View>
+
+            {/* Integrated Track Order Segment */}
+            {onOpenTrackOrder && (
+              <>
+                <View
+                  style={{
+                    width: 1,
+                    height: 18,
+                    backgroundColor: 'rgba(255, 255, 255, 0.35)',
+                  }}
+                />
+                <TouchableOpacity
+                  onPress={onOpenTrackOrder}
+                  activeOpacity={0.8}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 4,
+                    paddingHorizontal: isMobilePhone ? 8 : 10,
+                    paddingVertical: isMobilePhone ? 6 : 8,
+                    backgroundColor: isTrackingActive ? 'rgba(0, 0, 0, 0.18)' : 'transparent',
+                  }}
+                >
+                  <Clock size={isMobilePhone ? 14 : 16} color={isTrackingActive ? '#F3E5AB' : '#FFFFFF'} />
+                  {!isMobilePhone && (
+                    <Text
+                      style={[
+                        styles.actionBtnText,
+                        {
+                          color: isTrackingActive ? '#F3E5AB' : '#FFFFFF',
+                          fontSize: 11,
+                          fontWeight: isTrackingActive ? '800' : '700',
+                        },
+                      ]}
+                    >
+                      TRACK
+                    </Text>
+                  )}
+                  {isTrackingActive && (
+                    <View
+                      style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: 3,
+                        backgroundColor: '#10B981',
+                        marginLeft: 1,
+                      }}
+                    />
+                  )}
+                </TouchableOpacity>
+              </>
             )}
-          </TouchableOpacity>
+          </View>
         )}
       </View>
     </View>

@@ -193,32 +193,23 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
           Table {tableDisplay} {orderId ? `• #${orderId.replace(/^cav-/, '')}` : ''}
         </Text>
 
-        {/* 2-Hour Expiration Banner */}
-        <View
-          style={[
-            styles.timerBanner,
-            {
-              backgroundColor: isExpired ? 'rgba(239, 68, 68, 0.1)' : 'rgba(229, 177, 58, 0.1)',
-              borderColor: isExpired ? '#EF4444' : theme.secondaryColor,
-            },
-          ]}
-        >
-          {isExpired ? (
-            <AlertTriangle size={15} color="#EF4444" style={{ marginRight: 6 }} />
-          ) : (
-            <Clock size={15} color={theme.secondaryColor} style={{ marginRight: 6 }} />
-          )}
-          <Text
+        {/* Expiration Banner if 2-hour window has expired */}
+        {isExpired && (
+          <View
             style={[
-              styles.timerBannerText,
-              { color: isExpired ? '#EF4444' : theme.secondaryColor },
+              styles.timerBanner,
+              {
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                borderColor: '#EF4444',
+              },
             ]}
           >
-            {isExpired
-              ? 'Customer tracking access has expired (2-hour limit reached).'
-              : `Tracking active: ${remainingTimeText} (2-hour window)`}
-          </Text>
-        </View>
+            <AlertTriangle size={15} color="#EF4444" style={{ marginRight: 6 }} />
+            <Text style={[styles.timerBannerText, { color: '#EF4444' }]}>
+              Customer tracking access has expired (2-hour limit reached).
+            </Text>
+          </View>
+        )}
 
         {/* Timeline Stepper */}
         <View style={styles.timelineContainer}>

@@ -8,7 +8,7 @@ import {
   ScrollView, 
   Image 
 } from 'react-native';
-import { X, Trash2, ArrowRight, ShoppingBag, Sparkles } from 'lucide-react-native';
+import { X, Trash2, ArrowRight, ShoppingBag, Sparkles, Clock } from 'lucide-react-native';
 import { useRestaurantTheme } from '../../theme/ThemeContext';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { CartItem, MenuItem } from '../../types';
@@ -28,6 +28,8 @@ interface CartDrawerProps {
   onRemoveItem: (cartItemId: string) => void;
   onSelectItem?: (item: MenuItem) => void;
   onPlaceOrder: () => void;
+  activeTrackingSession?: any | null;
+  onOpenTrackOrder?: () => void;
 }
 
 export const CartDrawer: React.FC<CartDrawerProps> = ({
@@ -42,6 +44,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   onRemoveItem,
   onSelectItem,
   onPlaceOrder,
+  activeTrackingSession,
+  onOpenTrackOrder,
 }) => {
   const { theme } = useRestaurantTheme();
   const layout = useResponsiveLayout();
@@ -103,6 +107,45 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             </TouchableOpacity>
           </View>
 
+          {/* Active Order Live Tracking Banner */}
+          {activeTrackingSession && onOpenTrackOrder && (
+            <TouchableOpacity
+              onPress={() => {
+                onClose();
+                onOpenTrackOrder();
+              }}
+              activeOpacity={0.8}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                backgroundColor: 'rgba(229, 177, 58, 0.12)',
+                borderColor: theme.secondaryColor,
+                borderWidth: 1,
+                borderRadius: 14,
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                marginTop: 10,
+                marginBottom: 6,
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Clock size={16} color={theme.secondaryColor} />
+                <View>
+                  <Text style={{ color: theme.secondaryColor, fontSize: 12, fontWeight: '800' }}>
+                    Active Order #{activeTrackingSession.orderId ? activeTrackingSession.orderId.replace(/^cav-/, '') : 'Active'}
+                  </Text>
+                  <Text style={{ color: theme.mutedTextColor, fontSize: 10, marginTop: 1 }}>
+                    Status: {(activeTrackingSession.status || activeTrackingSession.order?.status || 'PREPARING').toUpperCase()}
+                  </Text>
+                </View>
+              </View>
+              <Text style={{ color: theme.secondaryColor, fontSize: 11, fontWeight: '800' }}>
+                TRACK ➔
+              </Text>
+            </TouchableOpacity>
+          )}
+
           {/* Cart Content */}
           {cart.length === 0 ? (
             <View style={styles.emptyContainer}>
@@ -113,6 +156,32 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               <Text style={[styles.emptyText, { color: theme.mutedTextColor, fontSize: isMobile ? 12 : 14 }]}>
                 Explore our menu or launch the Digital Host to curate your table experience.
               </Text>
+              {onOpenTrackOrder && (
+                <TouchableOpacity
+                  onPress={() => {
+                    onClose();
+                    onOpenTrackOrder();
+                  }}
+                  activeOpacity={0.8}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 8,
+                    marginTop: 16,
+                    paddingHorizontal: 18,
+                    paddingVertical: 11,
+                    borderRadius: 12,
+                    backgroundColor: 'rgba(229, 177, 58, 0.15)',
+                    borderColor: theme.secondaryColor,
+                    borderWidth: 1,
+                  }}
+                >
+                  <Clock size={16} color={theme.secondaryColor} />
+                  <Text style={{ color: theme.secondaryColor, fontSize: 13, fontWeight: '800' }}>
+                    {activeTrackingSession ? 'Track Active Order' : 'Track an Existing Order'}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             <ScrollView style={styles.itemList} showsVerticalScrollIndicator={false}>

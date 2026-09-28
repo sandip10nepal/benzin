@@ -22,6 +22,7 @@ interface RestaurantHomeProps {
   onStartOrder: (initialStep?: ConversationStep) => void;
   onCallServer: () => void;
   onOpenTrackOrder?: () => void;
+  isTrackingActive?: boolean;
   onOpenCart: () => void;
   onSelectItem?: (item: MenuItem) => void;
   onAddToCart?: (item: MenuItem, qty: number, modifiers: SelectedModifier[]) => void;
@@ -38,6 +39,7 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
   onStartOrder,
   onCallServer,
   onOpenTrackOrder,
+  isTrackingActive = false,
   onOpenCart,
   onSelectItem,
   onAddToCart,
@@ -74,6 +76,7 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
         onOpenCart={onOpenCart}
         onOpenCallServer={onCallServer}
         onOpenTrackOrder={onOpenTrackOrder}
+        isTrackingActive={isTrackingActive}
         onOpenHost={onStartOrder}
         onLogOut={onLogOut}
         hostSpeechText={`Welcome to ${theme.name || 'CAVALLI'}!`}

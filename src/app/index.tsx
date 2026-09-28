@@ -87,6 +87,7 @@ function MainAppContent() {
           onStartOrder={handleStartOrder}
           onCallServer={() => setIsCallServerModalOpen(true)}
           onOpenTrackOrder={handleOpenTrackOrder}
+          isTrackingActive={!!activeTrackingSession}
           onOpenCart={() => setIsCartDrawerOpen(true)}
           onSelectItem={(item) => setActiveItemForDetail(item)}
           onAddToCart={addToCart}
@@ -106,6 +107,8 @@ function MainAppContent() {
           onAddToCart={addToCart}
           onOpenCart={() => setIsCartDrawerOpen(true)}
           onCallServer={() => setIsCallServerModalOpen(true)}
+          onOpenTrackOrder={handleOpenTrackOrder}
+          isTrackingActive={!!activeTrackingSession}
           onOpenHost={handleStartOrder}
           onOpenMixLab={() => setIsMixLabOpen(true)}
           cartCount={totalCartCount}
@@ -124,6 +127,8 @@ function MainAppContent() {
           onBackToHome={() => navigate('home')}
           onOpenCart={() => setIsCartDrawerOpen(true)}
           onCallServer={() => setIsCallServerModalOpen(true)}
+          onOpenTrackOrder={handleOpenTrackOrder}
+          isTrackingActive={!!activeTrackingSession}
           onOpenMixLab={() => setIsMixLabOpen(true)}
           onSelectItem={(item) => setActiveItemForDetail(item)}
           cartCount={totalCartCount}
@@ -171,6 +176,8 @@ function MainAppContent() {
           setIsCartDrawerOpen(false);
           setIsNicknameModalOpen(true);
         }}
+        activeTrackingSession={activeTrackingSession}
+        onOpenTrackOrder={handleOpenTrackOrder}
       />
 
       {/* Customer Nickname Modal */}

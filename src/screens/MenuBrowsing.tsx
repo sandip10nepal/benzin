@@ -23,6 +23,8 @@ interface MenuBrowsingProps {
   onAddToCart?: (item: MenuItem, qty: number, modifiers: SelectedModifier[], notes?: string) => void;
   onOpenCart: () => void;
   onCallServer: () => void;
+  onOpenTrackOrder?: () => void;
+  isTrackingActive?: boolean;
   onOpenHost?: (initialStep?: ConversationStep) => void;
   onOpenMixLab?: () => void;
   cartCount: number;
@@ -255,6 +257,8 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
   onAddToCart,
   onOpenCart,
   onCallServer,
+  onOpenTrackOrder,
+  isTrackingActive = false,
   onOpenHost,
   onOpenMixLab,
   cartCount,
@@ -597,6 +601,8 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
         onBack={onBack}
         onOpenCart={onOpenCart}
         onOpenCallServer={onCallServer}
+        onOpenTrackOrder={onOpenTrackOrder}
+        isTrackingActive={isTrackingActive}
         onOpenHost={onOpenHost || onBack}
         cartCount={cartCount}
         title="RESTAURANT MENU"
