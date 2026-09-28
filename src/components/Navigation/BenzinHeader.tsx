@@ -1,4 +1,4 @@
-import { ArrowLeft, Bell, Bot, LogOut, ShoppingBag, Sparkles, Sun, Moon } from 'lucide-react-native';
+import { ArrowLeft, Bell, Bot, Clock, LogOut, ShoppingBag, Sparkles, Sun, Moon } from 'lucide-react-native';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, Image } from 'react-native';
 import { useRestaurantTheme } from '../../theme/ThemeContext';
@@ -10,6 +10,7 @@ interface BenzinHeaderProps {
   onGoHome?: () => void;
   onOpenCart?: () => void;
   onOpenCallServer?: () => void;
+  onOpenTrackOrder?: () => void;
   onOpenHost?: (initialStep?: ConversationStep) => void;
   onLogOut?: () => void;
   cartCount?: number;
@@ -24,6 +25,7 @@ export const BenzinHeader: React.FC<BenzinHeaderProps> = ({
   onGoHome,
   onOpenCart,
   onOpenCallServer,
+  onOpenTrackOrder,
   onOpenHost,
   onLogOut,
   cartCount = 0,
@@ -112,6 +114,29 @@ export const BenzinHeader: React.FC<BenzinHeaderProps> = ({
             {!isMobilePhone && (
               <Text style={[styles.actionBtnText, { color: '#F3E5AB', maxWidth: 140 }]} numberOfLines={1}>
                 {hostSpeechText || `Host AI`}
+              </Text>
+            )}
+          </TouchableOpacity>
+        )}
+
+        {/* Track Order Navigation Item (Small top nav item, strictly no large banner/card/CTA) */}
+        {onOpenTrackOrder && (
+          <TouchableOpacity
+            onPress={onOpenTrackOrder}
+            activeOpacity={0.8}
+            style={[
+              styles.actionBtn,
+              {
+                backgroundColor: theme.cardColor,
+                borderColor: theme.borderColor,
+                paddingHorizontal: isMobilePhone ? 8 : 12,
+              },
+            ]}
+          >
+            <Clock size={isMobilePhone ? 15 : 17} color={theme.textColor} />
+            {!isMobilePhone && (
+              <Text style={[styles.actionBtnText, { color: theme.textColor }]}>
+                TRACK ORDER
               </Text>
             )}
           </TouchableOpacity>

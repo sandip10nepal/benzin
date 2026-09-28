@@ -21,6 +21,7 @@ interface RestaurantHomeProps {
   onOpenMenu: () => void;
   onStartOrder: (initialStep?: ConversationStep) => void;
   onCallServer: () => void;
+  onOpenTrackOrder?: () => void;
   onOpenCart: () => void;
   onSelectItem?: (item: MenuItem) => void;
   onAddToCart?: (item: MenuItem, qty: number, modifiers: SelectedModifier[]) => void;
@@ -36,6 +37,7 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
   onOpenMenu,
   onStartOrder,
   onCallServer,
+  onOpenTrackOrder,
   onOpenCart,
   onSelectItem,
   onAddToCart,
@@ -71,6 +73,7 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
       <BenzinHeader
         onOpenCart={onOpenCart}
         onOpenCallServer={onCallServer}
+        onOpenTrackOrder={onOpenTrackOrder}
         onOpenHost={onStartOrder}
         onLogOut={onLogOut}
         hostSpeechText={`Welcome to ${theme.name || 'CAVALLI'}!`}

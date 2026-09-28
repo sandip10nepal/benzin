@@ -21,6 +21,17 @@ function formatTableStr(t?: string | null): string {
   return clean.toLowerCase().startsWith('table') ? clean : `Table ${clean}`;
 }
 
+export interface CustomerTrackingSession {
+  orderId: string;
+  trackingToken: string;
+  trackingExpiresAt: string;
+  customerNickname: string;
+  table?: string;
+  status?: string;
+  fulfilledDepartments?: string[];
+  order?: any;
+}
+
 export function useBenzinState() {
   const { updateTheme } = useRestaurantTheme();
   const [currentScreen, setCurrentScreen] = useState<ScreenState>('pairing');
@@ -42,6 +53,11 @@ export function useBenzinState() {
   const [customerName, setCustomerName] = useState<string>('Guest');
   const [activeCoalRefill, setActiveCoalRefill] = useState<any | null>(null);
   const [isRequestingCoalRefill, setIsRequestingCoalRefill] = useState<boolean>(false);
+
+  // Customer Order Tracking System States
+  const [activeTrackingSession, setActiveTrackingSession] = useState<CustomerTrackingSession | null>(null);
+  const [isTrackLookupModalOpen, setIsTrackLookupModalOpen] = useState<boolean>(false);
+  const [isNicknameModalOpen, setIsNicknameModalOpen] = useState<boolean>(false);
 
   const loadLiveMenu = useCallback(async () => {
     try {
@@ -95,7 +111,7 @@ export function useBenzinState() {
 
         if (Array.isArray(config.menu_items)) {
           const itemList: MenuItem[] = config.menu_items
-            .filter((i: any) => i.active !== false)
+            .filter((i: any) => i.active !== false && i.available !== false && i.is_available !== false)
             .map((i: any) => {
               const subCat = catMap.get(i.category_id);
               const parentSuper = subCat?.parent_id ? catMap.get(subCat.parent_id) : null;
@@ -271,11 +287,47 @@ export function useBenzinState() {
     loadLiveMenu();
     refreshActiveCoalRefill();
 
+    // Load active customer tracking session if valid (< 2 hours)
+    AsyncStorage.getItem(STORAGE_KEYS.CUSTOMER_TRACKING).then(savedStr => {
+      if (savedStr) {
+        try {
+          const parsed = JSON.parse(savedStr);
+          if (parsed.trackingExpiresAt && Date.now() > new Date(parsed.trackingExpiresAt).getTime()) {
+            AsyncStorage.removeItem(STORAGE_KEYS.CUSTOMER_TRACKING);
+            setActiveTrackingSession(null);
+          } else {
+            setActiveTrackingSession(parsed);
+            if (parsed.orderId && parsed.trackingToken) {
+              TenantApiService.getOrderTracking(parsed.orderId, parsed.trackingToken).then(res => {
+                if (res.success && res.order) {
+                  const updated: CustomerTrackingSession = {
+                    ...parsed,
+                    status: res.order.status || parsed.status,
+                    fulfilledDepartments: res.order.fulfilledDepartments || parsed.fulfilledDepartments,
+                    order: res.order,
+                  };
+                  setActiveTrackingSession(updated);
+                  AsyncStorage.setItem(STORAGE_KEYS.CUSTOMER_TRACKING, JSON.stringify(updated)).catch(() => {});
+                } else if (res.expired) {
+                  AsyncStorage.removeItem(STORAGE_KEYS.CUSTOMER_TRACKING);
+                  setActiveTrackingSession(null);
+                }
+              }).catch(() => {});
+            }
+          }
+        } catch (_) {}
+      }
+    }).catch(() => {});
+
     let eventSource: any = null;
     if (typeof window !== 'undefined' && (window as any).EventSource) {
       try {
         const baseUrl = getBaseUrl();
-        const sseUrl = `${baseUrl}/api/sse?restaurant_id=RES_EED4E9D266DF`;
+        const tenantRestId = pairedSlug || 'RES_EED4E9D266DF';
+        let sseUrl = `${baseUrl}/api/orders/live?restaurant_id=${encodeURIComponent(tenantRestId)}`;
+        if (activeTrackingSession?.trackingToken && activeTrackingSession?.orderId) {
+          sseUrl += `&tracking_token=${encodeURIComponent(activeTrackingSession.trackingToken)}&order_id=${encodeURIComponent(activeTrackingSession.orderId)}`;
+        }
         eventSource = new (window as any).EventSource(sseUrl);
         eventSource.onmessage = (event: any) => {
           try {
@@ -291,6 +343,32 @@ export function useBenzinState() {
             )) {
               refreshActiveCoalRefill();
             }
+            // Customer Real-Time Order Tracking events
+            if (data && (
+              data.type === 'order_status_changed' ||
+              data.type === 'order_updated' ||
+              data.type === 'order_fulfilled'
+            )) {
+              const updatedOrderId = data.orderId || data.order?.id || data.id;
+              if (activeTrackingSession && (updatedOrderId === activeTrackingSession.orderId || !updatedOrderId)) {
+                const newStatus = data.status || data.order?.status || (data.type === 'order_fulfilled' ? 'fulfilled' : 'preparing');
+                setActiveTrackingSession(prev => {
+                  if (!prev) return null;
+                  const updated: CustomerTrackingSession = {
+                    ...prev,
+                    status: newStatus,
+                    fulfilledDepartments: data.order?.fulfilledDepartments || prev.fulfilledDepartments,
+                    order: data.order || (prev.order ? { ...prev.order, status: newStatus } : null),
+                  };
+                  AsyncStorage.setItem(STORAGE_KEYS.CUSTOMER_TRACKING, JSON.stringify(updated)).catch(() => {});
+                  return updated;
+                });
+              }
+            }
+            if (data && data.type === 'tracking_expired') {
+              setActiveTrackingSession(null);
+              AsyncStorage.removeItem(STORAGE_KEYS.CUSTOMER_TRACKING).catch(() => {});
+            }
           } catch (e) {}
         };
       } catch (err) {
@@ -301,6 +379,18 @@ export function useBenzinState() {
     const intervalId = setInterval(() => {
       loadLiveMenu();
       refreshActiveCoalRefill();
+      // Periodically check 2-hour expiration of active customer tracking
+      AsyncStorage.getItem(STORAGE_KEYS.CUSTOMER_TRACKING).then(savedStr => {
+        if (savedStr) {
+          try {
+            const parsed = JSON.parse(savedStr);
+            if (parsed.trackingExpiresAt && Date.now() > new Date(parsed.trackingExpiresAt).getTime()) {
+              AsyncStorage.removeItem(STORAGE_KEYS.CUSTOMER_TRACKING);
+              setActiveTrackingSession(null);
+            }
+          } catch (_) {}
+        }
+      }).catch(() => {});
     }, 3000);
 
     return () => {
@@ -309,7 +399,7 @@ export function useBenzinState() {
         try { eventSource.close(); } catch (e) {}
       }
     };
-  }, [loadLiveMenu, refreshActiveCoalRefill, updateTheme]);
+  }, [loadLiveMenu, refreshActiveCoalRefill, updateTheme, activeTrackingSession?.orderId, activeTrackingSession?.trackingToken]);
 
   const allCategories = useMemo(() => liveCategories, [liveCategories]);
   const allMenuItems = useMemo(() => liveMenuItems, [liveMenuItems]);
@@ -484,7 +574,7 @@ export function useBenzinState() {
     }
   }, [activeCoalRefill, pairedTableNumber, customerName, refreshActiveCoalRefill]);
 
-  const placeOrder = useCallback(() => {
+  const placeOrder = useCallback(async (nickname?: string) => {
     if (cart.length === 0) return;
 
     // Check if any item in cart is missing required sauce / modifiers
@@ -493,6 +583,13 @@ export function useBenzinState() {
       setActiveItemForDetail(itemMissingChoice.item);
       return;
     }
+
+    const effectiveNickname = String(nickname || customerName || 'Guest').trim();
+    if (nickname) {
+      setCustomerName(effectiveNickname);
+      AsyncStorage.setItem('@saas_customer_name', effectiveNickname).catch(() => {});
+    }
+
     const itemsList = cart.map(i => {
       const itemCat = (i.item.category || '').toLowerCase();
       const itemName = (i.item.name || '').toLowerCase();
@@ -534,6 +631,7 @@ export function useBenzinState() {
         note: combinedNotes
       };
     });
+
     const food = cart.filter(i => {
       const cat = (i.item.category || '').toLowerCase();
       const name = (i.item.name || '').toLowerCase();
@@ -545,6 +643,7 @@ export function useBenzinState() {
       qty: i.quantity,
       note: i.specialInstructions
     }));
+
     const drinks = cart.filter(i => {
       const cat = (i.item.category || '').toLowerCase();
       const name = (i.item.name || '').toLowerCase();
@@ -568,8 +667,11 @@ export function useBenzinState() {
     const effectiveTable = formatTableStr(pairedTableNumber);
     const orderPayload = {
       table: effectiveTable,
-      customerName: customerName || `Guest (${effectiveTable})`,
-      name: customerName || `Guest (${effectiveTable})`,
+      table_id: effectiveTable,
+      customerNickname: effectiveNickname,
+      customer_nickname: effectiveNickname,
+      customerName: effectiveNickname,
+      name: effectiveNickname,
       subtotal: cartSubtotal,
       taxAmount: cartTax,
       gratuityAmount: cartGratuity,
@@ -582,7 +684,37 @@ export function useBenzinState() {
       drinks,
       timestamp: new Date().toISOString()
     };
-    TenantApiService.submitOrder(orderPayload);
+
+    const res = await TenantApiService.submitOrder(orderPayload);
+    const orderId = res.orderId || `cav-${Date.now()}`;
+    const trackingToken = res.trackingToken || '';
+    const trackingExpiresAt = res.trackingExpiresAt || new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+
+    const newSession: CustomerTrackingSession = {
+      orderId,
+      trackingToken,
+      trackingExpiresAt,
+      customerNickname: effectiveNickname,
+      table: effectiveTable,
+      status: 'pending',
+      fulfilledDepartments: [],
+      order: res.order || {
+        id: orderId,
+        orderId,
+        items: itemsList,
+        customerNickname: effectiveNickname,
+        table: effectiveTable,
+        status: 'pending',
+        subtotal: cartSubtotal,
+        taxAmount: cartTax,
+        gratuityAmount: cartGratuity,
+        grandTotal: cartTotal,
+        createdAt: new Date().toISOString(),
+      },
+    };
+
+    setActiveTrackingSession(newSession);
+    AsyncStorage.setItem(STORAGE_KEYS.CUSTOMER_TRACKING, JSON.stringify(newSession)).catch(() => {});
 
     navigate('order_confirmation');
     setCart([]);
@@ -590,6 +722,51 @@ export function useBenzinState() {
     setDraftFood(null);
     setDraftDrink(null);
   }, [cart, cartSubtotal, cartTax, cartGratuity, cartTotal, customerName, navigate, pairedTableNumber]);
+
+  const handleOpenTrackOrder = useCallback(() => {
+    // Case A: Valid tracking session exists locally and not expired (< 2h)
+    if (activeTrackingSession && activeTrackingSession.trackingExpiresAt && Date.now() < new Date(activeTrackingSession.trackingExpiresAt).getTime()) {
+      setCurrentScreen('order_confirmation');
+      return;
+    }
+    // Case B: No valid tracking info -> show lookup modal
+    setIsTrackLookupModalOpen(true);
+  }, [activeTrackingSession]);
+
+  const refreshActiveTracking = useCallback(async () => {
+    if (!activeTrackingSession?.orderId || !activeTrackingSession?.trackingToken) return;
+    try {
+      const res = await TenantApiService.getOrderTracking(activeTrackingSession.orderId, activeTrackingSession.trackingToken);
+      if (res.success && res.order) {
+        const updated: CustomerTrackingSession = {
+          ...activeTrackingSession,
+          status: res.order.status || activeTrackingSession.status,
+          order: res.order,
+        };
+        setActiveTrackingSession(updated);
+        await AsyncStorage.setItem(STORAGE_KEYS.CUSTOMER_TRACKING, JSON.stringify(updated));
+      } else if (res.expired) {
+        setActiveTrackingSession(null);
+        await AsyncStorage.removeItem(STORAGE_KEYS.CUSTOMER_TRACKING);
+      }
+    } catch (e) {
+      console.warn('[useBenzinState] refreshActiveTracking error:', e);
+    }
+  }, [activeTrackingSession]);
+
+  const saveTrackingSession = useCallback(async (session: CustomerTrackingSession) => {
+    setActiveTrackingSession(session);
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.CUSTOMER_TRACKING, JSON.stringify(session));
+    } catch (_) {}
+  }, []);
+
+  const clearTrackingSession = useCallback(async () => {
+    setActiveTrackingSession(null);
+    try {
+      await AsyncStorage.removeItem(STORAGE_KEYS.CUSTOMER_TRACKING);
+    } catch (_) {}
+  }, []);
 
   const logOutSession = useCallback(async () => {
     setCart([]);
@@ -644,5 +821,15 @@ export function useBenzinState() {
     allMenuItems,
     refreshLiveMenu: loadLiveMenu,
     logOutSession,
+    // Order Tracking System
+    activeTrackingSession,
+    isTrackLookupModalOpen,
+    setIsTrackLookupModalOpen,
+    isNicknameModalOpen,
+    setIsNicknameModalOpen,
+    handleOpenTrackOrder,
+    refreshActiveTracking,
+    saveTrackingSession,
+    clearTrackingSession,
   };
 }

@@ -44,6 +44,7 @@ export const STORAGE_KEYS = {
   JWT_TOKEN: '@saas_jwt_token',
   RESTAURANT_CONFIG: '@saas_restaurant_config',
   CUSTOMER_SESSION: '@saas_active_customer_session',
+  CUSTOMER_TRACKING: '@saas_active_customer_tracking',
   PAIRED_RESTAURANT_ID: '@saas_paired_restaurant_id',
   PAIRED_RESTAURANT_SLUG: '@saas_paired_restaurant_slug',
   PAIRED_RESTAURANT_NAME: '@saas_paired_restaurant_name',
@@ -385,7 +386,15 @@ export class TenantApiService {
   /**
    * Submit live customer order to backend REST endpoint
    */
-  static async submitOrder(orderData: any): Promise<{ success: boolean; orderId?: string; error?: string }> {
+  static async submitOrder(orderData: any): Promise<{
+    success: boolean;
+    orderId?: string;
+    trackingToken?: string;
+    trackingExpiresAt?: string;
+    customerNickname?: string;
+    order?: any;
+    error?: string;
+  }> {
     try {
       const jwtToken = await AsyncStorage.getItem(STORAGE_KEYS.JWT_TOKEN);
       const pairedRestId = await AsyncStorage.getItem(STORAGE_KEYS.PAIRED_RESTAURANT_ID);
@@ -416,13 +425,104 @@ export class TenantApiService {
       });
 
       const data = await res.json();
-      if (data.success || data.id) {
-        return { success: true, orderId: data.id || data.order?.id };
+      const returnedOrderId = data.orderId || data.id || data.order?.id || data.order?._id;
+      const trackingToken = data.trackingToken || (data.order && (data.order.trackingToken || data.order.tracking_token));
+      const trackingExpiresAt = data.trackingExpiresAt || (data.order && (data.order.trackingExpiresAt || data.order.tracking_expires_at));
+      const customerNickname = data.customerNickname || (data.order && (data.order.customerNickname || data.order.customer_nickname));
+
+      if (data.success || data.id || data.orderId) {
+        return {
+          success: true,
+          orderId: returnedOrderId,
+          trackingToken,
+          trackingExpiresAt,
+          customerNickname,
+          order: data.order,
+        };
       }
-      return { success: false, error: data.error || 'Failed to submit order' };
+      return { success: false, error: data.error || data.message || 'Failed to submit order' };
     } catch (err: any) {
       console.warn('[TenantApi] Submit order network fallback:', err.message);
       return { success: true, orderId: `local-${Date.now()}` };
+    }
+  }
+
+  /**
+   * Fetch authenticated real-time order tracking details
+   */
+  static async getOrderTracking(orderId: string, trackingToken: string): Promise<{
+    success: boolean;
+    order?: any;
+    expired?: boolean;
+    error?: string;
+  }> {
+    try {
+      const pairedRestId = await AsyncStorage.getItem(STORAGE_KEYS.PAIRED_RESTAURANT_ID);
+      const headers: Record<string, string> = {
+        'X-Tracking-Token': trackingToken,
+      };
+      if (pairedRestId) {
+        headers['X-Restaurant-ID'] = pairedRestId;
+      }
+
+      const res = await this.resilientFetch(`/api/orders/${orderId}/track?token=${encodeURIComponent(trackingToken)}`, {
+        headers: getApiHeaders(headers),
+      });
+
+      if (res.status === 410) {
+        return { success: false, expired: true, error: 'Tracking access has expired (2-hour limit reached).' };
+      }
+
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      console.warn('[TenantApi] getOrderTracking error:', err.message);
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Secure Case B Tracking Lookup (Nickname + Order ID / Code)
+   */
+  static async lookupTracking(params: {
+    nickname: string;
+    orderId: string;
+    table?: string;
+  }): Promise<{
+    success: boolean;
+    order?: any;
+    orderId?: string;
+    trackingToken?: string;
+    trackingExpiresAt?: string;
+    expired?: boolean;
+    error?: string;
+  }> {
+    try {
+      const pairedRestId = await AsyncStorage.getItem(STORAGE_KEYS.PAIRED_RESTAURANT_ID);
+      const headers: Record<string, string> = {};
+      if (pairedRestId) {
+        headers['X-Restaurant-ID'] = pairedRestId;
+      }
+
+      const res = await this.resilientFetch('/api/orders/lookup-tracking', {
+        method: 'POST',
+        headers: getApiHeaders(headers),
+        body: JSON.stringify({
+          nickname: params.nickname,
+          orderId: params.orderId,
+          table: params.table,
+          restaurant_id: pairedRestId || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.status === 410 || data.expired) {
+        return { success: false, expired: true, error: data.error || 'Tracking expired' };
+      }
+      return data;
+    } catch (err: any) {
+      console.warn('[TenantApi] lookupTracking error:', err.message);
+      return { success: false, error: err.message };
     }
   }
 

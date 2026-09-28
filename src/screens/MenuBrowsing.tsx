@@ -457,7 +457,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
 
   // 3. Filtered Items with deterministic category-sequence grouping and multi-category support
   const filteredItems = useMemo(() => {
-    const activeItems = (allMenuItems || []).filter(i => i.active !== false);
+    const activeItems = (allMenuItems || []).filter(i => i.active !== false && i.available !== false && (i as any).is_available !== false);
 
     const catMap = new Map<string, { sort_order: number; title: string }>();
     (allCategories || []).forEach((c: any) => {

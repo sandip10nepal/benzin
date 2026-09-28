@@ -12,6 +12,8 @@ import { CartDrawer } from '../components/Cart/CartDrawer';
 import { ItemDetailModal } from '../components/ItemDetail/ItemDetailModal';
 import { CallServerModal } from '../components/Server/CallServerModal';
 import { HookahMixLabModal } from '../components/HookahMixLab/HookahMixLabModal';
+import { OrderNicknameModal } from '../components/Cart/OrderNicknameModal';
+import { TrackOrderLookupModal } from '../components/Tracking/TrackOrderLookupModal';
 
 import { ConversationStep } from '../types';
 
@@ -50,6 +52,15 @@ function MainAppContent() {
     allMenuItems,
     refreshLiveMenu,
     logOutSession,
+    // Tracking System
+    activeTrackingSession,
+    isTrackLookupModalOpen,
+    setIsTrackLookupModalOpen,
+    isNicknameModalOpen,
+    setIsNicknameModalOpen,
+    handleOpenTrackOrder,
+    refreshActiveTracking,
+    saveTrackingSession,
   } = useBenzinState();
 
   const handleStartOrder = (step?: ConversationStep) => {
@@ -75,6 +86,7 @@ function MainAppContent() {
           onOpenMenu={() => navigate('menu')}
           onStartOrder={handleStartOrder}
           onCallServer={() => setIsCallServerModalOpen(true)}
+          onOpenTrackOrder={handleOpenTrackOrder}
           onOpenCart={() => setIsCartDrawerOpen(true)}
           onSelectItem={(item) => setActiveItemForDetail(item)}
           onAddToCart={addToCart}
@@ -122,7 +134,7 @@ function MainAppContent() {
           onUpdateQuantity={updateQuantity}
           onRemoveItem={removeFromCart}
           onAddToCart={addToCart}
-          onPlaceOrder={placeOrder}
+          onPlaceOrder={() => setIsNicknameModalOpen(true)}
           allCategories={allCategories}
           allMenuItems={allMenuItems}
         />
@@ -138,6 +150,8 @@ function MainAppContent() {
           tax={cartTax}
           gratuity={cartGratuity}
           total={cartTotal}
+          activeTrackingSession={activeTrackingSession}
+          onRefreshTracking={refreshActiveTracking}
         />
       )}
 
@@ -155,8 +169,30 @@ function MainAppContent() {
         onSelectItem={(item) => setActiveItemForDetail(item)}
         onPlaceOrder={() => {
           setIsCartDrawerOpen(false);
-          placeOrder();
+          setIsNicknameModalOpen(true);
         }}
+      />
+
+      {/* Customer Nickname Modal */}
+      <OrderNicknameModal
+        visible={isNicknameModalOpen}
+        onClose={() => setIsNicknameModalOpen(false)}
+        onSubmit={(nickname) => {
+          setIsNicknameModalOpen(false);
+          placeOrder(nickname);
+        }}
+        tableNumber={theme.tableNumber || '1'}
+      />
+
+      {/* Track Order Lookup Modal (Case B) */}
+      <TrackOrderLookupModal
+        visible={isTrackLookupModalOpen}
+        onClose={() => setIsTrackLookupModalOpen(false)}
+        onSuccess={(session) => {
+          saveTrackingSession(session);
+          navigate('order_confirmation');
+        }}
+        defaultTable={theme.tableNumber || '1'}
       />
 
       <ItemDetailModal
