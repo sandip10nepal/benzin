@@ -190,8 +190,9 @@ export class TenantApiService {
         if (data.restaurant?.name) {
           await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_RESTAURANT_NAME, data.restaurant.name);
         }
-        if (data.table?.number) {
-          await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_TABLE_NUMBER, String(data.table.number));
+        const tableIdentifier = data.table?.label ? data.table.label.replace(/^table[\s-_]*/i, '').trim() : (data.table?.number ? String(data.table.number) : null);
+        if (tableIdentifier) {
+          await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_TABLE_NUMBER, tableIdentifier);
         }
       }
       return data;
@@ -241,8 +242,9 @@ export class TenantApiService {
         if (data.restaurant?.name) {
           await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_RESTAURANT_NAME, data.restaurant.name);
         }
-        if (data.table?.number || params.table_number) {
-          await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_TABLE_NUMBER, String(data.table?.number || params.table_number));
+        const cleanTable = data.table?.label ? data.table.label.replace(/^table[\s-_]*/i, '').trim() : String(params.table_number || data.table?.number || '');
+        if (cleanTable) {
+          await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_TABLE_NUMBER, cleanTable);
         }
         await AsyncStorage.removeItem(STORAGE_KEYS.RESTAURANT_CONFIG);
       }
@@ -294,8 +296,9 @@ export class TenantApiService {
         if (data.restaurant?.name) {
           await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_RESTAURANT_NAME, data.restaurant.name);
         }
-        if (params.table_number || data.table?.number) {
-          await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_TABLE_NUMBER, String(params.table_number || data.table?.number));
+        const cleanTable = data.table?.label ? data.table.label.replace(/^table[\s-_]*/i, '').trim() : String(params.table_number || data.table?.number || '');
+        if (cleanTable) {
+          await AsyncStorage.setItem(STORAGE_KEYS.PAIRED_TABLE_NUMBER, cleanTable);
         }
         // Invalidate stale menu cache so fresh isolated menu loads instantly
         await AsyncStorage.removeItem(STORAGE_KEYS.RESTAURANT_CONFIG);
