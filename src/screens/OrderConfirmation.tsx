@@ -133,18 +133,32 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
   const orderId = activeTrackingSession?.orderId || activeTrackingSession?.order?.id || '';
   const tableDisplay = activeTrackingSession?.table || theme.tableNumber || '1';
 
-  const displaySubtotal = orderObj?.subtotal !== undefined
+  // Calculate sum of item prices as fallback
+  const itemsCalculatedSubtotal = itemsList.reduce((acc: number, it: any) => {
+    const p = Number(it.price !== undefined ? it.price : (it.item && it.item.price !== undefined ? it.item.price : 0)) || 0;
+    const q = Number(it.qty || it.quantity || 1) || 1;
+    const mods = Array.isArray(it.modifiers) ? it.modifiers : (it.selectedModifiers || []);
+    const modTotal = Array.isArray(mods) ? mods.reduce((mAcc: number, m: any) => mAcc + (Number(m.price || m.price_adjustment || 0) || 0), 0) : 0;
+    return acc + (p + modTotal) * q;
+  }, 0);
+
+  const displaySubtotal = (orderObj?.subtotal !== undefined && Number(orderObj.subtotal) > 0)
     ? Number(orderObj.subtotal)
-    : (subtotal !== undefined ? subtotal : cart.reduce((acc, ci) => acc + (ci.itemTotal || 0), 0));
-  const displayTax = orderObj?.taxAmount !== undefined
+    : (subtotal && subtotal > 0
+      ? subtotal
+      : (itemsCalculatedSubtotal > 0 ? itemsCalculatedSubtotal : cart.reduce((acc, ci) => acc + (ci.itemTotal || 0), 0)));
+
+  const displayTax = (orderObj?.taxAmount !== undefined && Number(orderObj.taxAmount) > 0)
     ? Number(orderObj.taxAmount)
-    : (tax !== undefined ? tax : displaySubtotal * 0.0825);
-  const displayGratuity = orderObj?.gratuityAmount !== undefined
+    : (tax && tax > 0 ? tax : parseFloat((displaySubtotal * 0.0825).toFixed(2)));
+
+  const displayGratuity = (orderObj?.gratuityAmount !== undefined && Number(orderObj.gratuityAmount) > 0)
     ? Number(orderObj.gratuityAmount)
-    : (gratuity !== undefined ? gratuity : displaySubtotal * 0.18);
-  const displayTotal = orderObj?.grandTotal !== undefined
+    : (gratuity && gratuity > 0 ? gratuity : parseFloat((displaySubtotal * 0.18).toFixed(2)));
+
+  const displayTotal = (orderObj?.grandTotal !== undefined && Number(orderObj.grandTotal) > 0)
     ? Number(orderObj.grandTotal)
-    : (total > 0 ? total : displaySubtotal + displayTax + displayGratuity);
+    : (total > 0 ? total : parseFloat((displaySubtotal + displayTax + displayGratuity).toFixed(2)));
 
   return (
     <ScrollView
