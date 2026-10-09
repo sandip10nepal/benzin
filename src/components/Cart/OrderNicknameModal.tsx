@@ -221,6 +221,8 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     fontWeight: '600',
+    // @ts-ignore
+    outlineStyle: 'none',
   },
   errorText: {
     color: '#EF4444',

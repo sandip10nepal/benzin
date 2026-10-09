@@ -311,6 +311,8 @@ const styles = StyleSheet.create({
   input: {
     fontSize: 14,
     fontWeight: '600',
+    // @ts-ignore
+    outlineStyle: 'none',
   },
   noteText: {
     fontSize: 11,

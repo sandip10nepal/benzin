@@ -1006,6 +1006,8 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 0,
     fontWeight: '600',
+    // @ts-ignore
+    outlineStyle: 'none',
   },
   flavorCardsGrid: {
     flexDirection: 'row',

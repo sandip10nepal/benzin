@@ -669,6 +669,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     height: 70,
     textAlignVertical: 'top',
+    // @ts-ignore
+    outlineStyle: 'none',
   },
   modalFooter: {
     flexDirection: 'row',
