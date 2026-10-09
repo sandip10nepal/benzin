@@ -187,7 +187,7 @@ export const CallServerModal: React.FC<CallServerModalProps> = ({
               {showCustomInput ? (
                 <View style={styles.customInputBlock}>
                   <TextInput
-                    style={[styles.customInput, { color: theme.textColor, borderColor: theme.accentColor, fontSize: isMobile ? 14 : 15 }]}
+                    style={[styles.customInput, { color: theme.textColor, borderColor: theme.accentColor, fontSize: 16 }]}
                     placeholder="Type what you need..."
                     placeholderTextColor={theme.mutedTextColor}
                     value={customText}

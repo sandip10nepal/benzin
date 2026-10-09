@@ -43,3 +43,14 @@ body {
   padding-right: env(safe-area-inset-right, 0px);
 }
 
+/* Remove default focus outlines globally for web */
+input, textarea {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+input:focus, textarea:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+

@@ -414,7 +414,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     borderRadius: 8,
                     padding: 8,
                     color: theme.textColor,
-                    fontSize: 12,
+                    fontSize: 16,
                     minHeight: 44,
                     textAlignVertical: 'top',
                     // @ts-ignore

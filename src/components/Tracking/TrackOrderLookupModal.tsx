@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   input: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     // @ts-ignore
     outlineStyle: 'none',

@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
     // @ts-ignore
     outlineStyle: 'none',

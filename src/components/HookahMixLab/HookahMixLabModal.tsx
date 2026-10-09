@@ -369,7 +369,7 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                 <View style={styles.chamberHeader}>
                   {isEditingName ? (
                     <TextInput
-                      style={[styles.mixNameInput, { color: theme.textColor, borderColor: '#E5B13A' }]}
+                      style={[styles.mixNameInput, { color: theme.textColor, borderColor: '#E5B13A', fontSize: 16 }]}
                       value={customMixName}
                       onChangeText={setCustomMixName}
                       onBlur={() => setIsEditingName(false)}
@@ -447,7 +447,7 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                 <View style={[styles.searchBox, { backgroundColor: theme.cardColor, borderColor: theme.borderColor, paddingVertical: 6 }]}>
                   <Search size={16} color={theme.mutedTextColor} />
                     <TextInput
-                      style={[styles.searchInput, { color: theme.textColor, fontSize: 12 }]}
+                      style={[styles.searchInput, { color: theme.textColor, fontSize: 16 }]}
                       placeholder="Search Flavors..."
                       placeholderTextColor={theme.mutedTextColor}
                       value={searchQuery}
@@ -642,7 +642,7 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                   <View style={[styles.searchBox, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}>
                     <Search size={18} color={theme.mutedTextColor} />
                     <TextInput
-                      style={[styles.searchInput, { color: theme.textColor }]}
+                      style={[styles.searchInput, { color: theme.textColor, fontSize: 16 }]}
                       placeholder="Search Flavors..."
                       placeholderTextColor={theme.mutedTextColor}
                       value={searchQuery}
@@ -715,7 +715,7 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                 <View style={styles.chamberHeader}>
                   {isEditingName ? (
                     <TextInput
-                      style={[styles.mixNameInput, { color: theme.textColor, borderColor: '#E5B13A' }]}
+                      style={[styles.mixNameInput, { color: theme.textColor, borderColor: '#E5B13A', fontSize: 16 }]}
                       value={customMixName}
                       onChangeText={setCustomMixName}
                       onBlur={() => setIsEditingName(false)}

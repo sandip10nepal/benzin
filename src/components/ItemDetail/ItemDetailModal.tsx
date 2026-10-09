@@ -666,7 +666,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     padding: 14,
-    fontSize: 14,
+    fontSize: 16,
     height: 70,
     textAlignVertical: 'top',
     // @ts-ignore

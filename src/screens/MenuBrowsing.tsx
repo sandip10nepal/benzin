@@ -651,7 +651,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
           <View style={[styles.searchBox, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }, isMobile && { minWidth: '100%', paddingVertical: 8 }]}>
             <Search size={isMobile ? 16 : 18} color={theme.mutedTextColor} />
             <TextInput
-              style={[styles.searchInput, { color: theme.textColor, fontSize: isMobile ? 12 : 13 }]}
+              style={[styles.searchInput, { color: theme.textColor, fontSize: 16 }]}
               placeholder="Search entire menu..."
               placeholderTextColor={theme.mutedTextColor}
               value={searchQuery}
