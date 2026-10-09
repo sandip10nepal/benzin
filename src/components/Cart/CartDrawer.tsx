@@ -295,7 +295,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
               {/* Section header for current order items */}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                <Text style={{ fontSize: 13 }}>✨</Text>
                 <Text style={{ color: '#E5B13A', fontSize: 12, fontWeight: '900', letterSpacing: 0.5 }}>
                   {activeTrackingSession?.order?.items?.length ? 'NEW ITEMS TO ADD TO TABLE' : 'YOUR ITEMS'}
                 </Text>
@@ -432,7 +431,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               {recommendations.length > 0 && (
                 <View style={{ marginTop: 4, marginBottom: 14 }}>
                   <Text style={{ color: '#E5B13A', fontSize: 11, fontWeight: '800', letterSpacing: 0.5, marginBottom: 6 }}>
-                    ✨ RECOMMENDED TO PAIR WITH YOUR ORDER
+                    RECOMMENDED TO PAIR WITH YOUR ORDER
                   </Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
                     {recommendations.map((rec) => (

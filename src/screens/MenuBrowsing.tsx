@@ -407,7 +407,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
   // [APPETIZERS][MAINS][WINGS][VEGETARIAN][BURGERS][WRAPS][CONTINENTAL STREET FOOD][DESSERTS][DRINKS][HOOKAH]
   const superCategories = useMemo(() => {
     const list: Array<{ _id: string; name: string; icon?: string }> = [
-      { _id: 'ALL', name: 'ALL', icon: '✨' }
+      { _id: 'ALL', name: 'ALL', icon: '📋' }
     ];
 
     if (allCategories && allCategories.length > 0) {

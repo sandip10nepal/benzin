@@ -36,7 +36,6 @@ export const VibeQuestRecommendations: React.FC<VibeQuestRecommendationsProps> =
     >
       <View style={styles.titleRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Text style={{ fontSize: 18 }}>✨</Text>
           <Text style={styles.sectionTitle}>YOUR TOP PICKS</Text>
         </View>
         <TouchableOpacity onPress={onDismiss} style={styles.closeBtn}>
