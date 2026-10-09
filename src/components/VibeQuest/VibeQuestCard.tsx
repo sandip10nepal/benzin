@@ -43,7 +43,6 @@ export const VibeQuestCard: React.FC<VibeQuestCardProps> = ({
       {/* Top Badge & Header */}
       <View style={styles.headerRow}>
         <View style={styles.badgeRow}>
-          <Text style={styles.questBadge}>✨ CAVALLI VIBE QUEST</Text>
           <Text style={styles.stageTag}>{question.stage.toUpperCase()}</Text>
         </View>
         <TouchableOpacity
