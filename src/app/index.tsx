@@ -53,6 +53,8 @@ function MainAppContent() {
     allCategories,
     allMenuItems,
     hookahConfig,
+    pairedRestaurantId,
+    pairedTableNumber,
     refreshLiveMenu,
     logOutSession,
     // Tracking System
@@ -67,6 +69,13 @@ function MainAppContent() {
   } = useBenzinState();
 
   const [orderNotes, setOrderNotes] = useState<string>('');
+
+  const isDakuInCart = React.useMemo(() => {
+    return (cart || []).some(ci =>
+      ci.selectedModifiers?.some(m => m.id === 'PKG_DAKU' || (m.name || '').includes('Daku')) ||
+      (ci.item.name || '').toLowerCase().includes('daku')
+    );
+  }, [cart]);
 
   const handleStartOrder = (step?: ConversationStep) => {
     setHostInitialStep(step || 'welcome_category');
@@ -153,6 +162,8 @@ function MainAppContent() {
           onPlaceOrder={() => setIsNicknameModalOpen(true)}
           allCategories={allCategories}
           allMenuItems={allMenuItems}
+          restaurantId={pairedRestaurantId || 'RES_EED4E9D266DF'}
+          tableNumber={pairedTableNumber || '1'}
         />
       )}
 
@@ -244,6 +255,7 @@ function MainAppContent() {
         }}
         hookahConfig={hookahConfig}
         allMenuItems={allMenuItems}
+        isDakuInCart={isDakuInCart}
       />
 
       {flyAnimationItem && (

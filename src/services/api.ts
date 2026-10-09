@@ -156,6 +156,13 @@ export class TenantApiService {
   }
 
   /**
+   * Resilient fetch accessible to submodules
+   */
+  static async resilientFetchPublic(path: string, init?: RequestInit): Promise<Response> {
+    return this.resilientFetch(path, init);
+  }
+
+  /**
    * Authenticate device on app startup using stored device_token
    */
   static async authenticateDevice(): Promise<{

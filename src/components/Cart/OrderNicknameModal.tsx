@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     // @ts-ignore
-    outlineStyle: 'none',
+    outlineStyle: 'none' as any,
   },
   errorText: {
     color: '#EF4444',

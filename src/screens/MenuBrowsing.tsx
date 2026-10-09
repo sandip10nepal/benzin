@@ -1052,7 +1052,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 0,
     // @ts-ignore
-    outlineStyle: 'none',
+    outlineStyle: 'none' as any,
   },
   globalSearchBanner: {
     marginBottom: 10,

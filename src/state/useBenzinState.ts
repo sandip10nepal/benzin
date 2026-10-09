@@ -49,6 +49,7 @@ export function useBenzinState() {
   const [liveCategories, setLiveCategories] = useState<MenuCategory[]>([]);
   const [liveMenuItems, setLiveMenuItems] = useState<MenuItem[]>([]);
   const [hookahConfig, setHookahConfig] = useState<any>(null);
+  const [pairedRestaurantId, setPairedRestaurantId] = useState<string>('RES_EED4E9D266DF');
   const [pairedSlug, setPairedSlug] = useState<string | null>(null);
   const [pairedTableNumber, setPairedTableNumber] = useState<string>('1');
   const [customerName, setCustomerName] = useState<string>('Guest');
@@ -66,6 +67,7 @@ export function useBenzinState() {
       const storedSlug = await AsyncStorage.getItem(STORAGE_KEYS.PAIRED_RESTAURANT_SLUG);
       const storedTable = await AsyncStorage.getItem(STORAGE_KEYS.PAIRED_TABLE_NUMBER);
       const storedName = await AsyncStorage.getItem('@saas_customer_name');
+      if (storedRestId) setPairedRestaurantId(storedRestId);
       setPairedSlug(storedSlug);
       if (storedTable) {
         setPairedTableNumber(storedTable);
@@ -85,6 +87,9 @@ export function useBenzinState() {
       }
 
       if (config) {
+        if ((config as any)._id || (config as any).id) {
+          setPairedRestaurantId((config as any)._id || (config as any).id);
+        }
         if ((config as any).hookah_config) {
           setHookahConfig((config as any).hookah_config);
         }
@@ -160,6 +165,8 @@ export function useBenzinState() {
                 brand: i.brand,
                 color: i.color,
                 tags: i.tags,
+                is_special: Boolean(i.is_special),
+                special_sort_order: i.special_sort_order ?? 0,
               };
             })
             .sort((a, b) => {
@@ -339,7 +346,7 @@ export function useBenzinState() {
         eventSource.onmessage = (event: any) => {
           try {
             const data = JSON.parse(event.data);
-            if (data && (data.type === 'menu_update' || data.type === 'inventory_update' || data.type === 'category_update')) {
+            if (data && (data.type === 'menu_update' || data.type === 'inventory_update' || data.type === 'category_update' || data.type === 'specials_updated')) {
               loadLiveMenu();
             }
             if (data && (
@@ -845,6 +852,8 @@ export function useBenzinState() {
     allCategories,
     allMenuItems,
     hookahConfig,
+    pairedRestaurantId,
+    pairedTableNumber,
     refreshLiveMenu: loadLiveMenu,
     logOutSession,
     // Order Tracking System

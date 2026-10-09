@@ -27,6 +27,10 @@ import { MenuItem, SelectedModifier, CartItem, ConversationStep } from '../types
 import { getItemImageSource } from '../data/menu_images';
 import { itemRequiresModifierSelection } from '../utils/modifierUtils';
 import { DEFAULT_HOOKAH_BASES, DAKU_PACKAGE } from '../data/hookahMixData';
+import { useVibeQuest } from '../vibe-quest/useVibeQuest';
+import { VibeQuestCard } from '../components/VibeQuest/VibeQuestCard';
+import { VibeQuestRecommendations } from '../components/VibeQuest/VibeQuestRecommendations';
+import { VibeQuestStage } from '../vibe-quest/vibe-quest.types';
 
 interface ConversationalHostProps {
   onBackToHome: () => void;
@@ -48,6 +52,8 @@ interface ConversationalHostProps {
   allCategories?: any[];
   allMenuItems?: MenuItem[];
   initialStep?: ConversationStep;
+  restaurantId?: string;
+  tableNumber?: string;
 }
 
 type ConversationalStep =
@@ -64,6 +70,7 @@ interface HostHookahCardProps {
   theme: any;
   isMobile: boolean;
   count: number;
+  isDakuInCart?: boolean;
   onAddWithAddons: (hookah: MenuItem, qty: number, modifiers: SelectedModifier[], notes?: string) => void;
   onItemQuantityChange: (item: MenuItem, delta: number) => void;
   onSelectItem?: (item: MenuItem) => void;
@@ -74,53 +81,38 @@ const HostHookahCard: React.FC<HostHookahCardProps> = ({
   theme,
   isMobile,
   count,
+  isDakuInCart,
   onAddWithAddons,
   onItemQuantityChange,
   onSelectItem,
 }) => {
-  const [iceBase, setIceBase] = useState(false);
-  const [iceHose, setIceHose] = useState(false);
   const [showDakuModal, setShowDakuModal] = useState(false);
 
   const baseHookahPrice = hookah.price;
-  const totalPrice = baseHookahPrice + (iceBase ? 2 : 0) + (iceHose ? 6 : 0);
+  const totalPrice = baseHookahPrice;
 
   const handleAddInitiated = () => {
-    setShowDakuModal(true);
+    if (isDakuInCart) {
+      onAddWithAddons(hookah, 1, [], '');
+    } else {
+      setShowDakuModal(true);
+    }
   };
 
   const handleAcceptDaku = () => {
     setShowDakuModal(false);
-    const selectedOpts: SelectedModifier[] = [];
-    selectedOpts.push({
+    const selectedOpts: SelectedModifier[] = [{
       id: 'PKG_DAKU',
       name: 'Make It Daku',
       optionName: 'Daku Package ($65) - Unlimited Head Refill',
       price: Math.max(0, 65 - hookah.price),
-    });
-    // Include Ice Base and Ice Hose for free!
-    if (iceBase) selectedOpts.push({ id: 'OPT_ICE_BASE', name: 'Ice Base', optionName: 'Ice Base (Included)', price: 0 });
-    if (iceHose) selectedOpts.push({ id: 'OPT_ICE_HOSE', name: 'Ice Hose', optionName: 'Ice Hose (Included)', price: 0 });
-    
-    const noteParts: string[] = [];
-    noteParts.push('🔥 DAKU: $65 Unlimited Head Refill');
-    if (iceBase) noteParts.push('Ice Base (Included)');
-    if (iceHose) noteParts.push('Ice Hose (Included)');
-    
-    onAddWithAddons(hookah, 1, selectedOpts, noteParts.join(' · '));
+    }];
+    onAddWithAddons(hookah, 1, selectedOpts, '🔥 DAKU: $65 Unlimited Head Refill');
   };
 
   const handleDeclineDaku = () => {
     setShowDakuModal(false);
-    const selectedOpts: SelectedModifier[] = [];
-    if (iceBase) selectedOpts.push({ id: 'OPT_ICE_BASE', name: 'Ice Base', optionName: 'Ice Base', price: 2 });
-    if (iceHose) selectedOpts.push({ id: 'OPT_ICE_HOSE', name: 'Ice Hose', optionName: 'Ice Hose', price: 6 });
-    
-    const noteParts: string[] = [];
-    if (iceBase) noteParts.push('Ice Base (+$2)');
-    if (iceHose) noteParts.push('Ice Hose (+$6)');
-    
-    onAddWithAddons(hookah, 1, selectedOpts, noteParts.join(' · '));
+    onAddWithAddons(hookah, 1, [], '');
   };
 
   return (
@@ -172,75 +164,6 @@ const HostHookahCard: React.FC<HostHookahCardProps> = ({
 
         {/* MAKE IT DAKU - $65 Option */}
 
-
-        {/* Inline Add-On Options (Ice Base & Ice Hose) */}
-        <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 12 }}>
-          {/* Ice Base Toggle Pill */}
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={(e) => {
-              if (e && e.stopPropagation) e.stopPropagation();
-              setIceBase(!iceBase);
-            }}
-            style={{
-              flex: 1,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 4,
-              paddingVertical: isMobile ? 7 : 9,
-              paddingHorizontal: 6,
-              borderRadius: 10,
-              borderWidth: 1.5,
-              borderColor: iceBase ? '#0099FF' : 'rgba(255,255,255,0.18)',
-              backgroundColor: iceBase ? 'rgba(0,153,255,0.22)' : 'rgba(255,255,255,0.05)',
-            }}
-          >
-            <Text style={{ fontSize: isMobile ? 13 : 15 }}>🧊</Text>
-            <Text
-              style={{
-                color: iceBase ? '#0099FF' : theme.textColor,
-                fontSize: isMobile ? 11 : 12,
-                fontWeight: '900',
-              }}
-            >
-              {iceBase ? '✓ ICE BASE +$2' : '+ ICE BASE $2'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Ice Hose Toggle Pill */}
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={(e) => {
-              if (e && e.stopPropagation) e.stopPropagation();
-              setIceHose(!iceHose);
-            }}
-            style={{
-              flex: 1,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 4,
-              paddingVertical: isMobile ? 7 : 9,
-              paddingHorizontal: 6,
-              borderRadius: 10,
-              borderWidth: 1.5,
-              borderColor: iceHose ? '#14B8A6' : 'rgba(255,255,255,0.18)',
-              backgroundColor: iceHose ? 'rgba(20,184,166,0.22)' : 'rgba(255,255,255,0.05)',
-            }}
-          >
-            <Text style={{ fontSize: isMobile ? 13 : 15 }}>❄️</Text>
-            <Text
-              style={{
-                color: iceHose ? '#14B8A6' : theme.textColor,
-                fontSize: isMobile ? 11 : 12,
-                fontWeight: '900',
-              }}
-            >
-              {iceHose ? '✓ ICE HOSE +$6' : '+ ICE HOSE $6'}
-            </Text>
-          </TouchableOpacity>
-        </View>
       </View>
 
       {/* Action Button */}
@@ -321,6 +244,8 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
   allCategories = [],
   allMenuItems = [],
   initialStep = 'welcome_category',
+  restaurantId,
+  tableNumber,
 }) => {
   const { theme } = useRestaurantTheme();
   const layout = useResponsiveLayout();
@@ -329,6 +254,64 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
   const [step, setStep] = React.useState<ConversationalStep>(
     (initialStep as ConversationalStep) || 'welcome_category'
   );
+
+  const isDakuInCart = useMemo(() => {
+    return (cartItems || []).some(ci =>
+      ci.selectedModifiers?.some(m => m.id === 'PKG_DAKU' || (m.name || '').includes('Daku')) ||
+      (ci.item.name || '').toLowerCase().includes('daku')
+    );
+  }, [cartItems]);
+
+  const currentStage: VibeQuestStage = useMemo(() => {
+    switch (step) {
+      case 'select_hookah':
+        return 'hookah';
+      case 'select_food':
+      case 'prompt_food':
+        return 'food';
+      case 'prompt_drink':
+        return 'dessert';
+      case 'select_drink':
+        return 'drinks';
+      case 'review_summary':
+        return 'checkout';
+      default:
+        return 'hookah';
+    }
+  }, [step]);
+
+  const {
+    isEnabled: isVibeQuestEnabled,
+    currentQuestion: vibeQuestQuestion,
+    recommendations: vibeQuestRecs,
+    showRecsInline,
+    reactionMessage,
+    sessionState: vibeQuestSession,
+    handleSelectAnswer,
+    handleSkipQuestion,
+    handleDismissDiscovery,
+    handleSelectRecommendation,
+  } = useVibeQuest({
+    restaurantId: restaurantId || 'RES_EED4E9D266DF',
+    tableNumber: tableNumber || theme.tableNumber || '1',
+    currentStage,
+    cart: cartItems || [],
+    allMenuItems,
+    allCategories,
+    onOpenMixLab,
+    onSelectItem,
+    onNavigateStage: (targetStage) => {
+      if (targetStage === 'hookah') setStep('select_hookah');
+      else if (targetStage === 'food') setStep('select_food');
+      else if (targetStage === 'drinks') setStep('select_drink');
+      else if (targetStage === 'checkout') setStep('review_summary');
+    },
+  });
+
+  const vibeQuestSelectedAnswers = useMemo(() => {
+    if (!vibeQuestQuestion) return [];
+    return vibeQuestSession.answers[vibeQuestQuestion.id] || [];
+  }, [vibeQuestQuestion, vibeQuestSession.answers]);
 
   React.useEffect(() => {
     if (initialStep) {
@@ -823,6 +806,31 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
           {/* STEP 2: SELECT HOOKAH */}
           {step === 'select_hookah' && (
             <View style={{ flex: 1 }}>
+              {/* VIBE QUEST HOOKAH DISCOVERY */}
+              {isVibeQuestEnabled && vibeQuestQuestion && vibeQuestQuestion.stage === 'hookah' && (
+                <VibeQuestCard
+                  question={vibeQuestQuestion}
+                  selectedAnswerIds={vibeQuestSelectedAnswers}
+                  reactionMessage={reactionMessage}
+                  theme={theme}
+                  isMobile={isMobile}
+                  onSelectAnswer={handleSelectAnswer}
+                  onSkip={handleSkipQuestion}
+                  onDismiss={handleDismissDiscovery}
+                />
+              )}
+
+              {/* VIBE QUEST HOOKAH RECOMMENDATIONS */}
+              {isVibeQuestEnabled && showRecsInline && vibeQuestRecs.length > 0 && currentStage === 'hookah' && (
+                <VibeQuestRecommendations
+                  recommendations={vibeQuestRecs}
+                  theme={theme}
+                  isMobile={isMobile}
+                  onSelectProduct={handleSelectRecommendation}
+                  onDismiss={handleDismissDiscovery}
+                />
+              )}
+
               {onOpenMixLab && (
                 <TouchableOpacity
                   onPress={onOpenMixLab}
@@ -897,6 +905,31 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
           {/* STEP 4: SELECT FOOD */}
           {step === 'select_food' && (
             <View style={{ flex: 1 }}>
+              {/* VIBE QUEST FOOD DISCOVERY */}
+              {isVibeQuestEnabled && vibeQuestQuestion && vibeQuestQuestion.stage === 'food' && (
+                <VibeQuestCard
+                  question={vibeQuestQuestion}
+                  selectedAnswerIds={vibeQuestSelectedAnswers}
+                  reactionMessage={reactionMessage}
+                  theme={theme}
+                  isMobile={isMobile}
+                  onSelectAnswer={handleSelectAnswer}
+                  onSkip={handleSkipQuestion}
+                  onDismiss={handleDismissDiscovery}
+                />
+              )}
+
+              {/* VIBE QUEST FOOD RECOMMENDATIONS */}
+              {isVibeQuestEnabled && showRecsInline && vibeQuestRecs.length > 0 && currentStage === 'food' && (
+                <VibeQuestRecommendations
+                  recommendations={vibeQuestRecs}
+                  theme={theme}
+                  isMobile={isMobile}
+                  onSelectProduct={handleSelectRecommendation}
+                  onDismiss={handleDismissDiscovery}
+                />
+              )}
+
               <View style={styles.subcatBar}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subcatScroll}>
                   {foodSubcategories.map((sub, idx) => {
@@ -1019,32 +1052,84 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
             </View>
           )}
 
-          {/* STEP 5: PROMPT DRINKS */}
+          {/* STEP 5: PROMPT DRINKS & DESSERT DISCOVERY */}
           {step === 'prompt_drink' && (
-            <ScrollView contentContainerStyle={[styles.promptActionsRow, isMobile && { flexDirection: 'column', gap: 12 }]}>
-              <TouchableOpacity
-                activeOpacity={0.88}
-                onPress={() => setStep('select_drink')}
-                style={[styles.promptChoiceCard, { backgroundColor: theme.cardColor, borderColor: theme.primaryColor }, isMobile && { padding: 20, width: '100%' }]}
-              >
-                <Text style={[styles.promptIcon, isMobile && { fontSize: 36, marginBottom: 8 }]}>🍹</Text>
-                <Text style={[styles.promptTitle, { color: theme.textColor }, isMobile && { fontSize: 18 }]}>YES, SHOW ME DRINKS</Text>
-              </TouchableOpacity>
+            <ScrollView contentContainerStyle={[{ paddingBottom: 30 }, isMobile ? { paddingHorizontal: 4 } : { paddingHorizontal: 16 }]} showsVerticalScrollIndicator={false}>
+              {/* VIBE QUEST DESSERT DISCOVERY */}
+              {isVibeQuestEnabled && vibeQuestQuestion && vibeQuestQuestion.stage === 'dessert' && (
+                <VibeQuestCard
+                  question={vibeQuestQuestion}
+                  selectedAnswerIds={vibeQuestSelectedAnswers}
+                  reactionMessage={reactionMessage}
+                  theme={theme}
+                  isMobile={isMobile}
+                  onSelectAnswer={handleSelectAnswer}
+                  onSkip={handleSkipQuestion}
+                  onDismiss={handleDismissDiscovery}
+                />
+              )}
 
-              <TouchableOpacity
-                activeOpacity={0.88}
-                onPress={() => handleProceedToNextStep('review_summary')}
-                style={[styles.promptChoiceCard, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }, isMobile && { padding: 20, width: '100%' }]}
-              >
-                <Text style={[styles.promptIcon, isMobile && { fontSize: 36, marginBottom: 8 }]}>📋</Text>
-                <Text style={[styles.promptTitle, { color: theme.textColor }, isMobile && { fontSize: 18 }]}>FINISH ORDER</Text>
-              </TouchableOpacity>
+              {/* VIBE QUEST DESSERT RECOMMENDATIONS */}
+              {isVibeQuestEnabled && showRecsInline && vibeQuestRecs.length > 0 && currentStage === 'dessert' && (
+                <VibeQuestRecommendations
+                  recommendations={vibeQuestRecs}
+                  theme={theme}
+                  isMobile={isMobile}
+                  onSelectProduct={handleSelectRecommendation}
+                  onDismiss={handleDismissDiscovery}
+                />
+              )}
+
+              <View style={[styles.promptActionsRow, isMobile && { flexDirection: 'column', gap: 12 }]}>
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  onPress={() => setStep('select_drink')}
+                  style={[styles.promptChoiceCard, { backgroundColor: theme.cardColor, borderColor: theme.primaryColor }, isMobile && { padding: 20, width: '100%' }]}
+                >
+                  <Text style={[styles.promptIcon, isMobile && { fontSize: 36, marginBottom: 8 }]}>🍹</Text>
+                  <Text style={[styles.promptTitle, { color: theme.textColor }, isMobile && { fontSize: 18 }]}>YES, SHOW ME DRINKS</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  onPress={() => handleProceedToNextStep('review_summary')}
+                  style={[styles.promptChoiceCard, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }, isMobile && { padding: 20, width: '100%' }]}
+                >
+                  <Text style={[styles.promptIcon, isMobile && { fontSize: 36, marginBottom: 8 }]}>📋</Text>
+                  <Text style={[styles.promptTitle, { color: theme.textColor }, isMobile && { fontSize: 18 }]}>FINISH ORDER</Text>
+                </TouchableOpacity>
+              </View>
             </ScrollView>
           )}
 
           {/* STEP 6: SELECT DRINK */}
           {step === 'select_drink' && (
             <View style={{ flex: 1 }}>
+              {/* VIBE QUEST DRINK DISCOVERY */}
+              {isVibeQuestEnabled && vibeQuestQuestion && vibeQuestQuestion.stage === 'drinks' && (
+                <VibeQuestCard
+                  question={vibeQuestQuestion}
+                  selectedAnswerIds={vibeQuestSelectedAnswers}
+                  reactionMessage={reactionMessage}
+                  theme={theme}
+                  isMobile={isMobile}
+                  onSelectAnswer={handleSelectAnswer}
+                  onSkip={handleSkipQuestion}
+                  onDismiss={handleDismissDiscovery}
+                />
+              )}
+
+              {/* VIBE QUEST DRINK RECOMMENDATIONS */}
+              {isVibeQuestEnabled && showRecsInline && vibeQuestRecs.length > 0 && currentStage === 'drinks' && (
+                <VibeQuestRecommendations
+                  recommendations={vibeQuestRecs}
+                  theme={theme}
+                  isMobile={isMobile}
+                  onSelectProduct={handleSelectRecommendation}
+                  onDismiss={handleDismissDiscovery}
+                />
+              )}
+
               <View style={styles.subcatBar}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subcatScroll}>
                   {drinkSubcategories.map((sub, idx) => {
@@ -1170,6 +1255,31 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
           {/* STEP 7: REVIEW SUMMARY */}
           {step === 'review_summary' && (
             <View style={[styles.reviewContainer, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}>
+              {/* VIBE QUEST CHECKOUT DISCOVERY NUDGE */}
+              {isVibeQuestEnabled && vibeQuestQuestion && vibeQuestQuestion.stage === 'checkout' && (
+                <VibeQuestCard
+                  question={vibeQuestQuestion}
+                  selectedAnswerIds={vibeQuestSelectedAnswers}
+                  reactionMessage={reactionMessage}
+                  theme={theme}
+                  isMobile={isMobile}
+                  onSelectAnswer={handleSelectAnswer}
+                  onSkip={handleSkipQuestion}
+                  onDismiss={handleDismissDiscovery}
+                />
+              )}
+
+              {/* VIBE QUEST CHECKOUT RECOMMENDATIONS */}
+              {isVibeQuestEnabled && showRecsInline && vibeQuestRecs.length > 0 && currentStage === 'checkout' && (
+                <VibeQuestRecommendations
+                  recommendations={vibeQuestRecs}
+                  theme={theme}
+                  isMobile={isMobile}
+                  onSelectProduct={handleSelectRecommendation}
+                  onDismiss={handleDismissDiscovery}
+                />
+              )}
+
               <View style={[styles.reviewHeader, { borderBottomColor: theme.borderColor }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <ShoppingBag size={18} color={theme.primaryColor} />

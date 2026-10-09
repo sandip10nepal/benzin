@@ -44,13 +44,15 @@ body {
 }
 
 /* Remove default focus outlines globally for web */
-input, textarea {
+*, *:focus, *:focus-visible, input, textarea, select, button, [tabindex], [data-focusable="true"] {
   outline: none !important;
+  outline-style: none !important;
+  outline-width: 0px !important;
   box-shadow: none !important;
+  -webkit-tap-highlight-color: transparent !important;
 }
 
-input:focus, textarea:focus {
-  outline: none !important;
-  box-shadow: none !important;
+input, textarea, select {
+  font-size: 16px !important; 
 }
 

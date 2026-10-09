@@ -90,6 +90,7 @@ export type CartItem = {
   quantity: number;
   selectedModifiers: SelectedModifier[];
   specialInstructions?: string;
+  notes?: string;
   itemTotal: number;
 };
 

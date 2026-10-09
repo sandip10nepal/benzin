@@ -377,7 +377,7 @@ const styles = StyleSheet.create({
     color: '#F8F1EA',
     fontWeight: '600',
     // @ts-ignore
-    outlineStyle: 'none',
+    outlineStyle: 'none' as any,
   },
   codeInput: {
     fontSize: 22,

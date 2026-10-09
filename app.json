@@ -48,6 +48,12 @@
         "projectId": "515b85cd-864b-44ff-92c0-f2e9a3ab4c07"
       }
     },
-    "owner": "samiol"
+    "owner": "samiol",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/515b85cd-864b-44ff-92c0-f2e9a3ab4c07"
+    }
   }
 }

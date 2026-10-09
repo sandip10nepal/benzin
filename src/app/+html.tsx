@@ -9,7 +9,7 @@ export default function Root({ children }: { children: React.ReactNode }) {
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta
           name="viewport"
-          content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no, viewport-fit=cover"
         />
         <meta name="theme-color" content="#0C0806" media="(prefers-color-scheme: dark)" />
         <meta name="theme-color" content="#F7F4EE" media="(prefers-color-scheme: light)" />
@@ -39,6 +39,16 @@ export default function Root({ children }: { children: React.ReactNode }) {
                 html, body, #root {
                   background-color: #F7F4EE;
                 }
+              }
+              *, *:focus, *:focus-visible, input, textarea, select, button, [tabindex], [data-focusable="true"] {
+                outline: none !important;
+                outline-style: none !important;
+                outline-width: 0px !important;
+                box-shadow: none !important;
+                -webkit-tap-highlight-color: transparent !important;
+              }
+              input, textarea, select {
+                font-size: 16px !important;
               }
             `,
           }}

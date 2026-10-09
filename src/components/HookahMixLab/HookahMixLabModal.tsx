@@ -33,6 +33,7 @@ interface HookahMixLabModalProps {
   onAddMixToCart: (item: MenuItem, quantity: number, modifiers: SelectedModifier[], specialNotes?: string) => void;
   hookahConfig?: any;
   allMenuItems?: MenuItem[];
+  isDakuInCart?: boolean;
 }
 
 export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
@@ -41,6 +42,7 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
   onAddMixToCart,
   hookahConfig,
   allMenuItems,
+  isDakuInCart,
 }) => {
   const { theme } = useRestaurantTheme();
   const layout = useResponsiveLayout();
@@ -66,28 +68,45 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
   }, [hookahConfig]);
 
   const flavorsDatabase = useMemo(() => {
-    if (!allMenuItems) return HOOKAH_FLAVORS_DATABASE;
-    const dbFlavors = allMenuItems.filter(item => {
-      const isHkFlavorCatId = item.category_id && String(item.category_id).includes('cat_hk_flavors');
-      const isHkFlavorCatIds = Array.isArray(item.category_ids) && item.category_ids.some(c => 
-        String(c).includes('cat_hk_flavors') || String(c).includes('Hookah Flavors')
-      );
-      return isHkFlavorCatId || isHkFlavorCatIds;
-    });
-    if (dbFlavors.length > 0) {
-      return dbFlavors.map(item => ({
-        id: item.id,
-        name: item.name,
-        brand: item.brand || 'House',
-        category: (item.brand || 'house').toLowerCase(),
-        description: item.description,
-        color: item.color || item.imageUrl || '#8B5CF6',
-        emoji: item.emoji || '💨',
-        tags: item.tags || []
-      })) as HookahFlavor[];
+    if (hookahConfig?.flavors && Array.isArray(hookahConfig.flavors) && hookahConfig.flavors.length > 0) {
+      const activeFlavors = hookahConfig.flavors.filter((f: any) => f.active !== false && f.available !== false);
+      if (activeFlavors.length > 0) {
+        return activeFlavors.map((item: any) => ({
+          id: item.id || `flv_${item.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+          name: item.name,
+          brand: item.brand || item.category || 'House',
+          category: (item.brand || item.category || 'house').toLowerCase(),
+          description: item.description || '',
+          color: item.color || '#8B5CF6',
+          emoji: item.emoji || '💨',
+          tags: item.tags || []
+        })) as HookahFlavor[];
+      }
+    }
+
+    if (allMenuItems) {
+      const dbFlavors = allMenuItems.filter(item => {
+        const isHkFlavorCatId = item.category_id && String(item.category_id).includes('cat_hk_flavors');
+        const isHkFlavorCatIds = Array.isArray(item.category_ids) && item.category_ids.some(c => 
+          String(c).includes('cat_hk_flavors') || String(c).includes('Hookah Flavors')
+        );
+        return isHkFlavorCatId || isHkFlavorCatIds;
+      });
+      if (dbFlavors.length > 0) {
+        return dbFlavors.map(item => ({
+          id: item.id,
+          name: item.name,
+          brand: item.brand || 'House',
+          category: (item.brand || 'house').toLowerCase(),
+          description: item.description,
+          color: item.color || item.imageUrl || '#8B5CF6',
+          emoji: item.emoji || '💨',
+          tags: item.tags || []
+        })) as HookahFlavor[];
+      }
     }
     return HOOKAH_FLAVORS_DATABASE;
-  }, [allMenuItems]);
+  }, [hookahConfig, allMenuItems]);
 
   const basesDatabase = useMemo(() => {
     if (hookahConfig?.bases && Array.isArray(hookahConfig.bases) && hookahConfig.bases.length > 0) {
@@ -260,7 +279,11 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
     if (totalPercentage !== 100) {
       handleAutoBalance();
     }
-    setShowDakuModal(true);
+    if (isDakuInCart) {
+      processAddToCart(false);
+    } else {
+      setShowDakuModal(true);
+    }
   };
 
   const processAddToCart = (isDaku: boolean) => {
@@ -547,7 +570,7 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                     )}
                   </View>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 5 }}>
-                    {DEFAULT_HOOKAH_BASES.map(b => {
+                    {basesDatabase.map((b: any) => {
                       const isSelected = selectedBaseId === b.id;
                       return (
                         <TouchableOpacity
@@ -829,7 +852,7 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                     )}
                   </View>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-                    {DEFAULT_HOOKAH_BASES.map(b => {
+                    {basesDatabase.map((b: any) => {
                       const isSelected = selectedBaseId === b.id;
                       return (
                         <TouchableOpacity
@@ -1007,7 +1030,7 @@ const styles = StyleSheet.create({
     padding: 0,
     fontWeight: '600',
     // @ts-ignore
-    outlineStyle: 'none',
+    outlineStyle: 'none' as any,
   },
   flavorCardsGrid: {
     flexDirection: 'row',
@@ -1105,6 +1128,8 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     borderBottomWidth: 1.5,
     paddingVertical: 2,
+    // @ts-ignore
+    outlineStyle: 'none' as any,
   },
   visualBowlContainer: {
     borderRadius: 16,

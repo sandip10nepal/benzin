@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     backgroundColor: 'rgba(255,255,255,0.03)',
     // @ts-ignore
-    outlineStyle: 'none',
+    outlineStyle: 'none' as any,
   },
   sendCustomBtn: {
     paddingHorizontal: 22,

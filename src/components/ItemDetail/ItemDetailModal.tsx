@@ -54,7 +54,19 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
   const effectiveModifierGroups = React.useMemo<ModifierGroup[]>(() => {
     if (!item) return [];
-    const groups: ModifierGroup[] = item.modifierGroups || (item as any).modifier_groups || [];
+    let groups: ModifierGroup[] = item.modifierGroups || (item as any).modifier_groups || [];
+
+    const isHouseMix = item.category_id === 'CAT_HOOKAH_HOUSE_MIXES' || 
+      (Array.isArray(item.category_ids) && item.category_ids.includes('CAT_HOOKAH_HOUSE_MIXES')) ||
+      (item.category || '').toLowerCase().includes('house_mix');
+
+    if (isHouseMix && groups.length > 0) {
+      groups = groups.filter(g => {
+        const gn = (g.name || g.id || '').toLowerCase();
+        return !gn.includes('enhancement') && !gn.includes('ice') && !gn.includes('base');
+      });
+    }
+
     if (groups.length > 0) return groups;
 
     const isWings = item.category_id === 'CAT_WINGS' || 
@@ -670,7 +682,7 @@ const styles = StyleSheet.create({
     height: 70,
     textAlignVertical: 'top',
     // @ts-ignore
-    outlineStyle: 'none',
+    outlineStyle: 'none' as any,
   },
   modalFooter: {
     flexDirection: 'row',

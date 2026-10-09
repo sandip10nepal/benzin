@@ -418,7 +418,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     minHeight: 44,
                     textAlignVertical: 'top',
                     // @ts-ignore
-                    outlineStyle: 'none',
+                    outlineStyle: 'none' as any,
                   }}
                   placeholder="e.g. Extra napkins, glasses of water with ice, table allergy info..."
                   placeholderTextColor={theme.mutedTextColor}
