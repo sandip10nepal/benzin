@@ -166,7 +166,7 @@ export const VibeQuestTransitionModal: React.FC<VibeQuestTransitionModalProps> =
       return;
     }
 
-    // 2. Check if destination is dismiss or next_stage
+    // 2. Check if destination is dismiss or end_discovery
     if (
       dest === 'dismiss' ||
       (typeof dest === 'object' && dest?.type === 'end_discovery')
@@ -175,7 +175,18 @@ export const VibeQuestTransitionModal: React.FC<VibeQuestTransitionModalProps> =
       return;
     }
 
-    // 3. Check if destination explicitly points to another question
+    // 3. Check if destination is recommendations
+    if (
+      dest === 'recommendations' ||
+      (typeof dest === 'object' && dest?.type === 'recommendations')
+    ) {
+      setCurrentQuestionId(null);
+      setIsShowingRecs(true);
+      trackEvent('stage_recommendations_shown');
+      return;
+    }
+
+    // 4. Check if destination explicitly points to another question
     if (typeof dest === 'object' && dest?.type === 'question' && dest?.ref_id) {
       const targetQ = stageQuestions.find((q) => q.id === dest.ref_id);
       if (targetQ) {
@@ -184,7 +195,7 @@ export const VibeQuestTransitionModal: React.FC<VibeQuestTransitionModalProps> =
       }
     }
 
-    // 4. Check branching rules
+    // 5. Check branching rules
     const branchRules = (ans as any).branching_rules;
     if (branchRules && branchRules.length > 0) {
       const nextId = branchRules[0]?.target_question_id;
@@ -197,7 +208,7 @@ export const VibeQuestTransitionModal: React.FC<VibeQuestTransitionModalProps> =
       }
     }
 
-    // 5. Advance to next question in this stage
+    // 6. Advance to next question in this stage
     const currIdx = stageQuestions.findIndex((q) => q.id === qId);
     if (currIdx >= 0 && currIdx < stageQuestions.length - 1) {
       setCurrentQuestionId(stageQuestions[currIdx + 1].id);
@@ -207,6 +218,49 @@ export const VibeQuestTransitionModal: React.FC<VibeQuestTransitionModalProps> =
       setIsShowingRecs(true);
       trackEvent('stage_questions_completed');
     }
+  };
+
+  // Helper: robust product ID / slug / name matching
+  const matchProductById = (pId: string, items: MenuItem[]): MenuItem | undefined => {
+    if (!pId || !items || items.length === 0) return undefined;
+    const cleanPId = pId.trim().toLowerCase();
+    const strippedPId = cleanPId
+      .replace(/_hookah$/, '')
+      .replace(/_dessert$/, '')
+      .replace(/_app$/, '')
+      .replace(/_main$/, '')
+      .replace(/_drink$/, '');
+
+    // Exact match on id or _id
+    let found = items.find((m) => {
+      const mId = (m.id || (m as any)._id || '').toLowerCase();
+      return mId === cleanPId;
+    });
+    if (found) return found;
+
+    // Stripped suffix match
+    found = items.find((m) => {
+      const mId = (m.id || (m as any)._id || '').toLowerCase();
+      const strippedMId = mId
+        .replace(/_hookah$/, '')
+        .replace(/_dessert$/, '')
+        .replace(/_app$/, '')
+        .replace(/_main$/, '')
+        .replace(/_drink$/, '');
+      return (
+        strippedMId === strippedPId ||
+        mId.includes(strippedPId) ||
+        cleanPId.includes(strippedMId)
+      );
+    });
+    if (found) return found;
+
+    // Name slug match
+    found = items.find((m) => {
+      const slug = (m.name || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+      return cleanPId.includes(slug) || slug.includes(strippedPId);
+    });
+    return found;
   };
 
   // Handle skipping a question
@@ -239,19 +293,35 @@ export const VibeQuestTransitionModal: React.FC<VibeQuestTransitionModalProps> =
             pinned.forEach((pId: string) => {
               if (pId && !curatedIds.includes(pId)) curatedIds.push(pId);
             });
-            if (typeof a.destination === 'object' && a.destination?.type === 'product' && (a.destination as any).ref_id) {
-              if (!curatedIds.includes((a.destination as any).ref_id)) curatedIds.push((a.destination as any).ref_id);
+            if (
+              typeof a.destination === 'object' &&
+              a.destination?.type === 'product' &&
+              (a.destination as any).ref_id
+            ) {
+              if (!curatedIds.includes((a.destination as any).ref_id)) {
+                curatedIds.push((a.destination as any).ref_id);
+              }
             }
           }
         });
       }
     });
 
+    // Also look at current active question's pinned items if user hasn't selected yet
+    if (curatedIds.length === 0 && currentQuestion) {
+      (currentQuestion.answers || []).forEach((a) => {
+        const pinned = (a as any).pinned_product_ids || (a as any).curated_product_ids || [];
+        pinned.forEach((pId: string) => {
+          if (pId && !curatedIds.includes(pId)) curatedIds.push(pId);
+        });
+      });
+    }
+
     const recs: MenuItem[] = [];
 
-    // Match curated products by ID or _id
+    // Match curated products by ID or _id using robust matcher
     curatedIds.forEach((pId) => {
-      const match = allMenuItems.find((m) => (m.id || (m as any)._id) === pId);
+      const match = matchProductById(pId, allMenuItems);
       if (match && !recs.some((r) => (r.id || (r as any)._id) === (match.id || (match as any)._id))) {
         recs.push(match);
       }
@@ -261,34 +331,46 @@ export const VibeQuestTransitionModal: React.FC<VibeQuestTransitionModalProps> =
     if (recs.length < 3 && sessionSignals.length > 0) {
       const signalMatches = allMenuItems.filter((m) => {
         if (recs.some((r) => (r.id || (r as any)._id) === (m.id || (m as any)._id))) return false;
+        if (m.available === false) return false;
         // Match stage
         const itemCat = (m.category || (m as any).category_id || '').toLowerCase();
-        const stageMatch = stage === 'hookah' ? itemCat.includes('hookah') : stage === 'drinks' ? (itemCat.includes('drink') || itemCat.includes('beverage')) : itemCat.includes('food');
+        const stageMatch =
+          stage === 'hookah'
+            ? itemCat.includes('hookah')
+            : stage === 'drinks'
+            ? itemCat.includes('drink') || itemCat.includes('beverage')
+            : stage === 'dessert'
+            ? itemCat.includes('dessert')
+            : itemCat.includes('food');
         if (!stageMatch) return false;
 
         const nameLower = (m.name || '').toLowerCase();
         const descLower = (m.description || '').toLowerCase();
-        return sessionSignals.some((sig) => nameLower.includes(sig.toLowerCase()) || descLower.includes(sig.toLowerCase()));
+        return sessionSignals.some(
+          (sig) => nameLower.includes(sig.toLowerCase()) || descLower.includes(sig.toLowerCase())
+        );
       });
       recs.push(...signalMatches);
     }
 
-    // 3. Fallback: popular items in category
+    // 3. Fallback: popular items in stage category (matches line 8011 of admin simulator)
     if (recs.length < 3) {
       const categoryFallbacks = allMenuItems
         .filter((m) => {
           if (recs.some((r) => (r.id || (r as any)._id) === (m.id || (m as any)._id))) return false;
+          if (m.available === false) return false;
           const cat = (m.category || (m as any).category_id || '').toLowerCase();
           if (stage === 'hookah') return cat.includes('hookah');
           if (stage === 'drinks') return cat.includes('drink') || cat.includes('beverage');
-          return cat.includes('food');
+          if (stage === 'dessert') return cat.includes('dessert');
+          return cat.includes('food') || cat.includes('appetizer') || cat.includes('main');
         })
         .slice(0, 3 - recs.length);
       recs.push(...categoryFallbacks);
     }
 
     return recs.slice(0, 3);
-  }, [allMenuItems, sessionAnswers, sessionSignals, config, stage]);
+  }, [allMenuItems, sessionAnswers, sessionSignals, config, stage, currentQuestion]);
 
   // Track item counts in cart
   const getItemCartCount = (itemId: string): number => {
@@ -449,6 +531,88 @@ export const VibeQuestTransitionModal: React.FC<VibeQuestTransitionModalProps> =
                   );
                 })}
               </View>
+
+              {/* Live Recommendations Panel (Matching Admin Simulator) */}
+              {recommendedItems.length > 0 && (
+                <View style={styles.simRecsPanel}>
+                  <View style={styles.simRecsPanelHeader}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ fontSize: 16 }}>🎯</Text>
+                      <Text style={styles.simRecsPanelTitle}>
+                        RECOMMENDED PICKS ({recommendedItems.length})
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setCurrentQuestionId(null);
+                        setIsShowingRecs(true);
+                      }}
+                      activeOpacity={0.8}
+                      style={{ paddingVertical: 2, paddingHorizontal: 6 }}
+                    >
+                      <Text style={styles.simRecsViewAllText}>View All Picks →</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.simRecsGrid}>
+                    {recommendedItems.slice(0, 3).map((item) => {
+                      const count = getItemCartCount(item.id || (item as any)._id);
+                      const imageSource = getItemImageSource(item);
+                      return (
+                        <View
+                          key={item.id || (item as any)._id}
+                          style={[
+                            styles.simRecCard,
+                            {
+                              backgroundColor: '#1E1E22',
+                              borderColor: count > 0 ? '#10B981' : 'rgba(255, 255, 255, 0.1)',
+                            },
+                          ]}
+                        >
+                          <View style={styles.simRecCardTop}>
+                            <View style={styles.simRecCardImgWrap}>
+                              {imageSource ? (
+                                <Image source={imageSource} style={styles.simRecCardImg} resizeMode="cover" />
+                              ) : (
+                                <Text style={{ fontSize: 16 }}>
+                                  {item.category === 'hookah' ? '💨' : item.category === 'drinks' ? '🍹' : '🍔'}
+                                </Text>
+                              )}
+                            </View>
+                            <View style={{ flex: 1, minWidth: 0 }}>
+                              <Text style={styles.simRecCardName} numberOfLines={1}>
+                                {item.name}
+                              </Text>
+                              <Text style={styles.simRecCardPrice}>
+                                ${Number(item.price).toFixed(2)}
+                              </Text>
+                            </View>
+                          </View>
+
+                          {item.description ? (
+                            <Text style={styles.simRecCardDesc} numberOfLines={2}>
+                              {item.description}
+                            </Text>
+                          ) : null}
+
+                          <TouchableOpacity
+                            onPress={() => handleAddRecommendedItem(item)}
+                            activeOpacity={0.85}
+                            style={[
+                              styles.simRecAddBtn,
+                              { backgroundColor: count > 0 ? '#10B981' : '#E5B13A' },
+                            ]}
+                          >
+                            <Text style={[styles.simRecAddBtnText, { color: count > 0 ? '#FFFFFF' : '#000000' }]}>
+                              {count > 0 ? `✓ In Order (${count}) +` : `+ Add ($${Number(item.price).toFixed(2)})`}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
 
               {/* Instant Bypass Link */}
               <View style={styles.bypassRow}>
@@ -906,5 +1070,85 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     fontSize: 12,
     fontWeight: '700',
+  },
+  simRecsPanel: {
+    backgroundColor: '#202024',
+    borderWidth: 1.5,
+    borderColor: '#E5B13A',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 16,
+  },
+  simRecsPanelHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  simRecsPanelTitle: {
+    color: '#E5B13A',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  simRecsViewAllText: {
+    color: '#E5B13A',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  simRecsGrid: {
+    gap: 8,
+  },
+  simRecCard: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 8,
+  },
+  simRecCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  simRecCardImgWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  simRecCardImg: {
+    width: '100%',
+    height: '100%',
+  },
+  simRecCardName: {
+    color: '#F8FAFC',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  simRecCardPrice: {
+    color: '#E5B13A',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  simRecCardDesc: {
+    color: '#94A3B8',
+    fontSize: 10,
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  simRecAddBtn: {
+    borderRadius: 6,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 6,
+  },
+  simRecAddBtnText: {
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.3,
   },
 });

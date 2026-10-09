@@ -628,6 +628,82 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
     });
   }, []);
 
+  const matchProductById = useCallback((pId: string, items: MenuItem[]): MenuItem | undefined => {
+    if (!pId || !items || items.length === 0) return undefined;
+    const cleanPId = pId.trim().toLowerCase();
+    const strippedPId = cleanPId
+      .replace(/_hookah$/, '')
+      .replace(/_dessert$/, '')
+      .replace(/_app$/, '')
+      .replace(/_main$/, '')
+      .replace(/_drink$/, '');
+
+    let found = items.find((m) => {
+      const mId = (m.id || (m as any)._id || '').toLowerCase();
+      return mId === cleanPId;
+    });
+    if (found) return found;
+
+    found = items.find((m) => {
+      const mId = (m.id || (m as any)._id || '').toLowerCase();
+      const strippedMId = mId
+        .replace(/_hookah$/, '')
+        .replace(/_dessert$/, '')
+        .replace(/_app$/, '')
+        .replace(/_main$/, '')
+        .replace(/_drink$/, '');
+      return strippedMId === strippedPId || mId.includes(strippedPId) || cleanPId.includes(strippedMId);
+    });
+    if (found) return found;
+
+    found = items.find((m) => {
+      const slug = (m.name || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+      return cleanPId.includes(slug) || slug.includes(strippedPId);
+    });
+    return found;
+  }, []);
+
+  const stageRecommendations = useMemo<MenuItem[]>(() => {
+    if (!allMenuItems || allMenuItems.length === 0) return [];
+    const currentStage = getStageForCategory(activeSuperCatId);
+
+    const pinnedIds: string[] = [];
+    if (vibeQuestConfig?.questions) {
+      vibeQuestConfig.questions
+        .filter((q) => (currentStage === 'hookah' ? q.stage === 'hookah' : currentStage === 'drinks' ? q.stage === 'drinks' : q.stage === 'food' || q.stage === 'dessert') && q.active !== false)
+        .forEach((q) => {
+          (q.answers || []).forEach((a) => {
+            const p = (a as any).pinned_product_ids || (a as any).curated_product_ids || [];
+            p.forEach((pid: string) => {
+              if (pid && !pinnedIds.includes(pid)) pinnedIds.push(pid);
+            });
+          });
+        });
+    }
+
+    const recs: MenuItem[] = [];
+    pinnedIds.forEach((pId) => {
+      const match = matchProductById(pId, allMenuItems);
+      if (match && !recs.some((r) => (r.id || (r as any)._id) === (match.id || (match as any)._id))) {
+        recs.push(match);
+      }
+    });
+
+    if (recs.length < 3) {
+      const fallbacks = allMenuItems.filter((m) => {
+        if (recs.some((r) => (r.id || (r as any)._id) === (m.id || (m as any)._id))) return false;
+        if (m.available === false) return false;
+        const cat = (m.category || (m as any).category_id || '').toLowerCase();
+        if (currentStage === 'hookah') return cat.includes('hookah');
+        if (currentStage === 'drinks') return cat.includes('drink') || cat.includes('beverage');
+        return cat.includes('food') || cat.includes('appetizer') || cat.includes('main');
+      }).slice(0, 3 - recs.length);
+      recs.push(...fallbacks);
+    }
+
+    return recs.slice(0, 3);
+  }, [allMenuItems, activeSuperCatId, vibeQuestConfig, getStageForCategory, matchProductById]);
+
   const handleBottomNavAdvance = useCallback(() => {
     const currentStage = getStageForCategory(activeSuperCatId);
 
@@ -1001,6 +1077,65 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
               <Text style={[styles.mixLabCtaBtnText, { color: '#000000', fontSize: isMobile ? 10 : 12 }]}>MIX LAB</Text>
             </View>
           </TouchableOpacity>
+        )}
+
+        {/* Curated Recommendations Shelf */}
+        {!isGlobalSearch && isVibeQuestEnabled && stageRecommendations.length > 0 && (
+          <View style={styles.curatedShelfContainer}>
+            <View style={styles.curatedShelfHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ fontSize: 16 }}>🎯</Text>
+                <Text style={styles.curatedShelfTitle}>
+                  TOP CURATED {getStageForCategory(activeSuperCatId).toUpperCase()} PICKS
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => handleTriggerDiscovery(getStageForCategory(activeSuperCatId))}
+                activeOpacity={0.8}
+                style={{ paddingVertical: 2, paddingHorizontal: 6 }}
+              >
+                <Text style={styles.curatedShelfActionText}>Vibe Quest →</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.curatedShelfScroll}>
+              {stageRecommendations.map((item) => {
+                const count = itemQuantities[item.id] || 0;
+                const imageSource = getItemImageSource(item);
+                return (
+                  <View key={`curated_${item.id}`} style={[styles.curatedShelfCard, { backgroundColor: theme.cardColor, borderColor: count > 0 ? '#10B981' : theme.borderColor }]}>
+                    <TouchableOpacity onPress={() => onSelectItem(item)} activeOpacity={0.85} style={styles.curatedShelfCardInner}>
+                      <View style={styles.curatedShelfImgWrap}>
+                        {imageSource ? (
+                          <Image source={imageSource} style={styles.curatedShelfImg} resizeMode="cover" />
+                        ) : (
+                          <Text style={{ fontSize: 24 }}>{item.category === 'hookah' ? '💨' : item.category === 'drinks' ? '🍹' : '🍔'}</Text>
+                        )}
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0, paddingHorizontal: 10, paddingVertical: 8 }}>
+                        <Text style={[styles.curatedShelfName, { color: theme.textColor }]} numberOfLines={1}>{item.name}</Text>
+                        <Text style={[styles.curatedShelfPrice, { color: theme.secondaryColor }]}>${item.price.toFixed(2)}</Text>
+                        {item.description ? (
+                          <Text style={[styles.curatedShelfDesc, { color: theme.mutedTextColor }]} numberOfLines={1}>{item.description}</Text>
+                        ) : null}
+                      </View>
+                    </TouchableOpacity>
+                    <View style={{ paddingHorizontal: 10, paddingBottom: 8 }}>
+                      <TouchableOpacity
+                        onPress={() => onAddToCart && onAddToCart(item, 1, [])}
+                        activeOpacity={0.85}
+                        style={[styles.curatedShelfAddBtn, { backgroundColor: count > 0 ? '#10B981' : '#E5B13A' }]}
+                      >
+                        <Text style={[styles.curatedShelfAddBtnText, { color: count > 0 ? '#FFFFFF' : '#000000' }]}>
+                          {count > 0 ? `✓ IN ORDER (${count}) +` : `+ ADD TO ORDER`}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </View>
         )}
 
         {/* Menu Items Grid */}
@@ -1550,5 +1685,76 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '900',
     letterSpacing: 0.5,
+  },
+  curatedShelfContainer: {
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  curatedShelfHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  curatedShelfTitle: {
+    color: '#E5B13A',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  curatedShelfActionText: {
+    color: '#E5B13A',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  curatedShelfScroll: {
+    gap: 12,
+    paddingVertical: 2,
+  },
+  curatedShelfCard: {
+    width: 220,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    overflow: 'hidden',
+  },
+  curatedShelfCardInner: {
+    flexDirection: 'column',
+  },
+  curatedShelfImgWrap: {
+    width: '100%',
+    height: 90,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  curatedShelfImg: {
+    width: '100%',
+    height: '100%',
+  },
+  curatedShelfName: {
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  curatedShelfPrice: {
+    fontSize: 13,
+    fontWeight: '900',
+    marginBottom: 2,
+  },
+  curatedShelfDesc: {
+    fontSize: 10,
+  },
+  curatedShelfAddBtn: {
+    borderRadius: 8,
+    paddingVertical: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  curatedShelfAddBtnText: {
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.4,
   },
 });

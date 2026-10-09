@@ -517,6 +517,15 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
     showToast(hookah.name);
   };
 
+  const handleSelectVibeRec = useCallback((item: MenuItem) => {
+    if (item.category === 'hookah') {
+      handleAddHookahWithAddons(item, 1, []);
+    } else {
+      onAddToCart(item, 1, []);
+    }
+    showToast(item.name);
+  }, [handleAddHookahWithAddons, onAddToCart]);
+
   // Dynamic Super Categories
   const superCategories = useMemo(() => {
     if (allCategories && allCategories.length > 0) {
@@ -855,6 +864,28 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
           {/* STEP 2: SELECT HOOKAH */}
           {step === 'select_hookah' && (
             <View style={{ flex: 1 }}>
+              {isVibeQuestEnabled && vibeQuestQuestion && (
+                <VibeQuestCard
+                  question={vibeQuestQuestion}
+                  selectedAnswerIds={vibeQuestSelectedAnswers}
+                  reactionMessage={reactionMessage}
+                  theme={theme}
+                  isMobile={isMobile}
+                  onSelectAnswer={handleSelectAnswer}
+                  onSkip={handleSkipQuestion}
+                  onDismiss={handleDismissDiscovery}
+                />
+              )}
+
+              {isVibeQuestEnabled && vibeQuestRecs.length > 0 && (
+                <VibeQuestRecommendations
+                  recommendations={vibeQuestRecs}
+                  theme={theme}
+                  isMobile={isMobile}
+                  onSelectProduct={handleSelectVibeRec}
+                  onDismiss={handleDismissDiscovery}
+                />
+              )}
 
 
               {onOpenMixLab && (
@@ -931,6 +962,28 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
           {/* STEP 4: SELECT FOOD */}
           {step === 'select_food' && (
             <View style={{ flex: 1 }}>
+              {isVibeQuestEnabled && vibeQuestQuestion && (
+                <VibeQuestCard
+                  question={vibeQuestQuestion}
+                  selectedAnswerIds={vibeQuestSelectedAnswers}
+                  reactionMessage={reactionMessage}
+                  theme={theme}
+                  isMobile={isMobile}
+                  onSelectAnswer={handleSelectAnswer}
+                  onSkip={handleSkipQuestion}
+                  onDismiss={handleDismissDiscovery}
+                />
+              )}
+
+              {isVibeQuestEnabled && vibeQuestRecs.length > 0 && (
+                <VibeQuestRecommendations
+                  recommendations={vibeQuestRecs}
+                  theme={theme}
+                  isMobile={isMobile}
+                  onSelectProduct={handleSelectVibeRec}
+                  onDismiss={handleDismissDiscovery}
+                />
+              )}
 
 
               <View style={styles.subcatBar}>
@@ -1085,6 +1138,28 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
           {/* STEP 6: SELECT DRINK */}
           {step === 'select_drink' && (
             <View style={{ flex: 1 }}>
+              {isVibeQuestEnabled && vibeQuestQuestion && (
+                <VibeQuestCard
+                  question={vibeQuestQuestion}
+                  selectedAnswerIds={vibeQuestSelectedAnswers}
+                  reactionMessage={reactionMessage}
+                  theme={theme}
+                  isMobile={isMobile}
+                  onSelectAnswer={handleSelectAnswer}
+                  onSkip={handleSkipQuestion}
+                  onDismiss={handleDismissDiscovery}
+                />
+              )}
+
+              {isVibeQuestEnabled && vibeQuestRecs.length > 0 && (
+                <VibeQuestRecommendations
+                  recommendations={vibeQuestRecs}
+                  theme={theme}
+                  isMobile={isMobile}
+                  onSelectProduct={handleSelectVibeRec}
+                  onDismiss={handleDismissDiscovery}
+                />
+              )}
 
 
               <View style={styles.subcatBar}>

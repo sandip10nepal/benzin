@@ -240,10 +240,26 @@ export class VibeQuestEngine {
       (ans.excluded_product_ids || []).forEach((pid) => excludedProducts.add(pid));
     });
 
+    const isProductPinned = (p: any): boolean => {
+      const pid = String(p._id || p.id || '').toLowerCase();
+      const strippedPid = pid.replace(/_hookah$/, '').replace(/_dessert$/, '').replace(/_app$/, '').replace(/_main$/, '');
+      for (const raw of pinnedSet) {
+        const pinLower = String(raw).toLowerCase();
+        const pinStripped = pinLower.replace(/_hookah$/, '').replace(/_dessert$/, '').replace(/_app$/, '').replace(/_main$/, '');
+        if (pinLower === pid || pinStripped === strippedPid || pid.includes(pinStripped) || pinLower.includes(strippedPid)) {
+          return true;
+        }
+      }
+      return false;
+    };
+
     const eligibleProducts = catalogProducts.filter((p) => {
       const pid = p._id || p.id;
       if (p.available === false) return false;
       if (excludedProducts.has(pid)) return false;
+
+      // Pinned products are always eligible
+      if (isProductPinned(p)) return true;
 
       if (eligibleCategories.size > 0) {
         const cids = Array.isArray(p.category_ids) && p.category_ids.length > 0
@@ -259,7 +275,7 @@ export class VibeQuestEngine {
       const pid = p._id || p.id;
       let score = 0;
 
-      if (pinnedSet.has(pid)) {
+      if (isProductPinned(p)) {
         score += 100;
       }
 
@@ -305,14 +321,23 @@ export class VibeQuestEngine {
       if (diverseResults.length >= resultCount) break;
     }
 
-    if (diverseResults.length === 0 && recConfig.fallback_category_id) {
-      const fallbackItems = catalogProducts
-        .filter((p) => {
-          const cids = p.category_ids?.length ? p.category_ids : [p.category_id];
-          return cids.includes(recConfig.fallback_category_id) && p.available !== false && !excludedProducts.has(p._id || p.id);
-        })
-        .slice(0, resultCount);
-      return fallbackItems;
+    // Fallback: fill up to resultCount from catalog matching question stage
+    if (diverseResults.length < resultCount) {
+      const stage = (question?.stage || session.current_stage || '').toLowerCase();
+      const stageFallbacks = catalogProducts.filter((p) => {
+        if (diverseResults.some((d) => (d.id || d._id) === (p.id || p._id))) return false;
+        if (p.available === false || excludedProducts.has(p._id || p.id)) return false;
+        const cat = (p.category || p.category_id || '').toLowerCase();
+        if (stage === 'hookah') return cat.includes('hookah');
+        if (stage === 'drinks') return cat.includes('drink') || cat.includes('beverage');
+        if (stage === 'dessert') return cat.includes('dessert');
+        return cat.includes('food') || cat.includes('appetizer') || cat.includes('main');
+      });
+
+      for (const fallbackItem of stageFallbacks) {
+        diverseResults.push(fallbackItem);
+        if (diverseResults.length >= resultCount) break;
+      }
     }
 
     return diverseResults;
