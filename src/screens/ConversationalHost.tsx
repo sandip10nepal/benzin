@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { DakuUpgradeModal } from '../components/DakuUpgradeModal';
 import { 
   View, 
@@ -30,6 +30,7 @@ import { DEFAULT_HOOKAH_BASES, DAKU_PACKAGE } from '../data/hookahMixData';
 import { useVibeQuest } from '../vibe-quest/useVibeQuest';
 import { VibeQuestCard } from '../components/VibeQuest/VibeQuestCard';
 import { VibeQuestRecommendations } from '../components/VibeQuest/VibeQuestRecommendations';
+import { VibeQuestTransitionModal } from '../components/VibeQuest/VibeQuestTransitionModal';
 import { VibeQuestStage } from '../vibe-quest/vibe-quest.types';
 
 interface ConversationalHostProps {
@@ -282,6 +283,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
 
   const {
     isEnabled: isVibeQuestEnabled,
+    config: vibeQuestConfig,
     currentQuestion: vibeQuestQuestion,
     recommendations: vibeQuestRecs,
     showRecsInline,
@@ -307,6 +309,57 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
       else if (targetStage === 'checkout') setStep('review_summary');
     },
   });
+
+  // Vibe Quest Stage Transition Modal State
+  const [transitionModal, setTransitionModal] = useState<{
+    visible: boolean;
+    stage: VibeQuestStage;
+    targetStep: ConversationalStep;
+    nextStageLabel: string;
+  }>({
+    visible: false,
+    stage: 'hookah',
+    targetStep: 'select_food',
+    nextStageLabel: 'Food Menu',
+  });
+
+  const [completedVibeQuestStages, setCompletedVibeQuestStages] = useState<Set<string>>(new Set());
+
+  const hasStageDiscoveryQuestions = useCallback((stageName: VibeQuestStage) => {
+    if (!vibeQuestConfig || !vibeQuestConfig.questions) return false;
+    return vibeQuestConfig.questions.some(
+      (q) => q.stage === stageName && q.active !== false
+    );
+  }, [vibeQuestConfig]);
+
+  const handleRequestTransition = useCallback((
+    fromStage: VibeQuestStage,
+    targetStep: ConversationalStep,
+    nextStageLabel: string
+  ) => {
+    if (
+      isVibeQuestEnabled &&
+      !completedVibeQuestStages.has(fromStage) &&
+      hasStageDiscoveryQuestions(fromStage)
+    ) {
+      setTransitionModal({
+        visible: true,
+        stage: fromStage,
+        targetStep,
+        nextStageLabel,
+      });
+      return;
+    }
+    setStep(targetStep);
+  }, [isVibeQuestEnabled, completedVibeQuestStages, hasStageDiscoveryQuestions]);
+
+  const handleProceedFromTransitionModal = useCallback(() => {
+    const stageCompleted = transitionModal.stage;
+    const nextStep = transitionModal.targetStep;
+    setCompletedVibeQuestStages((prev) => new Set(prev).add(stageCompleted));
+    setTransitionModal((prev) => ({ ...prev, visible: false }));
+    setStep(nextStep);
+  }, [transitionModal]);
 
   const vibeQuestSelectedAnswers = useMemo(() => {
     if (!vibeQuestQuestion) return [];
@@ -363,9 +416,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
       return [
         'welcome_category',
         'select_hookah',
-        'prompt_food',
         'select_food',
-        'prompt_drink',
         'select_drink',
         'review_summary',
       ];
@@ -373,7 +424,6 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
     return [
       'welcome_category',
       'select_food',
-      'prompt_drink',
       'select_drink',
       'review_summary',
     ];
@@ -387,22 +437,22 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
   React.useEffect(() => {
     if (step === 'select_hookah') {
       setVisitedSuperCategorySteps(prev => new Set(prev).add('hookah'));
-    } else if (step === 'select_food' || step === 'prompt_food') {
+    } else if (step === 'select_food') {
       setVisitedSuperCategorySteps(prev => new Set(prev).add('food'));
-    } else if (step === 'select_drink' || step === 'prompt_drink') {
+    } else if (step === 'select_drink') {
       setVisitedSuperCategorySteps(prev => new Set(prev).add('drinks'));
     }
   }, [step]);
 
   const getUnvisitedNextStep = (currentStep: ConversationalStep): ConversationalStep | null => {
     if (currentStep === 'select_hookah') {
-      if (hasFood && !visitedSuperCategorySteps.has('food')) return 'prompt_food';
-      if (hasDrinks && !visitedSuperCategorySteps.has('drinks')) return 'prompt_drink';
-    } else if (currentStep === 'select_food' || currentStep === 'prompt_food') {
-      if (hasDrinks && !visitedSuperCategorySteps.has('drinks')) return 'prompt_drink';
+      if (hasFood && !visitedSuperCategorySteps.has('food')) return 'select_food';
+      if (hasDrinks && !visitedSuperCategorySteps.has('drinks')) return 'select_drink';
+    } else if (currentStep === 'select_food') {
+      if (hasDrinks && !visitedSuperCategorySteps.has('drinks')) return 'select_drink';
       if (hasHookahs && !visitedSuperCategorySteps.has('hookah')) return 'select_hookah';
-    } else if (currentStep === 'select_drink' || currentStep === 'prompt_drink') {
-      if (hasFood && !visitedSuperCategorySteps.has('food')) return 'prompt_food';
+    } else if (currentStep === 'select_drink') {
+      if (hasFood && !visitedSuperCategorySteps.has('food')) return 'select_food';
       if (hasHookahs && !visitedSuperCategorySteps.has('hookah')) return 'select_hookah';
     }
     return null;
@@ -613,28 +663,29 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
       };
     }
     if (step === 'select_hookah') {
-      const unvisited = getUnvisitedNextStep('select_hookah');
+      const targetStep: ConversationalStep = hasFood ? 'select_food' : hasDrinks ? 'select_drink' : 'review_summary';
+      const label = hasFood ? 'NEXT: FOOD MENU' : hasDrinks ? 'NEXT: DRINKS' : 'REVIEW ORDER';
       return {
-        label: unvisited === 'prompt_drink' ? 'NEXT: DRINKS' : 'NEXT: FOOD MENU',
-        action: () => handleProceedToNextStep(unvisited || 'review_summary')
+        label,
+        action: () => handleRequestTransition('hookah', targetStep, hasFood ? 'Food Menu' : 'Drinks Menu')
       };
     }
-    if (step === 'select_food') {
-      const unvisited = getUnvisitedNextStep('select_food');
+    if (step === 'select_food' || step === 'prompt_food') {
+      const targetStep: ConversationalStep = hasDrinks ? 'select_drink' : 'review_summary';
+      const label = hasDrinks ? 'NEXT: DRINKS' : 'REVIEW ORDER';
       return {
-        label: unvisited === 'prompt_drink' ? 'NEXT: DRINKS' : unvisited === 'select_hookah' ? 'NEXT: HOOKAH' : 'REVIEW ORDER',
-        action: () => handleProceedToNextStep(unvisited || 'review_summary')
+        label,
+        action: () => handleRequestTransition('food', targetStep, hasDrinks ? 'Drinks Menu' : 'Review Order')
       };
     }
-    if (step === 'select_drink') {
-      const unvisited = getUnvisitedNextStep('select_drink');
+    if (step === 'select_drink' || step === 'prompt_drink') {
       return {
-        label: unvisited === 'prompt_food' ? 'NEXT: FOOD' : unvisited === 'select_hookah' ? 'NEXT: HOOKAH' : 'REVIEW ORDER',
-        action: () => handleProceedToNextStep(unvisited || 'review_summary')
+        label: 'REVIEW ORDER',
+        action: () => handleRequestTransition('drinks', 'review_summary', 'Review Order')
       };
     }
     return null;
-  }, [step, visitedSuperCategorySteps, hasFood, hasDrinks, hasHookahs]);
+  }, [step, hasFood, hasDrinks, hasHookahs, handleRequestTransition]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
@@ -806,30 +857,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
           {/* STEP 2: SELECT HOOKAH */}
           {step === 'select_hookah' && (
             <View style={{ flex: 1 }}>
-              {/* VIBE QUEST HOOKAH DISCOVERY */}
-              {isVibeQuestEnabled && vibeQuestQuestion && vibeQuestQuestion.stage === 'hookah' && (
-                <VibeQuestCard
-                  question={vibeQuestQuestion}
-                  selectedAnswerIds={vibeQuestSelectedAnswers}
-                  reactionMessage={reactionMessage}
-                  theme={theme}
-                  isMobile={isMobile}
-                  onSelectAnswer={handleSelectAnswer}
-                  onSkip={handleSkipQuestion}
-                  onDismiss={handleDismissDiscovery}
-                />
-              )}
 
-              {/* VIBE QUEST HOOKAH RECOMMENDATIONS */}
-              {isVibeQuestEnabled && showRecsInline && vibeQuestRecs.length > 0 && currentStage === 'hookah' && (
-                <VibeQuestRecommendations
-                  recommendations={vibeQuestRecs}
-                  theme={theme}
-                  isMobile={isMobile}
-                  onSelectProduct={handleSelectRecommendation}
-                  onDismiss={handleDismissDiscovery}
-                />
-              )}
 
               {onOpenMixLab && (
                 <TouchableOpacity
@@ -905,30 +933,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
           {/* STEP 4: SELECT FOOD */}
           {step === 'select_food' && (
             <View style={{ flex: 1 }}>
-              {/* VIBE QUEST FOOD DISCOVERY */}
-              {isVibeQuestEnabled && vibeQuestQuestion && vibeQuestQuestion.stage === 'food' && (
-                <VibeQuestCard
-                  question={vibeQuestQuestion}
-                  selectedAnswerIds={vibeQuestSelectedAnswers}
-                  reactionMessage={reactionMessage}
-                  theme={theme}
-                  isMobile={isMobile}
-                  onSelectAnswer={handleSelectAnswer}
-                  onSkip={handleSkipQuestion}
-                  onDismiss={handleDismissDiscovery}
-                />
-              )}
 
-              {/* VIBE QUEST FOOD RECOMMENDATIONS */}
-              {isVibeQuestEnabled && showRecsInline && vibeQuestRecs.length > 0 && currentStage === 'food' && (
-                <VibeQuestRecommendations
-                  recommendations={vibeQuestRecs}
-                  theme={theme}
-                  isMobile={isMobile}
-                  onSelectProduct={handleSelectRecommendation}
-                  onDismiss={handleDismissDiscovery}
-                />
-              )}
 
               <View style={styles.subcatBar}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subcatScroll}>
@@ -1055,30 +1060,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
           {/* STEP 5: PROMPT DRINKS & DESSERT DISCOVERY */}
           {step === 'prompt_drink' && (
             <ScrollView contentContainerStyle={[{ paddingBottom: 30 }, isMobile ? { paddingHorizontal: 4 } : { paddingHorizontal: 16 }]} showsVerticalScrollIndicator={false}>
-              {/* VIBE QUEST DESSERT DISCOVERY */}
-              {isVibeQuestEnabled && vibeQuestQuestion && vibeQuestQuestion.stage === 'dessert' && (
-                <VibeQuestCard
-                  question={vibeQuestQuestion}
-                  selectedAnswerIds={vibeQuestSelectedAnswers}
-                  reactionMessage={reactionMessage}
-                  theme={theme}
-                  isMobile={isMobile}
-                  onSelectAnswer={handleSelectAnswer}
-                  onSkip={handleSkipQuestion}
-                  onDismiss={handleDismissDiscovery}
-                />
-              )}
 
-              {/* VIBE QUEST DESSERT RECOMMENDATIONS */}
-              {isVibeQuestEnabled && showRecsInline && vibeQuestRecs.length > 0 && currentStage === 'dessert' && (
-                <VibeQuestRecommendations
-                  recommendations={vibeQuestRecs}
-                  theme={theme}
-                  isMobile={isMobile}
-                  onSelectProduct={handleSelectRecommendation}
-                  onDismiss={handleDismissDiscovery}
-                />
-              )}
 
               <View style={[styles.promptActionsRow, isMobile && { flexDirection: 'column', gap: 12 }]}>
                 <TouchableOpacity
@@ -1105,30 +1087,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
           {/* STEP 6: SELECT DRINK */}
           {step === 'select_drink' && (
             <View style={{ flex: 1 }}>
-              {/* VIBE QUEST DRINK DISCOVERY */}
-              {isVibeQuestEnabled && vibeQuestQuestion && vibeQuestQuestion.stage === 'drinks' && (
-                <VibeQuestCard
-                  question={vibeQuestQuestion}
-                  selectedAnswerIds={vibeQuestSelectedAnswers}
-                  reactionMessage={reactionMessage}
-                  theme={theme}
-                  isMobile={isMobile}
-                  onSelectAnswer={handleSelectAnswer}
-                  onSkip={handleSkipQuestion}
-                  onDismiss={handleDismissDiscovery}
-                />
-              )}
 
-              {/* VIBE QUEST DRINK RECOMMENDATIONS */}
-              {isVibeQuestEnabled && showRecsInline && vibeQuestRecs.length > 0 && currentStage === 'drinks' && (
-                <VibeQuestRecommendations
-                  recommendations={vibeQuestRecs}
-                  theme={theme}
-                  isMobile={isMobile}
-                  onSelectProduct={handleSelectRecommendation}
-                  onDismiss={handleDismissDiscovery}
-                />
-              )}
 
               <View style={styles.subcatBar}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subcatScroll}>
@@ -1255,30 +1214,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
           {/* STEP 7: REVIEW SUMMARY */}
           {step === 'review_summary' && (
             <View style={[styles.reviewContainer, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}>
-              {/* VIBE QUEST CHECKOUT DISCOVERY NUDGE */}
-              {isVibeQuestEnabled && vibeQuestQuestion && vibeQuestQuestion.stage === 'checkout' && (
-                <VibeQuestCard
-                  question={vibeQuestQuestion}
-                  selectedAnswerIds={vibeQuestSelectedAnswers}
-                  reactionMessage={reactionMessage}
-                  theme={theme}
-                  isMobile={isMobile}
-                  onSelectAnswer={handleSelectAnswer}
-                  onSkip={handleSkipQuestion}
-                  onDismiss={handleDismissDiscovery}
-                />
-              )}
 
-              {/* VIBE QUEST CHECKOUT RECOMMENDATIONS */}
-              {isVibeQuestEnabled && showRecsInline && vibeQuestRecs.length > 0 && currentStage === 'checkout' && (
-                <VibeQuestRecommendations
-                  recommendations={vibeQuestRecs}
-                  theme={theme}
-                  isMobile={isMobile}
-                  onSelectProduct={handleSelectRecommendation}
-                  onDismiss={handleDismissDiscovery}
-                />
-              )}
 
               <View style={[styles.reviewHeader, { borderBottomColor: theme.borderColor }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -1426,6 +1362,26 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Vibe Quest Stage Transition Modal */}
+      <VibeQuestTransitionModal
+        visible={transitionModal.visible}
+        stage={transitionModal.stage}
+        nextStageLabel={transitionModal.nextStageLabel}
+        config={vibeQuestConfig}
+        allMenuItems={allMenuItems}
+        cartItems={cartItems || []}
+        theme={theme}
+        isMobile={isMobile}
+        restaurantId={restaurantId}
+        tableNumber={tableNumber}
+        onAddToCart={onAddToCart}
+        onUpdateQuantity={onUpdateQuantity}
+        onRemoveItem={onRemoveItem}
+        onProceed={handleProceedFromTransitionModal}
+        onClose={handleProceedFromTransitionModal}
+        onOpenMixLab={onOpenMixLab}
+      />
     </View>
   );
 };
