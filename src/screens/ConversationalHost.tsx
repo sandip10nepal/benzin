@@ -17,7 +17,6 @@ import {
   ShoppingBag,
   Plus,
   Minus,
-  Sparkles,
   X
 } from 'lucide-react-native';
 import { useRestaurantTheme } from '../theme/ThemeContext';
@@ -716,7 +715,6 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <View style={[styles.hostAvatar, { width: 40, height: 40, borderRadius: 20, borderColor: '#E5B13A', backgroundColor: 'rgba(74,46,27,0.5)' }]}>
                   <Bot size={22} color="#F3E5AB" />
-                  <Sparkles size={9} color="#E5B13A" style={{ position: 'absolute', top: -3, right: -3 }} />
                 </View>
                 <View>
                   <Text style={{ color: '#E5B13A', fontWeight: '900', fontSize: 12, letterSpacing: 1 }}>
@@ -921,7 +919,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
 
               <TouchableOpacity
                 activeOpacity={0.88}
-                onPress={() => setStep('prompt_drink')}
+                onPress={() => handleRequestTransition('food', 'prompt_drink', 'Drinks Menu')}
                 style={[styles.promptChoiceCard, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }, isMobile && { padding: 20, width: '100%' }]}
               >
                 <Text style={[styles.promptIcon, isMobile && { fontSize: 36, marginBottom: 8 }]}>⏩</Text>
@@ -1074,7 +1072,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
 
                 <TouchableOpacity
                   activeOpacity={0.88}
-                  onPress={() => handleProceedToNextStep('review_summary')}
+                  onPress={() => handleRequestTransition('drinks', 'review_summary', 'Review Order')}
                   style={[styles.promptChoiceCard, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }, isMobile && { padding: 20, width: '100%' }]}
                 >
                   <Text style={[styles.promptIcon, isMobile && { fontSize: 36, marginBottom: 8 }]}>📋</Text>

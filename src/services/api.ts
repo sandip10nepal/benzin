@@ -9,6 +9,10 @@ export const getBaseUrl = (): string => {
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
       return 'http://localhost:3000';
     }
+    // Always route to live Cloud Run backend when running on Cloud Run or web
+    if (window.location.hostname.includes('run.app') || window.location.hostname.includes('hookah-lounge')) {
+      return BACKEND_TUNNEL_URL;
+    }
     if (window.location.origin) {
       return window.location.origin;
     }
@@ -29,7 +33,7 @@ export const getBaseUrl = (): string => {
     }
   }
 
-  return 'http://localhost:3000';
+  return BACKEND_TUNNEL_URL;
 };
 
 export const getApiHeaders = (extraHeaders?: Record<string, string>): Record<string, string> => {
@@ -114,9 +118,8 @@ export class TenantApiService {
    */
   private static async resilientFetch(path: string, init?: RequestInit): Promise<Response> {
     const candidateBases = Array.from(new Set([
-      getBaseUrl(),
-      'https://benzin-backend-833090629754.us-central1.run.app',
       BACKEND_TUNNEL_URL,
+      getBaseUrl(),
       'http://localhost:3000',
     ])).filter(Boolean);
 
@@ -140,6 +143,13 @@ export class TenantApiService {
           signal: controller.signal,
         });
         clearTimeout(timeoutId);
+
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('text/html')) {
+          console.warn(`[TenantApi] Attempt to ${fullUrl} returned HTML (SPA fallback), skipping to next backend candidate...`);
+          continue;
+        }
+
         if (res.ok || res.status < 500) {
           return res;
         }

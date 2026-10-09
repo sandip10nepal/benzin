@@ -9,7 +9,7 @@ import {
   Image, 
   TextInput 
 } from 'react-native';
-import { X, Check, Sparkles, Plus } from 'lucide-react-native';
+import { X, Check, Plus } from 'lucide-react-native';
 import { useRestaurantTheme } from '../../theme/ThemeContext';
 import { MenuItem, SelectedModifier, ModifierOption, ModifierGroup } from '../../types';
 import { QuantitySelector } from '../ui/QuantitySelector';
@@ -517,7 +517,7 @@ const processDakuAddToCart = (isDaku: boolean) => {
                   : { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: theme.borderColor, borderWidth: 1, opacity: 0.6 }
               ]}
             >
-              <Sparkles size={20} color={item.available !== false ? "#22C55E" : theme.mutedTextColor} />
+              <Plus size={20} color={item.available !== false ? "#22C55E" : theme.mutedTextColor} />
               <Text style={[styles.addBtnText, { color: item.available !== false ? '#22C55E' : theme.mutedTextColor }]}>
                 {item.available !== false ? `ADD TO ORDER — $${calculatedPrice.toFixed(2)}` : 'CURRENTLY UNAVAILABLE'}
               </Text>

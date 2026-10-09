@@ -1,4 +1,4 @@
-import { ArrowLeft, Bell, Bot, Clock, LogOut, ShoppingBag, Sparkles, Sun, Moon } from 'lucide-react-native';
+import { ArrowLeft, Bell, Bot, Clock, LogOut, ShoppingBag, Sun, Moon } from 'lucide-react-native';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, Image } from 'react-native';
 import { useRestaurantTheme } from '../../theme/ThemeContext';
@@ -108,7 +108,6 @@ export const BenzinHeader: React.FC<BenzinHeaderProps> = ({
           >
             <View style={{ position: 'relative' }}>
               <Bot size={isMobilePhone ? 16 : 18} color="#F3E5AB" />
-              <Sparkles size={isMobilePhone ? 7 : 9} color="#E5B13A" style={{ position: 'absolute', top: -3, right: -3 }} />
             </View>
             {!isMobilePhone && (
               <Text style={[styles.actionBtnText, { color: '#F3E5AB', maxWidth: 140 }]} numberOfLines={1}>

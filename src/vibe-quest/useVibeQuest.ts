@@ -91,9 +91,12 @@ export function useVibeQuest({
 
       try {
         // Load published config via resilient fetch
-        const res = await TenantApiService.resilientFetchPublic(`/api/vibe-quest`, {
-          headers: { 'X-Restaurant-ID': restaurantId },
-        });
+        const res = await TenantApiService.resilientFetchPublic(
+          `/api/vibe-quest?restaurantId=${encodeURIComponent(restaurantId)}`,
+          {
+            headers: { 'X-Restaurant-ID': restaurantId },
+          }
+        );
         const data = await res.json();
 
         if (isMounted && data.success && data.config && data.config.enabled) {

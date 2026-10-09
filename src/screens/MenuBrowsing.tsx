@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { DakuUpgradeModal } from '../components/DakuUpgradeModal';
 import { 
   View, 
@@ -9,7 +9,7 @@ import {
   Image, 
   TextInput
 } from 'react-native';
-import { Search, Plus, Minus, X, Check, ShoppingBag } from 'lucide-react-native';
+import { Search, Plus, Minus, X, Check, ShoppingBag, ArrowRight } from 'lucide-react-native';
 import { useRestaurantTheme } from '../theme/ThemeContext';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { BenzinHeader } from '../components/Navigation/BenzinHeader';
@@ -18,6 +18,9 @@ import { MenuItem, SelectedModifier, CartItem, ConversationStep } from '../types
 import { MENU_IMAGES, getItemImageSource } from '../data/menu_images';
 import { itemRequiresModifierSelection, getActionLabelForItem } from '../utils/modifierUtils';
 import { DEFAULT_HOOKAH_BASES, DAKU_PACKAGE } from '../data/hookahMixData';
+import { VibeQuestTransitionModal } from '../components/VibeQuest/VibeQuestTransitionModal';
+import { VibeQuestConfig, VibeQuestStage } from '../vibe-quest/vibe-quest.types';
+import { TenantApiService } from '../services/api';
 
 interface MenuBrowsingProps {
   onBack: () => void;
@@ -37,6 +40,8 @@ interface MenuBrowsingProps {
   allCategories?: any[];
   allMenuItems: MenuItem[];
   hookahConfig?: any;
+  restaurantId?: string;
+  tableNumber?: string;
 }
 
 interface HouseMixItemCardProps {
@@ -322,6 +327,8 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
   allCategories,
   allMenuItems,
   hookahConfig,
+  restaurantId,
+  tableNumber,
 }) => {
   const { theme } = useRestaurantTheme();
   const layout = useResponsiveLayout();
@@ -333,6 +340,64 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Vibe Quest Discovery State & Config
+  const [vibeQuestConfig, setVibeQuestConfig] = useState<VibeQuestConfig | null>(null);
+  const [completedStages, setCompletedStages] = useState<Set<string>>(new Set());
+  const [transitionModal, setTransitionModal] = useState<{
+    visible: boolean;
+    stage: VibeQuestStage;
+    targetCatId: string | null;
+    nextStageLabel: string;
+  }>({
+    visible: false,
+    stage: 'hookah',
+    targetCatId: null,
+    nextStageLabel: 'Food Menu',
+  });
+
+  const effectiveRestaurantId = restaurantId || 'RES_EED4E9D266DF';
+  const effectiveTableNumber = tableNumber || theme.tableNumber || '1';
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadVibeQuest() {
+      try {
+        const res = await TenantApiService.resilientFetchPublic(
+          `/api/vibe-quest?restaurantId=${encodeURIComponent(effectiveRestaurantId)}`,
+          { headers: { 'X-Restaurant-ID': effectiveRestaurantId } }
+        );
+        const data = await res.json();
+        if (isMounted && data.success && data.config) {
+          setVibeQuestConfig(data.config);
+        }
+      } catch (err) {
+        console.warn('[MenuBrowsing] Could not load Vibe Quest config:', err);
+      }
+    }
+    loadVibeQuest();
+    return () => {
+      isMounted = false;
+    };
+  }, [effectiveRestaurantId]);
+
+  const isVibeQuestEnabled = useMemo(() => {
+    return !!(vibeQuestConfig && vibeQuestConfig.enabled !== false);
+  }, [vibeQuestConfig]);
+
+  const hasStageDiscoveryQuestions = useCallback((stageName: VibeQuestStage) => {
+    if (!vibeQuestConfig || !vibeQuestConfig.questions) return false;
+    return vibeQuestConfig.questions.some(
+      (q) => q.stage === stageName && q.active !== false
+    );
+  }, [vibeQuestConfig]);
+
+  const getStageForCategory = useCallback((catId: string): VibeQuestStage => {
+    const idLower = (catId || '').toLowerCase();
+    if (idLower.includes('hookah') || idLower.includes('shisha')) return 'hookah';
+    if (idLower.includes('drink') || idLower.includes('beverage') || idLower.includes('refresher') || idLower.includes('tea') || idLower.includes('coffee') || idLower.includes('soft')) return 'drinks';
+    return 'food';
+  }, []);
 
   const isGlobalSearch = searchQuery.trim().length > 0;
 
@@ -513,6 +578,145 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
     setActiveSubCatId('ALL');
   }, [activeSuperCatId]);
 
+  const handleSuperCategoryChange = useCallback((targetCatId: string) => {
+    if (targetCatId === activeSuperCatId) return;
+
+    if (activeSuperCatId !== 'ALL') {
+      const fromStage = getStageForCategory(activeSuperCatId);
+      const toStage = getStageForCategory(targetCatId);
+
+      if (
+        fromStage !== toStage &&
+        isVibeQuestEnabled &&
+        !completedStages.has(fromStage) &&
+        hasStageDiscoveryQuestions(fromStage)
+      ) {
+        setTransitionModal({
+          visible: true,
+          stage: fromStage,
+          targetCatId,
+          nextStageLabel: toStage === 'drinks' ? 'Drinks Menu' : toStage === 'food' ? 'Food Menu' : 'Hookah Menu',
+        });
+        return;
+      }
+    }
+
+    setActiveSuperCatId(targetCatId);
+    setActiveSubCatId('ALL');
+  }, [activeSuperCatId, getStageForCategory, isVibeQuestEnabled, completedStages, hasStageDiscoveryQuestions]);
+
+  const handleProceedFromTransitionModal = useCallback(() => {
+    const stageCompleted = transitionModal.stage;
+    const targetCatId = transitionModal.targetCatId;
+    setCompletedStages(prev => new Set(prev).add(stageCompleted));
+    setTransitionModal(prev => ({ ...prev, visible: false }));
+
+    if (targetCatId) {
+      setActiveSuperCatId(targetCatId);
+      setActiveSubCatId('ALL');
+    } else if (stageCompleted === 'drinks') {
+      onOpenCart();
+    }
+  }, [transitionModal, onOpenCart]);
+
+  const handleTriggerDiscovery = useCallback((stageToTrigger: VibeQuestStage) => {
+    setTransitionModal({
+      visible: true,
+      stage: stageToTrigger,
+      targetCatId: null,
+      nextStageLabel: stageToTrigger === 'hookah' ? 'Food Menu' : stageToTrigger === 'food' ? 'Drinks Menu' : 'Review Cart',
+    });
+  }, []);
+
+  const handleBottomNavAdvance = useCallback(() => {
+    const currentStage = getStageForCategory(activeSuperCatId);
+
+    if (currentStage === 'hookah') {
+      const targetCatId = 'CAT_APPETIZERS';
+      if (isVibeQuestEnabled && !completedStages.has('hookah') && hasStageDiscoveryQuestions('hookah')) {
+        setTransitionModal({
+          visible: true,
+          stage: 'hookah',
+          targetCatId,
+          nextStageLabel: 'Food Menu',
+        });
+        return;
+      }
+      setActiveSuperCatId(targetCatId);
+      setActiveSubCatId('ALL');
+      return;
+    }
+
+    if (currentStage === 'food') {
+      const targetCatId = 'cat_super_drinks';
+      if (isVibeQuestEnabled && !completedStages.has('food') && hasStageDiscoveryQuestions('food')) {
+        setTransitionModal({
+          visible: true,
+          stage: 'food',
+          targetCatId,
+          nextStageLabel: 'Drinks Menu',
+        });
+        return;
+      }
+      setActiveSuperCatId(targetCatId);
+      setActiveSubCatId('ALL');
+      return;
+    }
+
+    if (currentStage === 'drinks') {
+      if (isVibeQuestEnabled && !completedStages.has('drinks') && hasStageDiscoveryQuestions('drinks')) {
+        setTransitionModal({
+          visible: true,
+          stage: 'drinks',
+          targetCatId: null,
+          nextStageLabel: 'Review Cart',
+        });
+        return;
+      }
+      onOpenCart();
+      return;
+    }
+
+    // If ALL
+    if (isVibeQuestEnabled && !completedStages.has('hookah') && hasStageDiscoveryQuestions('hookah')) {
+      setTransitionModal({
+        visible: true,
+        stage: 'hookah',
+        targetCatId: 'CAT_APPETIZERS',
+        nextStageLabel: 'Food Menu',
+      });
+    } else {
+      setActiveSuperCatId('cat_super_hookah');
+      setActiveSubCatId('ALL');
+    }
+  }, [activeSuperCatId, getStageForCategory, isVibeQuestEnabled, completedStages, hasStageDiscoveryQuestions, onOpenCart]);
+
+  const bottomNavProps = useMemo(() => {
+    const stage = getStageForCategory(activeSuperCatId);
+    if (stage === 'hookah') {
+      return {
+        primaryText: 'EXPLORE FOOD',
+        primaryIcon: 'next' as const,
+      };
+    }
+    if (stage === 'food') {
+      return {
+        primaryText: 'EXPLORE DRINKS',
+        primaryIcon: 'next' as const,
+      };
+    }
+    if (stage === 'drinks') {
+      return {
+        primaryText: 'VIEW CART',
+        primaryIcon: 'cart' as const,
+      };
+    }
+    return {
+      primaryText: 'VIBE QUEST',
+      primaryIcon: 'next' as const,
+    };
+  }, [activeSuperCatId, getStageForCategory]);
+
   // 3. Filtered Items with deterministic category-sequence grouping and multi-category support
   const filteredItems = useMemo(() => {
     const activeItems = (allMenuItems || []).filter(i => i.active !== false && i.available !== false && (i as any).is_available !== false);
@@ -674,6 +878,44 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
           </View>
         )}
 
+        {/* Vibe Quest Discovery Banner */}
+        {!isGlobalSearch && isVibeQuestEnabled && (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => handleTriggerDiscovery(getStageForCategory(activeSuperCatId))}
+            style={[
+              styles.vibeQuestBanner,
+              {
+                backgroundColor: 'rgba(229,177,58,0.12)',
+                borderColor: '#E5B13A',
+              }
+            ]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+              <Text style={{ fontSize: 20 }}>
+                {getStageForCategory(activeSuperCatId) === 'hookah' ? '💨' : getStageForCategory(activeSuperCatId) === 'drinks' ? '🍹' : '🍔'}
+              </Text>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ color: '#E5B13A', fontWeight: '900', fontSize: 12, letterSpacing: 1 }}>
+                    CAVALLI VIBE QUEST
+                  </Text>
+                  <View style={{ backgroundColor: '#10B981', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6 }}>
+                    <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '900' }}>RECOMMENDED</Text>
+                  </View>
+                </View>
+                <Text style={{ color: theme.textColor, fontSize: 11, fontWeight: '600' }} numberOfLines={1}>
+                  Tap for interactive {getStageForCategory(activeSuperCatId).toUpperCase()} questions & recommendations
+                </Text>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#E5B13A', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 }}>
+              <Text style={{ color: '#000000', fontSize: 11, fontWeight: '900' }}>DISCOVER</Text>
+              <ArrowRight size={13} color="#000000" />
+            </View>
+          </TouchableOpacity>
+        )}
+
         {/* Super Categories Selector Tabs */}
         {!isGlobalSearch && superCategories.length > 1 && (
           <View style={styles.supercatRow}>
@@ -684,10 +926,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
                   <TouchableOpacity
                     key={sup._id || `sup_${idx}`}
                     activeOpacity={0.8}
-                    onPress={() => {
-                      setActiveSuperCatId(sup._id);
-                      setActiveSubCatId('ALL');
-                    }}
+                    onPress={() => handleSuperCategoryChange(sup._id)}
                     style={[
                       styles.supercatTab,
                       { backgroundColor: theme.cardColor, borderColor: theme.borderColor },
@@ -945,6 +1184,29 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
         onBack={onBack}
         backText="HOME"
         totalCartSubtotal={cartSubtotal}
+        primaryText={bottomNavProps.primaryText}
+        primaryIcon={bottomNavProps.primaryIcon}
+        onPrimaryAction={handleBottomNavAdvance}
+      />
+
+      {/* Vibe Quest Stage Transition Discovery Modal */}
+      <VibeQuestTransitionModal
+        visible={transitionModal.visible}
+        stage={transitionModal.stage}
+        nextStageLabel={transitionModal.nextStageLabel}
+        config={vibeQuestConfig}
+        allMenuItems={allMenuItems}
+        cartItems={cartItems || []}
+        theme={theme}
+        isMobile={isMobile}
+        restaurantId={effectiveRestaurantId}
+        tableNumber={effectiveTableNumber}
+        onAddToCart={onAddToCart || (() => {})}
+        onUpdateQuantity={onUpdateQuantity}
+        onRemoveItem={onRemoveItem}
+        onProceed={handleProceedFromTransitionModal}
+        onClose={handleProceedFromTransitionModal}
+        onOpenMixLab={onOpenMixLab}
       />
     </View>
   );
@@ -1067,6 +1329,19 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '900',
     letterSpacing: 0.5,
+  },
+  vibeQuestBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    marginBottom: 10,
+    maxWidth: 1040,
+    alignSelf: 'center',
+    width: '100%',
   },
   supercatRow: {
     marginBottom: 8,

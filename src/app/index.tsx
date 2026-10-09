@@ -138,6 +138,8 @@ function MainAppContent() {
           allCategories={allCategories}
           allMenuItems={allMenuItems}
           hookahConfig={hookahConfig}
+          restaurantId={pairedRestaurantId || 'RES_EED4E9D266DF'}
+          tableNumber={pairedTableNumber || '1'}
         />
       )}
 

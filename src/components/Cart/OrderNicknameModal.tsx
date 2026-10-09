@@ -10,7 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { User, Sparkles, X } from 'lucide-react-native';
+import { User, Check, X } from 'lucide-react-native';
 import { useRestaurantTheme } from '../../theme/ThemeContext';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 
@@ -142,7 +142,7 @@ export const OrderNicknameModal: React.FC<OrderNicknameModalProps> = ({
                   activeOpacity={0.85}
                   style={[styles.submitBtn, { backgroundColor: '#10B981' }]}
                 >
-                  <Sparkles size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Check size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
                   <Text style={styles.submitBtnText}>CONFIRM & SUBMIT</Text>
                 </TouchableOpacity>
               </View>
