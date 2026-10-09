@@ -20,6 +20,7 @@ import { itemRequiresModifierSelection, getActionLabelForItem } from '../utils/m
 import { DEFAULT_HOOKAH_BASES, DAKU_PACKAGE } from '../data/hookahMixData';
 import { VibeQuestTransitionModal } from '../components/VibeQuest/VibeQuestTransitionModal';
 import { VibeQuestConfig, VibeQuestStage } from '../vibe-quest/vibe-quest.types';
+import { DEFAULT_VIBE_QUEST_CONFIG } from '../vibe-quest/vibe-quest.default';
 import { TenantApiService } from '../services/api';
 
 interface MenuBrowsingProps {
@@ -342,7 +343,11 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Vibe Quest Discovery State & Config
-  const [vibeQuestConfig, setVibeQuestConfig] = useState<VibeQuestConfig | null>(null);
+  const [vibeQuestConfig, setVibeQuestConfig] = useState<VibeQuestConfig>(DEFAULT_VIBE_QUEST_CONFIG);
+  const [selectedVibeAnswers, setSelectedVibeAnswers] = useState<Record<string, string[]>>({});
+  const [activeQuestionByStage, setActiveQuestionByStage] = useState<Record<string, string>>({});
+  const [vibeReactionMessage, setVibeReactionMessage] = useState<string | null>(null);
+  const [isVibeSectionDismissed, setIsVibeSectionDismissed] = useState<boolean>(false);
   const [completedStages, setCompletedStages] = useState<Set<string>>(new Set());
   const [transitionModal, setTransitionModal] = useState<{
     visible: boolean;
@@ -394,8 +399,9 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
 
   const getStageForCategory = useCallback((catId: string): VibeQuestStage => {
     const idLower = (catId || '').toLowerCase();
-    if (idLower.includes('hookah') || idLower.includes('shisha')) return 'hookah';
+    if (idLower === 'all' || idLower.includes('hookah') || idLower.includes('shisha')) return 'hookah';
     if (idLower.includes('drink') || idLower.includes('beverage') || idLower.includes('refresher') || idLower.includes('tea') || idLower.includes('coffee') || idLower.includes('soft')) return 'drinks';
+    if (idLower.includes('dessert')) return 'dessert';
     return 'food';
   }, []);
 
@@ -523,6 +529,78 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
   }, [allCategories]);
 
   const [activeSuperCatId, setActiveSuperCatId] = useState<string>('ALL');
+
+  const currentStage = useMemo<VibeQuestStage>(() => {
+    return getStageForCategory(activeSuperCatId);
+  }, [getStageForCategory, activeSuperCatId]);
+
+  const currentStageQuestions = useMemo(() => {
+    return (vibeQuestConfig?.questions || [])
+      .filter((q) => (currentStage === 'hookah' ? q.stage === 'hookah' : currentStage === 'drinks' ? q.stage === 'drinks' : currentStage === 'dessert' ? q.stage === 'dessert' : q.stage === 'food') && q.active !== false)
+      .sort((a, b) => a.sort_order - b.sort_order);
+  }, [vibeQuestConfig, currentStage]);
+
+  const currentVibeQuestion = useMemo(() => {
+    if (currentStageQuestions.length === 0) return null;
+    const explicitQId = activeQuestionByStage[currentStage];
+    if (explicitQId) {
+      const match = currentStageQuestions.find((q) => q.id === explicitQId);
+      if (match) return match;
+    }
+    return currentStageQuestions[0];
+  }, [currentStageQuestions, activeQuestionByStage, currentStage]);
+
+  const hasNextStageQuestion = useMemo(() => {
+    return currentStageQuestions.length > 1;
+  }, [currentStageQuestions]);
+
+  const handleSelectInlineAnswer = useCallback((questionId: string, answerId: string) => {
+    setSelectedVibeAnswers((prev) => ({
+      ...prev,
+      [questionId]: [answerId],
+    }));
+
+    if (!vibeQuestConfig) return;
+    const q = vibeQuestConfig.questions.find((item) => item.id === questionId);
+    if (!q) return;
+    const ans = q.answers.find((a) => a.id === answerId);
+    if (!ans) return;
+
+    if (vibeQuestConfig.settings?.reactions && ans.signals) {
+      for (const sig of ans.signals) {
+        if (vibeQuestConfig.settings.reactions[sig]) {
+          setVibeReactionMessage(vibeQuestConfig.settings.reactions[sig]);
+          return;
+        }
+      }
+    }
+    if (ans.description) {
+      setVibeReactionMessage(ans.description);
+    } else {
+      setVibeReactionMessage(null);
+    }
+  }, [vibeQuestConfig]);
+
+  const handleNextInlineQuestion = useCallback(() => {
+    if (!currentVibeQuestion || currentStageQuestions.length <= 1) return;
+    const curIdx = currentStageQuestions.findIndex((q) => q.id === currentVibeQuestion.id);
+    const nextIdx = (curIdx + 1) % currentStageQuestions.length;
+    const nextQ = currentStageQuestions[nextIdx];
+    setActiveQuestionByStage((prev) => ({
+      ...prev,
+      [currentStage]: nextQ.id,
+    }));
+    setVibeReactionMessage(null);
+  }, [currentVibeQuestion, currentStageQuestions, currentStage]);
+
+  const handleResetVibe = useCallback((questionId: string) => {
+    setSelectedVibeAnswers((prev) => {
+      const next = { ...prev };
+      delete next[questionId];
+      return next;
+    });
+    setVibeReactionMessage(null);
+  }, []);
 
   // 2. Sub Categories for active Category (especially for Drinks and Hookah sub-groups)
   const activeSubCategories = useMemo(() => {
@@ -665,12 +743,28 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
 
   const stageRecommendations = useMemo<MenuItem[]>(() => {
     if (!allMenuItems || allMenuItems.length === 0) return [];
-    const currentStage = getStageForCategory(activeSuperCatId);
+
+    const activeQ = currentVibeQuestion;
+    const selectedAnsIds = (activeQ && selectedVibeAnswers[activeQ.id]) || [];
 
     const pinnedIds: string[] = [];
+
+    // 1. First priority: pinned products of user's active answer selection
+    if (activeQ && selectedAnsIds.length > 0) {
+      activeQ.answers
+        .filter((a) => selectedAnsIds.includes(a.id))
+        .forEach((a) => {
+          const p = (a as any).pinned_product_ids || (a as any).curated_product_ids || [];
+          p.forEach((pid: string) => {
+            if (pid && !pinnedIds.includes(pid)) pinnedIds.push(pid);
+          });
+        });
+    }
+
+    // 2. Second priority: pinned products across all stage questions
     if (vibeQuestConfig?.questions) {
       vibeQuestConfig.questions
-        .filter((q) => (currentStage === 'hookah' ? q.stage === 'hookah' : currentStage === 'drinks' ? q.stage === 'drinks' : q.stage === 'food' || q.stage === 'dessert') && q.active !== false)
+        .filter((q) => (currentStage === 'hookah' ? q.stage === 'hookah' : currentStage === 'drinks' ? q.stage === 'drinks' : currentStage === 'dessert' ? q.stage === 'dessert' : q.stage === 'food') && q.active !== false)
         .forEach((q) => {
           (q.answers || []).forEach((a) => {
             const p = (a as any).pinned_product_ids || (a as any).curated_product_ids || [];
@@ -689,20 +783,21 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
       }
     });
 
-    if (recs.length < 3) {
+    if (recs.length < 4) {
       const fallbacks = allMenuItems.filter((m) => {
         if (recs.some((r) => (r.id || (r as any)._id) === (m.id || (m as any)._id))) return false;
         if (m.available === false) return false;
         const cat = (m.category || (m as any).category_id || '').toLowerCase();
         if (currentStage === 'hookah') return cat.includes('hookah');
         if (currentStage === 'drinks') return cat.includes('drink') || cat.includes('beverage');
+        if (currentStage === 'dessert') return cat.includes('dessert');
         return cat.includes('food') || cat.includes('appetizer') || cat.includes('main');
-      }).slice(0, 3 - recs.length);
+      }).slice(0, 4 - recs.length);
       recs.push(...fallbacks);
     }
 
-    return recs.slice(0, 3);
-  }, [allMenuItems, activeSuperCatId, vibeQuestConfig, getStageForCategory, matchProductById]);
+    return recs.slice(0, 6);
+  }, [allMenuItems, currentStage, currentVibeQuestion, selectedVibeAnswers, vibeQuestConfig, matchProductById]);
 
   const handleBottomNavAdvance = useCallback(() => {
     const currentStage = getStageForCategory(activeSuperCatId);
@@ -954,41 +1049,206 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
           </View>
         )}
 
-        {/* Vibe Quest Discovery Banner */}
-        {!isGlobalSearch && isVibeQuestEnabled && (
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={() => handleTriggerDiscovery(getStageForCategory(activeSuperCatId))}
-            style={[
-              styles.vibeQuestBanner,
-              {
-                backgroundColor: 'rgba(229,177,58,0.12)',
-                borderColor: '#E5B13A',
-              }
-            ]}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-              <Text style={{ fontSize: 20 }}>
-                {getStageForCategory(activeSuperCatId) === 'hookah' ? '💨' : getStageForCategory(activeSuperCatId) === 'drinks' ? '🍹' : '🍔'}
-              </Text>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={{ color: '#E5B13A', fontWeight: '900', fontSize: 12, letterSpacing: 1 }}>
-                    CAVALLI VIBE QUEST
-                  </Text>
-                  <View style={{ backgroundColor: '#10B981', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6 }}>
-                    <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '900' }}>RECOMMENDED</Text>
-                  </View>
-                </View>
-                <Text style={{ color: theme.textColor, fontSize: 11, fontWeight: '600' }} numberOfLines={1}>
-                  Tap for interactive {getStageForCategory(activeSuperCatId).toUpperCase()} questions & recommendations
+        {/* INLINE INTERACTIVE VIBE QUEST & LIVE RECOMMENDATIONS */}
+        {!isGlobalSearch && isVibeQuestEnabled && currentVibeQuestion && !isVibeSectionDismissed && (
+          <View style={[styles.inlineVibeContainer, { backgroundColor: theme.cardColor, borderColor: '#E5B13A' }]}>
+            {/* Header */}
+            <View style={styles.inlineVibeHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                <Text style={{ fontSize: 22 }}>
+                  {currentStage === 'hookah' ? '💨' : currentStage === 'drinks' ? '🍹' : currentStage === 'dessert' ? '🍰' : '🍽️'}
                 </Text>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={[styles.inlineVibeTitle, { color: '#E5B13A' }]}>
+                      {currentStage.toUpperCase()} VIBE QUEST
+                    </Text>
+                    <View style={styles.inlineVibeBadge}>
+                      <Text style={styles.inlineVibeBadgeText}>RECOMMENDED</Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.inlineVibeSub, { color: theme.mutedTextColor }]} numberOfLines={1}>
+                    {currentVibeQuestion.helper_text || 'Pick your mood for tailored recommendations'}
+                  </Text>
+                </View>
               </View>
+              <TouchableOpacity
+                onPress={() => setIsVibeSectionDismissed(true)}
+                style={styles.inlineVibeDismissBtn}
+                accessibilityLabel="Dismiss Vibe Quest"
+              >
+                <Text style={[styles.inlineVibeDismissText, { color: theme.mutedTextColor }]}>Hide ✕</Text>
+              </TouchableOpacity>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#E5B13A', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 }}>
-              <Text style={{ color: '#000000', fontSize: 11, fontWeight: '900' }}>DISCOVER</Text>
-              <ArrowRight size={13} color="#000000" />
+
+            {/* Question Text */}
+            <Text style={[styles.inlineVibeQuestionText, { color: theme.textColor }]}>
+              {currentVibeQuestion.question_text}
+            </Text>
+
+            {/* Reaction Banner if set */}
+            {vibeReactionMessage ? (
+              <View style={styles.inlineVibeReactionBanner}>
+                <Text style={styles.inlineVibeReactionText}>{vibeReactionMessage}</Text>
+              </View>
+            ) : null}
+
+            {/* Answers Grid */}
+            <View style={styles.inlineVibeAnswersGrid}>
+              {currentVibeQuestion.answers.map((ans) => {
+                const isSelected = (selectedVibeAnswers[currentVibeQuestion.id] || []).includes(ans.id);
+                return (
+                  <TouchableOpacity
+                    key={ans.id}
+                    activeOpacity={0.8}
+                    onPress={() => handleSelectInlineAnswer(currentVibeQuestion.id, ans.id)}
+                    style={[
+                      styles.inlineVibeAnswerCard,
+                      {
+                        backgroundColor: isSelected ? 'rgba(229, 177, 58, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                        borderColor: isSelected ? '#E5B13A' : theme.borderColor,
+                        borderWidth: isSelected ? 2 : 1,
+                      },
+                      isMobile ? { width: '100%' } : { width: '48%' },
+                    ]}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      {ans.emoji ? <Text style={{ fontSize: 18 }}>{ans.emoji}</Text> : null}
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.inlineVibeAnswerLabel, { color: isSelected ? '#E5B13A' : theme.textColor, fontWeight: isSelected ? '800' : '600' }]}>
+                          {ans.label}
+                        </Text>
+                        {ans.description ? (
+                          <Text style={[styles.inlineVibeAnswerDesc, { color: theme.mutedTextColor }]} numberOfLines={1}>
+                            {ans.description}
+                          </Text>
+                        ) : null}
+                      </View>
+                      {isSelected && (
+                        <View style={styles.inlineVibeCheckmark}>
+                          <Check size={12} color="#000000" />
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
+
+            {/* Question Controls Row */}
+            <View style={styles.inlineVibeControlsRow}>
+              {hasNextStageQuestion && (
+                <TouchableOpacity
+                  onPress={handleNextInlineQuestion}
+                  style={styles.inlineVibeNextBtn}
+                >
+                  <Text style={styles.inlineVibeNextBtnText}>Next Question →</Text>
+                </TouchableOpacity>
+              )}
+              {selectedVibeAnswers[currentVibeQuestion.id]?.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => handleResetVibe(currentVibeQuestion.id)}
+                  style={styles.inlineVibeResetBtn}
+                >
+                  <Text style={styles.inlineVibeResetBtnText}>Reset Vibe ↺</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* LIVE RECOMMENDATIONS SHELF INSIDE VIBE QUEST */}
+            {stageRecommendations.length > 0 && (
+              <View style={styles.inlineRecsShelf}>
+                <View style={styles.inlineRecsHeader}>
+                  <Text style={styles.inlineRecsTitle}>
+                    {selectedVibeAnswers[currentVibeQuestion.id]?.length > 0
+                      ? '🎯 RECOMMENDED FOR YOUR VIBE'
+                      : `🔥 TOP ${currentStage.toUpperCase()} PICKS`}
+                  </Text>
+                  <Text style={[styles.inlineRecsCount, { color: theme.mutedTextColor }]}>
+                    {stageRecommendations.length} {stageRecommendations.length === 1 ? 'item' : 'items'}
+                  </Text>
+                </View>
+
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.inlineRecsScroll}>
+                  {stageRecommendations.map((item) => {
+                    const count = itemQuantities[item.id] || 0;
+                    const imageSource = getItemImageSource(item);
+                    return (
+                      <View
+                        key={`inline_rec_${item.id}`}
+                        style={[
+                          styles.inlineRecCard,
+                          {
+                            backgroundColor: theme.mode === 'light' ? '#FFFFFF' : '#1F1F23',
+                            borderColor: count > 0 ? '#10B981' : theme.borderColor,
+                          }
+                        ]}
+                      >
+                        <TouchableOpacity
+                          onPress={() => onSelectItem(item)}
+                          activeOpacity={0.85}
+                          style={styles.inlineRecCardTop}
+                        >
+                          <View style={styles.inlineRecImgWrap}>
+                            {imageSource ? (
+                              <Image source={imageSource} style={styles.inlineRecImg} resizeMode="cover" />
+                            ) : (
+                              <Text style={{ fontSize: 24 }}>
+                                {item.category === 'hookah' ? '💨' : item.category === 'drinks' ? '🍹' : '🍔'}
+                              </Text>
+                            )}
+                          </View>
+                          <View style={{ flex: 1, paddingHorizontal: 10, paddingVertical: 8, justifyContent: 'center' }}>
+                            <Text style={[styles.inlineRecName, { color: theme.textColor }]} numberOfLines={1}>
+                              {item.name}
+                            </Text>
+                            <Text style={[styles.inlineRecPrice, { color: '#E5B13A' }]}>
+                              ${Number(item.price).toFixed(2)}
+                            </Text>
+                            {item.description ? (
+                              <Text style={[styles.inlineRecDesc, { color: theme.mutedTextColor }]} numberOfLines={1}>
+                                {item.description}
+                              </Text>
+                            ) : null}
+                          </View>
+                        </TouchableOpacity>
+
+                        <View style={{ paddingHorizontal: 10, paddingBottom: 8 }}>
+                          <TouchableOpacity
+                            onPress={() => {
+                              if (onAddToCart) onAddToCart(item, 1, []);
+                            }}
+                            activeOpacity={0.85}
+                            style={[
+                              styles.inlineRecAddBtn,
+                              { backgroundColor: count > 0 ? '#10B981' : '#E5B13A' }
+                            ]}
+                          >
+                            <Text style={[styles.inlineRecAddBtnText, { color: count > 0 ? '#FFFFFF' : '#000000' }]}>
+                              {count > 0 ? `✓ IN ORDER (${count}) +` : `+ ADD TO ORDER`}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Restore banner if minimized */}
+        {!isGlobalSearch && isVibeQuestEnabled && isVibeSectionDismissed && (
+          <TouchableOpacity
+            onPress={() => setIsVibeSectionDismissed(false)}
+            activeOpacity={0.85}
+            style={[styles.minimizedVibeBanner, { backgroundColor: theme.cardColor, borderColor: '#E5B13A' }]}
+          >
+            <Text style={{ fontSize: 16 }}>🎯</Text>
+            <Text style={[styles.minimizedVibeText, { color: '#E5B13A' }]}>
+              Show {currentStage.toUpperCase()} Vibe Quest Questions & Recommendations →
+            </Text>
           </TouchableOpacity>
         )}
 
@@ -1079,64 +1339,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
           </TouchableOpacity>
         )}
 
-        {/* Curated Recommendations Shelf */}
-        {!isGlobalSearch && isVibeQuestEnabled && stageRecommendations.length > 0 && (
-          <View style={styles.curatedShelfContainer}>
-            <View style={styles.curatedShelfHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={{ fontSize: 16 }}>🎯</Text>
-                <Text style={styles.curatedShelfTitle}>
-                  TOP CURATED {getStageForCategory(activeSuperCatId).toUpperCase()} PICKS
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => handleTriggerDiscovery(getStageForCategory(activeSuperCatId))}
-                activeOpacity={0.8}
-                style={{ paddingVertical: 2, paddingHorizontal: 6 }}
-              >
-                <Text style={styles.curatedShelfActionText}>Vibe Quest →</Text>
-              </TouchableOpacity>
-            </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.curatedShelfScroll}>
-              {stageRecommendations.map((item) => {
-                const count = itemQuantities[item.id] || 0;
-                const imageSource = getItemImageSource(item);
-                return (
-                  <View key={`curated_${item.id}`} style={[styles.curatedShelfCard, { backgroundColor: theme.cardColor, borderColor: count > 0 ? '#10B981' : theme.borderColor }]}>
-                    <TouchableOpacity onPress={() => onSelectItem(item)} activeOpacity={0.85} style={styles.curatedShelfCardInner}>
-                      <View style={styles.curatedShelfImgWrap}>
-                        {imageSource ? (
-                          <Image source={imageSource} style={styles.curatedShelfImg} resizeMode="cover" />
-                        ) : (
-                          <Text style={{ fontSize: 24 }}>{item.category === 'hookah' ? '💨' : item.category === 'drinks' ? '🍹' : '🍔'}</Text>
-                        )}
-                      </View>
-                      <View style={{ flex: 1, minWidth: 0, paddingHorizontal: 10, paddingVertical: 8 }}>
-                        <Text style={[styles.curatedShelfName, { color: theme.textColor }]} numberOfLines={1}>{item.name}</Text>
-                        <Text style={[styles.curatedShelfPrice, { color: theme.secondaryColor }]}>${item.price.toFixed(2)}</Text>
-                        {item.description ? (
-                          <Text style={[styles.curatedShelfDesc, { color: theme.mutedTextColor }]} numberOfLines={1}>{item.description}</Text>
-                        ) : null}
-                      </View>
-                    </TouchableOpacity>
-                    <View style={{ paddingHorizontal: 10, paddingBottom: 8 }}>
-                      <TouchableOpacity
-                        onPress={() => onAddToCart && onAddToCart(item, 1, [])}
-                        activeOpacity={0.85}
-                        style={[styles.curatedShelfAddBtn, { backgroundColor: count > 0 ? '#10B981' : '#E5B13A' }]}
-                      >
-                        <Text style={[styles.curatedShelfAddBtnText, { color: count > 0 ? '#FFFFFF' : '#000000' }]}>
-                          {count > 0 ? `✓ IN ORDER (${count}) +` : `+ ADD TO ORDER`}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                );
-              })}
-            </ScrollView>
-          </View>
-        )}
 
         {/* Menu Items Grid */}
         <ScrollView contentContainerStyle={[styles.gridContainer, { gap: isMobile ? 12 : 20 }]} showsVerticalScrollIndicator={false}>
@@ -1756,5 +1959,213 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '900',
     letterSpacing: 0.4,
+  },
+  inlineVibeContainer: {
+    marginHorizontal: 12,
+    marginTop: 6,
+    marginBottom: 14,
+    padding: 14,
+    borderRadius: 18,
+    borderWidth: 2,
+  },
+  inlineVibeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  inlineVibeTitle: {
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  inlineVibeBadge: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+  },
+  inlineVibeBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  inlineVibeSub: {
+    fontSize: 11,
+    marginTop: 1,
+  },
+  inlineVibeDismissBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  inlineVibeDismissText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  inlineVibeQuestionText: {
+    fontSize: 18,
+    fontWeight: '900',
+    marginBottom: 10,
+    lineHeight: 24,
+  },
+  inlineVibeReactionBanner: {
+    backgroundColor: 'rgba(229, 177, 58, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    marginBottom: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: '#E5B13A',
+  },
+  inlineVibeReactionText: {
+    color: '#E5B13A',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  inlineVibeAnswersGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
+  },
+  inlineVibeAnswerCard: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  inlineVibeAnswerLabel: {
+    fontSize: 13,
+  },
+  inlineVibeAnswerDesc: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  inlineVibeCheckmark: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#E5B13A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inlineVibeControlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginBottom: 12,
+  },
+  inlineVibeNextBtn: {
+    backgroundColor: '#E5B13A',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  inlineVibeNextBtnText: {
+    color: '#000000',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  inlineVibeResetBtn: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  inlineVibeResetBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  inlineRecsShelf: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+    paddingTop: 12,
+    marginTop: 2,
+  },
+  inlineRecsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  inlineRecsTitle: {
+    color: '#E5B13A',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  inlineRecsCount: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  inlineRecsScroll: {
+    gap: 12,
+    paddingVertical: 2,
+  },
+  inlineRecCard: {
+    width: 210,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    overflow: 'hidden',
+  },
+  inlineRecCardTop: {
+    flexDirection: 'column',
+  },
+  inlineRecImgWrap: {
+    width: '100%',
+    height: 96,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  inlineRecImg: {
+    width: '100%',
+    height: '100%',
+  },
+  inlineRecName: {
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  inlineRecPrice: {
+    fontSize: 13,
+    fontWeight: '900',
+    marginBottom: 2,
+  },
+  inlineRecDesc: {
+    fontSize: 10,
+  },
+  inlineRecAddBtn: {
+    borderRadius: 8,
+    paddingVertical: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inlineRecAddBtnText: {
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+  minimizedVibeBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 12,
+    marginTop: 6,
+    marginBottom: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  minimizedVibeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    flex: 1,
   },
 });

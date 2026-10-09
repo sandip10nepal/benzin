@@ -142,7 +142,7 @@ export class VibeQuestEngine {
     }
 
     if (question.repeat_policy === 'show_once') {
-      if (session.questions_shown.includes(question.id) || session.questions_skipped.includes(question.id)) return false;
+      if (session.questions_answered.includes(question.id) || session.questions_skipped.includes(question.id)) return false;
     }
 
     if (question.repeat_policy === 'suppress_if_skipped') {

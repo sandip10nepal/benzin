@@ -101,6 +101,10 @@ export interface VibeQuestConfigSettings {
   intro_title?: string;
   intro_subtitle?: string;
   reactions?: Record<string, string>;
+  mix_lab_destination?: string;
+  default_rec_count?: number;
+  diversity_limit_per_category?: number;
+  checkout_upsell_stage?: string;
 }
 
 export interface VibeQuestConfig {

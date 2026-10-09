@@ -10,6 +10,8 @@ import { VibeQuestEngine } from './vibe-quest.engine';
 import { MenuItem, CartItem } from '../types';
 import { TenantApiService } from '../services/api';
 
+import { DEFAULT_VIBE_QUEST_CONFIG } from './vibe-quest.default';
+
 interface UseVibeQuestProps {
   restaurantId?: string;
   tableNumber?: string;
@@ -33,13 +35,13 @@ export function useVibeQuest({
   onSelectItem,
   onNavigateStage,
 }: UseVibeQuestProps) {
-  const [config, setConfig] = useState<VibeQuestConfig | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [config, setConfig] = useState<VibeQuestConfig | null>(DEFAULT_VIBE_QUEST_CONFIG);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isDismissed, setIsDismissed] = useState<boolean>(false);
   const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null);
   const [reactionMessage, setReactionMessage] = useState<string | null>(null);
   const [recommendations, setRecommendations] = useState<MenuItem[]>([]);
-  const [showRecsInline, setShowRecsInline] = useState<boolean>(false);
+  const [showRecsInline, setShowRecsInline] = useState<boolean>(true);
 
   const [sessionState, setSessionState] = useState<VibeQuestSessionState>({
     answers: {},
@@ -113,6 +115,7 @@ export function useVibeQuest({
                   setSessionState((prev) => ({
                     ...prev,
                     ...parsed,
+                    questions_dismissed: [], // Clear stale dismissals across reloads
                     current_stage: currentStage,
                   }));
                 }
@@ -183,7 +186,8 @@ export function useVibeQuest({
       }
     }
 
-    return null;
+    // Fallback: return the first question of this stage so the user is always asked
+    return stageQuestions[0] || null;
   }, [config, isDismissed, currentStage, activeQuestionId, sessionState, cart]);
 
   // Track when question is shown
@@ -201,6 +205,31 @@ export function useVibeQuest({
       trackEvent('question_shown', { question_id: currentQuestion.id });
     }
   }, [currentQuestion, trackEvent]);
+
+  // Ensure recommendations are always populated for the active question and stage
+  useEffect(() => {
+    if (!config || !allMenuItems || allMenuItems.length === 0) return;
+    const activeQ = currentQuestion || (config.questions || []).find((q) => q.stage === currentStage && q.active !== false);
+    if (!activeQ) return;
+
+    const selectedAnswers = sessionState.answers[activeQ.id] || [];
+    const answerIds = selectedAnswers.length > 0
+      ? selectedAnswers
+      : (activeQ.answers?.[0] ? [activeQ.answers[0].id] : []);
+
+    const recs = VibeQuestEngine.rankRecommendations({
+      question: activeQ,
+      selectedAnswerIds: answerIds,
+      config,
+      catalogProducts: allMenuItems,
+      cart,
+      session: sessionState,
+    });
+    if (recs && recs.length > 0) {
+      setRecommendations(recs);
+      setShowRecsInline(true);
+    }
+  }, [config, currentQuestion, currentStage, sessionState.answers, allMenuItems, cart]);
 
   // Handle selecting an answer
   const handleSelectAnswer = useCallback(
@@ -250,6 +279,26 @@ export function useVibeQuest({
         }
       }
 
+      // Always update recommendations immediately for the selected answer
+      const recs = VibeQuestEngine.rankRecommendations({
+        question,
+        selectedAnswerIds: [answerId],
+        config,
+        catalogProducts: allMenuItems,
+        cart,
+        session: {
+          ...sessionState,
+          answers: { ...sessionState.answers, [questionId]: [answerId] },
+        },
+      });
+      if (recs && recs.length > 0) {
+        setRecommendations(recs);
+        setShowRecsInline(true);
+        recs.forEach((r) => {
+          trackEvent('recommendation_shown', { product_id: r._id || r.id });
+        });
+      }
+
       // Resolve destination
       const nextDest = VibeQuestEngine.resolveNextDestination(
         question,
@@ -265,22 +314,9 @@ export function useVibeQuest({
           }
           break;
 
-        case 'recommendations': {
-          const recs = VibeQuestEngine.rankRecommendations({
-            question,
-            selectedAnswerIds: [answerId],
-            config,
-            catalogProducts: allMenuItems,
-            cart,
-            session: sessionState,
-          });
-          setRecommendations(recs);
-          setShowRecsInline(true);
-          recs.forEach((r) => {
-            trackEvent('recommendation_shown', { product_id: r._id || r.id });
-          });
+        case 'recommendations':
+          // Recommendations already rendered above
           break;
-        }
 
         case 'custom_mix_lab':
           if (onOpenMixLab) onOpenMixLab();
@@ -356,6 +392,11 @@ export function useVibeQuest({
 
   return {
     isEnabled: !!config?.enabled && !isDismissed,
+    isDismissed,
+    reopenDiscovery: () => {
+      setIsDismissed(false);
+      setSessionState((prev) => ({ ...prev, questions_dismissed: [] }));
+    },
     isLoading,
     config,
     currentQuestion,

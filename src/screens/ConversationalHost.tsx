@@ -282,6 +282,8 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
 
   const {
     isEnabled: isVibeQuestEnabled,
+    isDismissed: isVibeQuestDismissed,
+    reopenDiscovery: handleReopenVibeQuest,
     config: vibeQuestConfig,
     currentQuestion: vibeQuestQuestion,
     recommendations: vibeQuestRecs,
@@ -887,6 +889,19 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
                 />
               )}
 
+              {isVibeQuestDismissed && (
+                <TouchableOpacity
+                  onPress={handleReopenVibeQuest}
+                  activeOpacity={0.85}
+                  style={[styles.vibeRestoreBanner, { backgroundColor: theme.cardColor, borderColor: '#E5B13A' }]}
+                >
+                  <Text style={{ fontSize: 16 }}>🎯</Text>
+                  <Text style={[styles.vibeRestoreText, { color: '#E5B13A' }]}>
+                    Show Hookah Vibe Quest questions & recommendations →
+                  </Text>
+                </TouchableOpacity>
+              )}
+
 
               {onOpenMixLab && (
                 <TouchableOpacity
@@ -983,6 +998,19 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
                   onSelectProduct={handleSelectVibeRec}
                   onDismiss={handleDismissDiscovery}
                 />
+              )}
+
+              {isVibeQuestDismissed && (
+                <TouchableOpacity
+                  onPress={handleReopenVibeQuest}
+                  activeOpacity={0.85}
+                  style={[styles.vibeRestoreBanner, { backgroundColor: theme.cardColor, borderColor: '#E5B13A' }]}
+                >
+                  <Text style={{ fontSize: 16 }}>🎯</Text>
+                  <Text style={[styles.vibeRestoreText, { color: '#E5B13A' }]}>
+                    Show Food Vibe Quest questions & recommendations →
+                  </Text>
+                </TouchableOpacity>
               )}
 
 
@@ -1159,6 +1187,19 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
                   onSelectProduct={handleSelectVibeRec}
                   onDismiss={handleDismissDiscovery}
                 />
+              )}
+
+              {isVibeQuestDismissed && (
+                <TouchableOpacity
+                  onPress={handleReopenVibeQuest}
+                  activeOpacity={0.85}
+                  style={[styles.vibeRestoreBanner, { backgroundColor: theme.cardColor, borderColor: '#E5B13A' }]}
+                >
+                  <Text style={{ fontSize: 16 }}>🎯</Text>
+                  <Text style={[styles.vibeRestoreText, { color: '#E5B13A' }]}>
+                    Show Drinks Vibe Quest questions & recommendations →
+                  </Text>
+                </TouchableOpacity>
               )}
 
 
@@ -1994,5 +2035,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     width: '100%',
+  },
+  vibeRestoreBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 12,
+    marginTop: 4,
+    marginBottom: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  vibeRestoreText: {
+    fontSize: 12,
+    fontWeight: '800',
+    flex: 1,
   },
 });
