@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { DakuUpgradeModal } from '../components/DakuUpgradeModal';
 import { 
   View, 
   Text, 
@@ -16,6 +17,7 @@ import { BottomNavigation } from '../components/Navigation/BottomNavigation';
 import { MenuItem, SelectedModifier, CartItem, ConversationStep } from '../types';
 import { MENU_IMAGES, getItemImageSource } from '../data/menu_images';
 import { itemRequiresModifierSelection, getActionLabelForItem } from '../utils/modifierUtils';
+import { DEFAULT_HOOKAH_BASES, DAKU_PACKAGE } from '../data/hookahMixData';
 
 interface MenuBrowsingProps {
   onBack: () => void;
@@ -34,6 +36,7 @@ interface MenuBrowsingProps {
   onRemoveItem?: (cartItemId: string) => void;
   allCategories?: any[];
   allMenuItems: MenuItem[];
+  hookahConfig?: any;
 }
 
 interface HouseMixItemCardProps {
@@ -45,6 +48,7 @@ interface HouseMixItemCardProps {
   count: number;
   onUpdateQuantity?: (item: MenuItem, delta: number, e: any) => void;
   onSelectItem: (item: MenuItem) => void;
+  hookahConfig?: any;
 }
 
 const HouseMixItemCard: React.FC<HouseMixItemCardProps> = ({
@@ -56,20 +60,61 @@ const HouseMixItemCard: React.FC<HouseMixItemCardProps> = ({
   count,
   onUpdateQuantity,
   onSelectItem,
+  hookahConfig,
 }) => {
+  const [showDakuModal, setShowDakuModal] = useState(false);
   const [iceBase, setIceBase] = useState(false);
   const [iceHose, setIceHose] = useState(false);
 
-  const totalPrice = item.price + (iceBase ? 2 : 0) + (iceHose ? 6 : 0);
+  const packages = hookahConfig?.packages?.filter((p: any) => p.active !== false) || [{ id: 'daku', name: 'Make It Daku', price: 65, description: 'Unlimited Head Refill' }];
+  const dakuPkg = packages.find((p: any) => p.id === 'daku' || (p.name && p.name.toLowerCase().includes('daku'))) || packages[0];
+  
+  const baseHookahPrice = item.price;
+  const dakuOptionPrice = Math.max(0, (dakuPkg?.price || 65) - item.price);
+  
+  const iceBasePrice = 2;
+  const iceHosePrice = 6;
+  
+  const totalPrice = baseHookahPrice + (iceBase ? iceBasePrice : 0) + (iceHose ? iceHosePrice : 0);
 
-  const handleAdd = (e: any) => {
+  const handleAddInitiated = (e: any) => {
     if (e && e.stopPropagation) e.stopPropagation();
+    setShowDakuModal(true);
+  };
+
+  const handleAcceptDaku = () => {
+    setShowDakuModal(false);
     const selectedOpts: SelectedModifier[] = [];
-    if (iceBase) selectedOpts.push({ id: 'OPT_ICE_BASE', name: 'Ice Base', optionName: 'Ice Base', price: 2 });
-    if (iceHose) selectedOpts.push({ id: 'OPT_ICE_HOSE', name: 'Ice Hose', optionName: 'Ice Hose', price: 6 });
+    selectedOpts.push({
+      id: 'PKG_DAKU',
+      name: dakuPkg?.name || 'Make It Daku',
+      optionName: `${dakuPkg?.name || 'Daku Package'} ($${dakuPkg?.price || 65}) - ${dakuPkg?.description || 'Unlimited Head Refill'}`,
+      price: dakuOptionPrice,
+    });
+    // Ice Base and Ice Hose are included for free!
+    if (iceBase) selectedOpts.push({ id: 'OPT_ICE_BASE', name: 'Ice Base', optionName: 'Ice Base (Included)', price: 0 });
+    if (iceHose) selectedOpts.push({ id: 'OPT_ICE_HOSE', name: 'Ice Hose', optionName: 'Ice Hose (Included)', price: 0 });
+    
     const noteParts: string[] = [];
-    if (iceBase) noteParts.push('Ice Base (+$2)');
-    if (iceHose) noteParts.push('Ice Hose (+$6)');
+    noteParts.push(`🔥 ${dakuPkg?.name?.toUpperCase() || 'DAKU'}: $${dakuPkg?.price || 65} ${dakuPkg?.description || 'Unlimited Head Refill'}`);
+    if (iceBase) noteParts.push(`Ice Base (Included)`);
+    if (iceHose) noteParts.push(`Ice Hose (Included)`);
+
+    if (onAddToCart) {
+      onAddToCart(item, 1, selectedOpts, noteParts.join(' · '));
+    }
+  };
+
+  const handleDeclineDaku = () => {
+    setShowDakuModal(false);
+    const selectedOpts: SelectedModifier[] = [];
+    if (iceBase) selectedOpts.push({ id: 'OPT_ICE_BASE', name: 'Ice Base', optionName: 'Ice Base', price: iceBasePrice });
+    if (iceHose) selectedOpts.push({ id: 'OPT_ICE_HOSE', name: 'Ice Hose', optionName: 'Ice Hose', price: iceHosePrice });
+    
+    const noteParts: string[] = [];
+    if (iceBase) noteParts.push(`Ice Base (+$${iceBasePrice})`);
+    if (iceHose) noteParts.push(`Ice Hose (+$${iceHosePrice})`);
+
     if (onAddToCart) {
       onAddToCart(item, 1, selectedOpts, noteParts.join(' · '));
     }
@@ -93,6 +138,12 @@ const HouseMixItemCard: React.FC<HouseMixItemCardProps> = ({
         }
       ]}
     >
+      <DakuUpgradeModal
+        visible={showDakuModal}
+        onAccept={handleAcceptDaku}
+        onDecline={handleDeclineDaku}
+        onClose={() => setShowDakuModal(false)}
+      />
       <View>
         {/* Title and Price Row */}
         <View style={[styles.titleRow, { alignItems: 'center', marginBottom: 6 }]}>
@@ -122,6 +173,7 @@ const HouseMixItemCard: React.FC<HouseMixItemCardProps> = ({
             </Text>
           </View>
         ) : null}
+
 
         {/* Inline Add-On Options (Ice Base & Ice Hose) */}
         <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
@@ -196,7 +248,7 @@ const HouseMixItemCard: React.FC<HouseMixItemCardProps> = ({
       {/* Action Button Row */}
       {count === 0 ? (
         <TouchableOpacity
-          onPress={handleAdd}
+          onPress={handleAddInitiated}
           activeOpacity={0.85}
           style={[
             styles.quickAddBtn,
@@ -238,8 +290,9 @@ const HouseMixItemCard: React.FC<HouseMixItemCardProps> = ({
             </Text>
           </View>
 
+
           <TouchableOpacity
-            onPress={handleAdd}
+            onPress={handleAddInitiated}
             activeOpacity={0.8}
             style={[styles.browseStepBtn, { backgroundColor: '#22C55E', borderColor: '#22C55E', width: 34, height: 34, borderRadius: 10 }]}
           >
@@ -268,6 +321,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
   onRemoveItem,
   allCategories,
   allMenuItems,
+  hookahConfig,
 }) => {
   const { theme } = useRestaurantTheme();
   const layout = useResponsiveLayout();
@@ -502,32 +556,19 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
       return sortWithCategorySequence(matched);
     }
 
-    const dedupeByName = (items: MenuItem[]) => {
-      const seen = new Set<string>();
-      const result: MenuItem[] = [];
-      for (const item of items) {
-        const key = (item.name || '').trim().toLowerCase();
-        if (!seen.has(key)) {
-          seen.add(key);
-          result.push(item);
-        }
-      }
-      return result;
-    };
-
     if (activeSuperCatId === 'ALL') {
-      return sortWithCategorySequence(dedupeByName(activeItems));
+      return sortWithCategorySequence(activeItems);
     }
 
     // If sub-filter is active (e.g. Refreshers or House Mixes)
     if (activeSubCatId !== 'ALL') {
       const subFiltered = activeItems.filter(item => isItemInCat(item, activeSubCatId));
-      return sortWithCategorySequence(dedupeByName(subFiltered.length > 0 ? subFiltered : activeItems));
+      return sortWithCategorySequence(subFiltered.length > 0 ? subFiltered : activeItems);
     }
 
     // Filter by primary category (e.g. APPETIZERS, VEGETARIAN, CONTINENTAL)
     const list = activeItems.filter((item) => isItemInCat(item, activeSuperCatId));
-    return sortWithCategorySequence(dedupeByName(list));
+    return sortWithCategorySequence(list);
   }, [allMenuItems, allCategories, activeSuperCatId, superCategories, activeSubCategories, activeSubCatId, searchQuery, isGlobalSearch]);
 
   const [itemQuantities, setItemQuantities] = useState<Record<string, number>>({});
@@ -562,8 +603,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
 
     if (delta > 0 && onAddToCart) {
       onAddToCart(item, 1, []);
-      setToastMessage(` Added "${item.name}" to cart`);
-      setTimeout(() => setToastMessage(null), 2200);
+
     } else if (delta < 0) {
       const existingCartItem = cartItems?.find(ci => ci.item.id === item.id);
       if (existingCartItem) {
@@ -588,12 +628,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-      {/* Toast Notification */}
-      {toastMessage && (
-        <View style={styles.floatingToast}>
-          <Text style={styles.toastText}>{toastMessage}</Text>
-        </View>
-      )}
+
 
       {/* Header */}
       <BenzinHeader
@@ -1071,7 +1106,7 @@ const styles = StyleSheet.create({
     maxWidth: 1320,
     alignSelf: 'center',
     width: '100%',
-    paddingBottom: 20,
+    paddingBottom: 130,
   },
   itemCard: {
     borderRadius: 18,

@@ -49,10 +49,6 @@ export const TrackOrderLookupModal: React.FC<TrackOrderLookupModalProps> = ({
       setErrorMsg('Please enter your order nickname');
       return;
     }
-    if (!orderId.trim()) {
-      setErrorMsg('Please enter your Order ID or receipt code');
-      return;
-    }
 
     setIsLoading(true);
     setErrorMsg('');
@@ -60,7 +56,7 @@ export const TrackOrderLookupModal: React.FC<TrackOrderLookupModalProps> = ({
     try {
       const res = await TenantApiService.lookupTracking({
         nickname: nickname.trim(),
-        orderId: orderId.trim(),
+        orderId: orderId.trim() || undefined,
         table: table.trim() || undefined,
       });
 
@@ -156,12 +152,12 @@ export const TrackOrderLookupModal: React.FC<TrackOrderLookupModalProps> = ({
                 {/* Order ID Input */}
                 <View style={styles.fieldGroup}>
                   <Text style={[styles.fieldLabel, { color: theme.mutedTextColor }]}>
-                    ORDER ID OR RECEIPT CODE *
+                    ORDER ID OR RECEIPT CODE (OPTIONAL)
                   </Text>
                   <View style={[styles.inputBox, { backgroundColor: theme.backgroundColor, borderColor: theme.borderColor }]}>
                     <TextInput
                       style={[styles.input, { color: theme.textColor }]}
-                      placeholder="e.g. cav-1727500000000"
+                      placeholder="e.g. cav-1727500000000 (optional)"
                       placeholderTextColor={theme.mutedTextColor}
                       value={orderId}
                       onChangeText={(val) => {

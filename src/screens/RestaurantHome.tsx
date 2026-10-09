@@ -53,10 +53,14 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
   const { theme } = useRestaurantTheme();
   const layout = useResponsiveLayout();
 
-  // Featured menu items showcase on home screen
-  const featuredItems = useMemo(() => {
+  // Specials showcase on home screen (Restaurant controlled)
+  const specialsItems = useMemo(() => {
     if (!allMenuItems || allMenuItems.length === 0) return [];
-    return allMenuItems;
+    const markedSpecials = allMenuItems
+      .filter(item => Boolean((item as any).is_special) && item.available !== false)
+      .sort((a, b) => ((a as any).special_sort_order ?? 0) - ((b as any).special_sort_order ?? 0));
+    if (markedSpecials.length > 0) return markedSpecials;
+    return allMenuItems.slice(0, 10);
   }, [allMenuItems]);
 
   const isMobile = layout.isMobilePhone;
@@ -231,13 +235,14 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
             </View>
           </View>
 
-          {/* FEATURED MENU ITEMS PRESENTATION */}
-          {featuredItems.length > 0 && (
+          {/* SPECIALS MENU PRESENTATION */}
+          {specialsItems.length > 0 && (
             <View style={styles.featuredSection}>
               <View style={styles.featuredHeaderRow}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
+                  <Text style={{ fontSize: isMobile ? 16 : 18 }}>⭐</Text>
                   <Text style={[styles.featuredSectionTitle, { color: theme.textColor, fontSize: isMobile ? 13 : 16 }]} numberOfLines={1}>
-                    FEATURED MENU & DISHES
+                    SPECIALS
                   </Text>
                 </View>
                 <TouchableOpacity onPress={onOpenMenu} activeOpacity={0.8} style={styles.seeAllBtn}>
@@ -250,7 +255,7 @@ export const RestaurantHome: React.FC<RestaurantHomeProps> = ({
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.featuredScrollContainer}
               >
-                {featuredItems.map((item, idx) => {
+                {specialsItems.map((item, idx) => {
                   const imageSource = getItemImageSource(item);
                   const cardWidth = isMobile ? 170 : 230;
 

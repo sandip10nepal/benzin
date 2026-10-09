@@ -69,6 +69,9 @@ export type MenuItem = {
   variants?: any[];
   category?: string;
   subcategory?: string;
+  brand?: string;
+  color?: string;
+  tags?: string[];
 };
 
 export type SelectedModifier = {

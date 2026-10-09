@@ -319,6 +319,17 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
               ORDER DETAILS ({itemsList.length} ITEMS)
             </Text>
 
+            {/* Display overall order notes if they exist */}
+            {(orderObj?.notes || orderObj?.note || orderObj?.special_instructions) ? (
+              <View style={[styles.overallNotesContainer, { backgroundColor: 'rgba(255,255,255,0.03)', borderColor: theme.borderColor }]}>
+                <Text style={{ fontSize: 12 }}>📝</Text>
+                <Text style={[styles.overallNotesText, { color: theme.textColor }]}>
+                  <Text style={{ fontWeight: '700', color: theme.mutedTextColor }}>Order Notes: </Text>
+                  {orderObj?.notes || orderObj?.note || orderObj?.special_instructions}
+                </Text>
+              </View>
+            ) : null}
+
             {itemsList.map((it: any, idx: number) => {
               const itemTotal = Number(it.price || it.itemTotal || 0);
               const qty = Number(it.qty || it.quantity || 1);
@@ -329,9 +340,9 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
                       <Text style={[styles.itemQty, { color: theme.secondaryColor }]}>{qty}x</Text>
                       <Text style={[styles.itemName, { color: theme.textColor }]}>{it.name || it.item?.name}</Text>
                     </View>
-                    {it.notes ? (
+                    {(it.note || it.notes || it.specialInstructions) ? (
                       <Text style={[styles.itemNotes, { color: theme.mutedTextColor }]}>
-                        {it.notes}
+                        {it.note || it.notes || it.specialInstructions}
                       </Text>
                     ) : null}
                   </View>
@@ -384,19 +395,14 @@ export const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
           </TouchableOpacity>
         </View>
 
-        {/* Switch Table / End Session */}
-        {onLogOut && (
-          <TouchableOpacity
-            onPress={onLogOut}
-            activeOpacity={0.75}
-            style={[styles.logOutBtn, { borderColor: theme.borderColor, backgroundColor: theme.backgroundColor }]}
-          >
-            <LogOut size={15} color={theme.secondaryColor} />
-            <Text style={[styles.logOutBtnText, { color: theme.secondaryColor }]}>
-              SWITCH TABLE (TABLE {tableDisplay})
-            </Text>
-          </TouchableOpacity>
-        )}
+        {/* Table Session Indicator (Protected) */}
+        <View
+          style={[styles.logOutBtn, { borderColor: theme.borderColor, backgroundColor: theme.backgroundColor }]}
+        >
+          <Text style={[styles.logOutBtnText, { color: theme.secondaryColor }]}>
+            TABLE {tableDisplay} • ACTIVE SESSION
+          </Text>
+        </View>
       </View>
     </ScrollView>
   );
@@ -551,6 +557,20 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 1.5,
     marginBottom: 12,
+  },
+  overallNotesContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  overallNotesText: {
+    fontSize: 13,
+    flex: 1,
+    lineHeight: 18,
   },
   itemRow: {
     flexDirection: 'row',

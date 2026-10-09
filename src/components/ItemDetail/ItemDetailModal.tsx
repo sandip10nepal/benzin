@@ -15,6 +15,7 @@ import { MenuItem, SelectedModifier, ModifierOption, ModifierGroup } from '../..
 import { QuantitySelector } from '../ui/QuantitySelector';
 import { MENU_IMAGES, getItemImageSource } from '../../data/menu_images';
 import { getMissingRequiredModifierGroup } from '../../utils/modifierUtils';
+import { DakuUpgradeModal } from '../DakuUpgradeModal';
 
 interface ItemDetailModalProps {
   item: MenuItem | null;
@@ -37,6 +38,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   const [selectedModifiers, setSelectedModifiers] = useState<SelectedModifier[]>([]);
   const [specialInstructions, setSpecialInstructions] = useState<string>('');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [showDakuModal, setShowDakuModal] = useState(false);
 
   useEffect(() => {
     if (item) {
@@ -44,6 +46,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
       setSpecialInstructions('');
       setValidationError(null);
       setSelectedModifiers([]);
+      setShowDakuModal(false);
     }
   }, [item]);
 
@@ -62,10 +65,10 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
       return [
         {
           id: 'grp_wing_sauces',
-          name: 'Sauce Choices',
+          name: 'Sauce Choices (Pick 1 to 3)',
           required: true,
           minSelect: 1,
-          maxSelect: 1,
+          maxSelect: 3,
           options: [
             { id: 'opt_buffalo', name: 'Buffalo', price: 0 },
             { id: 'opt_bbq', name: 'BBQ', price: 0 },
@@ -77,6 +80,76 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
         },
       ];
     }
+
+    const isSpicyDish = /chow mein|fried rice|chili chicken/i.test(item.name || '');
+    if (isSpicyDish) {
+      return [
+        {
+          id: 'grp_spice_level',
+          name: 'Spice Level',
+          required: false,
+          minSelect: 0,
+          maxSelect: 1,
+          options: [
+            { id: 'opt_mild', name: 'Mild', price: 0 },
+            { id: 'opt_medium', name: 'Medium', price: 0 },
+            { id: 'opt_hot', name: 'Hot', price: 0 },
+          ],
+        },
+      ];
+    }
+
+    const isColdCoffee = /cold coffee|iced coffee/i.test(item.name || '');
+    if (isColdCoffee) {
+      return [
+        {
+          id: 'grp_coffee_flavors',
+          name: 'Cold Coffee Flavor',
+          required: false,
+          minSelect: 0,
+          maxSelect: 1,
+          options: [
+            { id: 'opt_classic', name: 'Classic / Original', price: 0 },
+            { id: 'opt_vanilla', name: 'Vanilla (+0.75)', price: 0.75 },
+            { id: 'opt_caramel', name: 'Caramel (+0.75)', price: 0.75 },
+            { id: 'opt_hazelnut', name: 'Hazelnut (+0.75)', price: 0.75 },
+          ],
+        },
+      ];
+    }
+
+    const isBurgerOrEntree = /burger|sandwich|platter|patty/i.test(item.name || '');
+    if (isBurgerOrEntree) {
+      return [
+        {
+          id: 'grp_extra_protein',
+          name: 'Extra Protein / Filling',
+          required: false,
+          minSelect: 0,
+          maxSelect: 2,
+          options: [
+            { id: 'opt_extra_patty', name: 'Extra Patty (+$4.50)', price: 4.50 },
+            { id: 'opt_extra_chicken', name: 'Extra Chicken (+$4.00)', price: 4.00 },
+            { id: 'opt_extra_cheese', name: 'Extra Cheese (+$1.50)', price: 1.50 },
+          ],
+        },
+        {
+          id: 'grp_side_options',
+          name: 'Side Options (Replace or Add Extra)',
+          required: false,
+          minSelect: 0,
+          maxSelect: 2,
+          options: [
+            { id: 'opt_no_side', name: 'No Side (-$2.00)', price: -2.00 },
+            { id: 'opt_fries', name: 'French Fries', price: 0 },
+            { id: 'opt_sub_onion_rings', name: 'Sub Onion Rings (+$1.50)', price: 1.50 },
+            { id: 'opt_extra_fries', name: 'Add Extra Fries (+$3.50)', price: 3.50 },
+            { id: 'opt_extra_onion_rings', name: 'Add Extra Onion Rings (+$4.50)', price: 4.50 },
+          ],
+        },
+      ];
+    }
+
     return [];
   }, [item]);
 
@@ -86,9 +159,13 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     setValidationError(null);
     const optId = option.id || (option as any)._id || option.name;
     const optPrice = Number(option.price !== undefined ? option.price : (option as any).price_adjustment !== undefined ? (option as any).price_adjustment : 0);
+
+    const targetGroup = effectiveModifierGroups.find(g => g.id === groupId || g.name === groupName);
+    const maxSelect = targetGroup?.maxSelect || (isSingleChoice ? 1 : 99);
+
     setSelectedModifiers((prev) => {
       const isAlreadySelected = prev.some((m) => (m.groupId === groupId || m.groupName === groupName) && (m.optionId === optId || m.optionName === option.name));
-      if (isSingleChoice) {
+      if (isSingleChoice || maxSelect === 1) {
         const filtered = prev.filter((m) => m.groupId !== groupId && m.groupName !== groupName);
         if (isAlreadySelected) {
           // Allow unselecting
@@ -108,6 +185,11 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
         if (isAlreadySelected) {
           return prev.filter((m) => !((m.groupId === groupId || m.groupName === groupName) && (m.optionId === optId || m.optionName === option.name)));
         } else {
+          const currentGroupSelections = prev.filter(m => m.groupId === groupId || m.groupName === groupName);
+          if (currentGroupSelections.length >= maxSelect) {
+            setValidationError(`You can select up to ${maxSelect} option${maxSelect > 1 ? 's' : ''} for ${groupName}.`);
+            return prev;
+          }
           return [
             ...prev,
             {
@@ -177,18 +259,62 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
           description: `Chilled ${activeMods[0].optionName} served with ice.`,
         };
         onAddToCart(singleDrinkItem, quantity, activeMods, specialInstructions);
-      } else {
-        onAddToCart(item, quantity, [], specialInstructions);
-      }
-    } else {
-      onAddToCart(item, quantity, selectedModifiers, specialInstructions);
+      onAddToCart(item, quantity, [], specialInstructions);
     }
-    onClose();
-  };
+  } else {
+    if ((item.category === 'hookah' || (item.name || '').toLowerCase().includes('hookah')) && !(item as any).isDaku) {
+      setShowDakuModal(true);
+      return;
+    }
+    onAddToCart(item, quantity, selectedModifiers, specialInstructions);
+  }
+  onClose();
+};
+
+const processDakuAddToCart = (isDaku: boolean) => {
+  setShowDakuModal(false);
+  if (isDaku) {
+    const dakuPkg = { id: 'PKG_DAKU', name: 'Daku', price: 65, description: 'Unlimited head refill' };
+    
+    // Convert existing selections to Daku pricing (bases/ice become $0)
+    const modifiedModifiers = selectedModifiers.map(mod => {
+      if (mod.optionName.toLowerCase().includes('base') || mod.optionName.toLowerCase().includes('hose')) {
+        return { ...mod, price: 0, optionName: `${mod.optionName} (Included)` };
+      }
+      return mod;
+    });
+
+    const dakuModifier: SelectedModifier = {
+      id: 'PKG_DAKU',
+      optionId: 'PKG_DAKU',
+      name: 'Daku',
+      optionName: `Daku Upgrade ($${dakuPkg.price}) - ${dakuPkg.description}`,
+      // For a regular menu item, the base price of the item itself is paid, so we adjust Daku price
+      // Wait, if Daku makes the TOTAL $65, and the item base is $25, Daku modifier should be $40.
+      price: Math.max(0, dakuPkg.price - (Number(item?.price) || 25)),
+    };
+    
+    // Add Daku modifier and remove any existing Daku modifier to avoid dupes
+    const finalMods = [...modifiedModifiers.filter(m => m.id !== 'PKG_DAKU'), dakuModifier];
+    
+    const dakuItem = { ...item, isDaku: true } as MenuItem;
+    onAddToCart(dakuItem, quantity, finalMods, specialInstructions);
+  } else {
+    onAddToCart(item!, quantity, selectedModifiers, specialInstructions);
+  }
+  onClose();
+};
 
   return (
-    <Modal visible={!!item} animationType="fade" transparent>
-      <View style={styles.overlay}>
+    <>
+      <DakuUpgradeModal
+        visible={showDakuModal}
+        onClose={() => setShowDakuModal(false)}
+        onAccept={() => processDakuAddToCart(true)}
+        onDecline={() => processDakuAddToCart(false)}
+      />
+      <Modal visible={!!item && !showDakuModal} animationType="fade" transparent>
+        <View style={styles.overlay}>
         <View style={[styles.modalContainer, { backgroundColor: theme.cardColor, borderColor: '#E5B13A', borderWidth: 2 }]}>
           {/* Header Image or Banner */}
           <View style={styles.imageContainer}>
@@ -385,9 +511,10 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
               </Text>
             </TouchableOpacity>
           </View>
+          </View>
         </View>
-      </View>
-    </Modal>
+      </Modal>
+    </>
   );
 };
 

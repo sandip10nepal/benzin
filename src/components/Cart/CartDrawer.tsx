@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   View, 
   Text, 
@@ -6,12 +6,13 @@ import {
   Modal, 
   TouchableOpacity, 
   ScrollView, 
-  Image 
+  Image,
+  TextInput
 } from 'react-native';
-import { X, Trash2, ArrowRight, ShoppingBag, Sparkles, Clock } from 'lucide-react-native';
+import { X, Trash2, ArrowRight, ShoppingBag, Sparkles, Clock, Plus } from 'lucide-react-native';
 import { useRestaurantTheme } from '../../theme/ThemeContext';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
-import { CartItem, MenuItem } from '../../types';
+import { CartItem, MenuItem, SelectedModifier } from '../../types';
 import { QuantitySelector } from '../ui/QuantitySelector';
 import { MENU_IMAGES, getItemImageSource } from '../../data/menu_images';
 import { getMissingRequiredModifierGroup } from '../../utils/modifierUtils';
@@ -27,9 +28,13 @@ interface CartDrawerProps {
   onUpdateQuantity: (cartItemId: string, newQty: number) => void;
   onRemoveItem: (cartItemId: string) => void;
   onSelectItem?: (item: MenuItem) => void;
-  onPlaceOrder: () => void;
+  onAddToCart?: (item: MenuItem, qty: number, modifiers: SelectedModifier[], notes?: string) => void;
+  onPlaceOrder: (orderNotes?: string) => void;
   activeTrackingSession?: any | null;
   onOpenTrackOrder?: () => void;
+  allMenuItems?: MenuItem[];
+  orderNotes?: string;
+  onOrderNotesChange?: (notes: string) => void;
 }
 
 export const CartDrawer: React.FC<CartDrawerProps> = ({
@@ -43,13 +48,82 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   onUpdateQuantity,
   onRemoveItem,
   onSelectItem,
+  onAddToCart,
   onPlaceOrder,
   activeTrackingSession,
   onOpenTrackOrder,
+  allMenuItems = [],
+  orderNotes = '',
+  onOrderNotesChange,
 }) => {
   const { theme } = useRestaurantTheme();
   const layout = useResponsiveLayout();
   const isMobile = layout.isMobilePhone;
+
+  const [internalNotes, setInternalNotes] = useState<string>('');
+  const [showDessertModal, setShowDessertModal] = useState<boolean>(false);
+  const [hasDismissedDessert, setHasDismissedDessert] = useState<boolean>(false);
+
+  const effectiveNotes = orderNotes !== undefined && orderNotes !== '' ? orderNotes : internalNotes;
+  const setEffectiveNotes = (val: string) => {
+    if (onOrderNotesChange) onOrderNotesChange(val);
+    setInternalNotes(val);
+  };
+
+  const recommendations = useMemo(() => {
+    if (!allMenuItems || allMenuItems.length === 0) return [];
+    const desserts = allMenuItems.filter(i => 
+      (i.category || '').toLowerCase().includes('dessert') || 
+      (i.subcategory || '').toLowerCase().includes('dessert') || 
+      /cake|baklava|knafeh|sweet|brownie|ice cream/i.test(i.name || '')
+    );
+    const coldDrinks = allMenuItems.filter(i => 
+      /iced|cold|smoothie|shake|lemonade|red bull|mojito/i.test(i.name || '')
+    );
+    const warmDrinks = allMenuItems.filter(i => 
+      /chai|tea|coffee|latte|cappuccino|espresso/i.test(i.name || '')
+    );
+
+    const recs: MenuItem[] = [];
+    if (desserts.length > 0) recs.push(desserts[0]);
+    if (coldDrinks.length > 0) recs.push(coldDrinks[0]);
+    if (warmDrinks.length > 0) recs.push(warmDrinks[0]);
+    if (desserts.length > 1 && recs.length < 4) recs.push(desserts[1]);
+    return recs;
+  }, [allMenuItems]);
+
+  const dessertItems = useMemo(() => {
+    if (!allMenuItems) return [];
+    return allMenuItems.filter(i => 
+      (i.category || '').toLowerCase().includes('dessert') || 
+      (i.subcategory || '').toLowerCase().includes('dessert') || 
+      /cake|baklava|knafeh|sweet|brownie|ice cream/i.test(i.name || '')
+    ).slice(0, 3);
+  }, [allMenuItems]);
+
+  const hasDessertInCart = useMemo(() => {
+    return cart.some(ci => 
+      (ci.item.category || '').toLowerCase().includes('dessert') || 
+      (ci.item.subcategory || '').toLowerCase().includes('dessert') || 
+      /cake|baklava|knafeh|sweet|brownie|ice cream/i.test(ci.item.name || '')
+    );
+  }, [cart]);
+
+  const handleCheckoutPress = () => {
+    const itemWithMissing = cart.find(ci => getMissingRequiredModifierGroup(ci.item, ci.selectedModifiers));
+    if (itemWithMissing) {
+      onClose();
+      if (onSelectItem) onSelectItem(itemWithMissing.item);
+      return;
+    }
+
+    if (!hasDessertInCart && !hasDismissedDessert && dessertItems.length > 0) {
+      setShowDessertModal(true);
+      return;
+    }
+
+    onPlaceOrder(effectiveNotes);
+  };
 
   if (!visible) return null;
 
@@ -185,6 +259,48 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             </View>
           ) : (
             <ScrollView style={styles.itemList} showsVerticalScrollIndicator={false}>
+              {/* Already submitted items from kitchen (Locked) */}
+              {activeTrackingSession?.order?.items && activeTrackingSession.order.items.length > 0 && (
+                <View style={{ marginBottom: 16, backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: 'rgba(16,185,129,0.3)' }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ fontSize: 13 }}>🔒</Text>
+                      <Text style={{ color: '#10B981', fontSize: 12, fontWeight: '900', letterSpacing: 0.5 }}>
+                        ALREADY SENT TO KITCHEN (LOCKED)
+                      </Text>
+                    </View>
+                    <View style={{ backgroundColor: 'rgba(16,185,129,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                      <Text style={{ color: '#10B981', fontSize: 10, fontWeight: '800' }}>
+                        {(activeTrackingSession.order.status || activeTrackingSession.status || 'PREPARING').toUpperCase()}
+                      </Text>
+                    </View>
+                  </View>
+                  {activeTrackingSession.order.items.map((prevItem: any, idx: number) => (
+                    <View key={idx} style={{ paddingVertical: 5, borderBottomWidth: idx < activeTrackingSession.order.items.length - 1 ? 1 : 0, borderBottomColor: 'rgba(255,255,255,0.06)' }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <Text style={{ color: '#CBD5E1', fontSize: 12, fontWeight: '700' }}>
+                          {prevItem.qty || prevItem.quantity || 1}x {prevItem.name}
+                        </Text>
+                        <Text style={{ color: '#64748B', fontSize: 12 }}>
+                          ${((prevItem.price || 0) * (prevItem.qty || prevItem.quantity || 1)).toFixed(2)}
+                        </Text>
+                      </View>
+                      {prevItem.notes ? (
+                        <Text style={{ color: '#64748B', fontSize: 10, marginTop: 1 }}>• {prevItem.notes}</Text>
+                      ) : null}
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Section header for current order items */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <Text style={{ fontSize: 13 }}>✨</Text>
+                <Text style={{ color: '#E5B13A', fontSize: 12, fontWeight: '900', letterSpacing: 0.5 }}>
+                  {activeTrackingSession?.order?.items?.length ? 'NEW ITEMS TO ADD TO TABLE' : 'YOUR ITEMS'}
+                </Text>
+              </View>
+
               {cart.map((cartItem) => {
                 const imageSource = getItemImageSource(cartItem.item);
 
@@ -223,6 +339,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           ))}
                         </View>
                       )}
+                      
+                      {/* Item Notes */}
+                      {cartItem.notes ? (
+                        <Text style={[styles.modifierTag, { color: theme.mutedTextColor, fontStyle: 'italic', marginTop: 2 }]}>
+                          • Note: {cartItem.notes}
+                        </Text>
+                      ) : null}
 
                       {/* Missing required choice alert */}
                       {(() => {
@@ -254,8 +377,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       })()}
 
                       {cartItem.specialInstructions ? (
-                        <Text style={[styles.instructionText, { color: theme.primaryColor }]}>
-                          Note: {cartItem.specialInstructions}
+                        <Text style={[styles.instructionText, { color: theme.textColor }]}>
+                          📝 {cartItem.specialInstructions}
                         </Text>
                       ) : null}
 
@@ -274,6 +397,83 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   </View>
                 );
               })}
+
+              {/* Order-Level Note Field */}
+              <View style={{ marginTop: 12, marginBottom: 12, padding: 12, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 12, borderWidth: 1, borderColor: theme.borderColor }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                  <Text style={{ fontSize: 12 }}>📝</Text>
+                  <Text style={{ color: theme.textColor, fontSize: 12, fontWeight: '800' }}>
+                    ORDER NOTES & SPECIAL REQUESTS
+                  </Text>
+                </View>
+                <TextInput
+                  style={{
+                    backgroundColor: 'rgba(0,0,0,0.3)',
+                    borderColor: theme.borderColor,
+                    borderWidth: 1,
+                    borderRadius: 8,
+                    padding: 8,
+                    color: theme.textColor,
+                    fontSize: 12,
+                    minHeight: 44,
+                    textAlignVertical: 'top',
+                  }}
+                  placeholder="e.g. Extra napkins, glasses of water with ice, table allergy info..."
+                  placeholderTextColor={theme.mutedTextColor}
+                  value={effectiveNotes}
+                  onChangeText={setEffectiveNotes}
+                  multiline
+                />
+              </View>
+
+              {/* Upsell Recommendations on Total Screen */}
+              {recommendations.length > 0 && (
+                <View style={{ marginTop: 4, marginBottom: 14 }}>
+                  <Text style={{ color: '#E5B13A', fontSize: 11, fontWeight: '800', letterSpacing: 0.5, marginBottom: 6 }}>
+                    ✨ RECOMMENDED TO PAIR WITH YOUR ORDER
+                  </Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                    {recommendations.map((rec) => (
+                      <View
+                        key={rec.id}
+                        style={{
+                          width: 140,
+                          padding: 8,
+                          borderRadius: 10,
+                          backgroundColor: 'rgba(255,255,255,0.05)',
+                          borderWidth: 1,
+                          borderColor: 'rgba(255,255,255,0.1)',
+                          justifyContent: 'space-between',
+                        }}
+                      >
+                        <Text style={{ color: theme.textColor, fontSize: 11, fontWeight: '800' }} numberOfLines={1}>
+                          {rec.name}
+                        </Text>
+                        <Text style={{ color: theme.secondaryColor, fontSize: 11, fontWeight: '800', marginVertical: 4 }}>
+                          ${rec.price.toFixed(2)}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => {
+                            if (onAddToCart) {
+                              onAddToCart(rec, 1, []);
+                            }
+                          }}
+                          style={{
+                            backgroundColor: 'rgba(34, 197, 94, 0.2)',
+                            borderColor: '#22C55E',
+                            borderWidth: 1,
+                            paddingVertical: 4,
+                            borderRadius: 6,
+                            alignItems: 'center',
+                          }}
+                        >
+                          <Text style={{ color: '#22C55E', fontSize: 10, fontWeight: '900' }}>+ ADD</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
             </ScrollView>
           )}
 
@@ -301,15 +501,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               </View>
 
               <TouchableOpacity
-                onPress={() => {
-                  const itemWithMissing = cart.find(ci => getMissingRequiredModifierGroup(ci.item, ci.selectedModifiers));
-                  if (itemWithMissing) {
-                    onClose();
-                    if (onSelectItem) onSelectItem(itemWithMissing.item);
-                    return;
-                  }
-                  onPlaceOrder();
-                }}
+                onPress={handleCheckoutPress}
                 activeOpacity={0.88}
                 style={[styles.checkoutBtn, { backgroundColor: '#10B981', paddingVertical: isMobile ? 12 : 16 }]}
               >
@@ -320,6 +512,123 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             </View>
           )}
         </View>
+
+        {/* Dessert Upsell Modal Prompt */}
+        {showDessertModal && (
+          <View style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.85)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: 16,
+            zIndex: 999,
+          }}>
+            <View style={{
+              backgroundColor: theme.cardColor,
+              borderColor: '#E5B13A',
+              borderWidth: 1.5,
+              borderRadius: 20,
+              padding: 18,
+              maxWidth: 420,
+              width: '100%',
+            }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <Text style={{ fontSize: 24 }}>🍰</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: theme.textColor, fontSize: 16, fontWeight: '900' }}>
+                    Complete with Dessert?
+                  </Text>
+                  <Text style={{ color: '#E5B13A', fontSize: 11, fontWeight: '700' }}>
+                    SPECIAL RECOMMENDATION BEFORE CHECKOUT
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => {
+                    setHasDismissedDessert(true);
+                    setShowDessertModal(false);
+                    onPlaceOrder(effectiveNotes);
+                  }}
+                >
+                  <X size={20} color={theme.mutedTextColor} />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={{ color: theme.mutedTextColor, fontSize: 12, marginBottom: 12 }}>
+                Would you like to add a signature dessert to your table before sending your order to the kitchen?
+              </Text>
+
+              <View style={{ gap: 8, marginBottom: 14 }}>
+                {dessertItems.map((dessert) => (
+                  <View
+                    key={dessert.id}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: 10,
+                      borderRadius: 12,
+                      backgroundColor: 'rgba(255,255,255,0.05)',
+                      borderWidth: 1,
+                      borderColor: 'rgba(255,255,255,0.1)',
+                    }}
+                  >
+                    <View style={{ flex: 1, paddingRight: 8 }}>
+                      <Text style={{ color: theme.textColor, fontSize: 13, fontWeight: '800' }}>
+                        {dessert.name}
+                      </Text>
+                      <Text style={{ color: theme.secondaryColor, fontSize: 12, fontWeight: '800' }}>
+                        ${dessert.price.toFixed(2)}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (onAddToCart) onAddToCart(dessert, 1, []);
+                        setHasDismissedDessert(true);
+                        setShowDessertModal(false);
+                      }}
+                      style={{
+                        backgroundColor: '#22C55E',
+                        paddingVertical: 6,
+                        paddingHorizontal: 12,
+                        borderRadius: 8,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
+                    >
+                      <Plus size={14} color="#FFFFFF" />
+                      <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '900' }}>ADD</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+
+              <TouchableOpacity
+                onPress={() => {
+                  setHasDismissedDessert(true);
+                  setShowDessertModal(false);
+                  onPlaceOrder(effectiveNotes);
+                }}
+                style={{
+                  paddingVertical: 11,
+                  borderRadius: 10,
+                  alignItems: 'center',
+                  backgroundColor: 'rgba(255,255,255,0.08)',
+                  borderWidth: 1,
+                  borderColor: theme.borderColor,
+                }}
+              >
+                <Text style={{ color: theme.textColor, fontSize: 12, fontWeight: '800' }}>
+                  No thanks, Send Order to Kitchen ➔
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
     </Modal>
   );

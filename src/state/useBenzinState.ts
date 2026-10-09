@@ -48,6 +48,7 @@ export function useBenzinState() {
   const [draftDrink, setDraftDrink] = useState<MenuItem | null>(null);
   const [liveCategories, setLiveCategories] = useState<MenuCategory[]>([]);
   const [liveMenuItems, setLiveMenuItems] = useState<MenuItem[]>([]);
+  const [hookahConfig, setHookahConfig] = useState<any>(null);
   const [pairedSlug, setPairedSlug] = useState<string | null>(null);
   const [pairedTableNumber, setPairedTableNumber] = useState<string>('1');
   const [customerName, setCustomerName] = useState<string>('Guest');
@@ -84,6 +85,9 @@ export function useBenzinState() {
       }
 
       if (config) {
+        if ((config as any).hookah_config) {
+          setHookahConfig((config as any).hookah_config);
+        }
         let catList: MenuCategory[] = [];
         const catMap = new Map<string, any>();
 
@@ -153,6 +157,9 @@ export function useBenzinState() {
                 category_sort_order: subCat?.sort_order ?? 9999,
                 category: cat,
                 subcategory,
+                brand: i.brand,
+                color: i.color,
+                tags: i.tags,
               };
             })
             .sort((a, b) => {
@@ -574,7 +581,7 @@ export function useBenzinState() {
     }
   }, [activeCoalRefill, pairedTableNumber, customerName, refreshActiveCoalRefill]);
 
-  const placeOrder = useCallback(async (nickname?: string) => {
+  const placeOrder = useCallback(async (nickname?: string, orderNotes?: string) => {
     if (cart.length === 0) return;
 
     // Check if any item in cart is missing required sauce / modifiers
@@ -599,6 +606,9 @@ export function useBenzinState() {
       const modNames = (i.selectedModifiers || []).map(m => m.optionName || m.name || '').filter(Boolean);
       const instr = i.specialInstructions || '';
       const combinedNotes = [instr, ...modNames.filter(mn => mn && !instr.includes(mn))].filter(Boolean).join(' · ');
+      const isDaku = (i.item as any).isDaku || i.selectedModifiers.some(m => (m.optionName || m.name || '').toLowerCase().includes('daku'));
+      const baseMod = i.selectedModifiers.find(m => (m.groupName || '').toLowerCase().includes('base') || (m.optionName || m.name || '').toLowerCase().includes('base'));
+      const baseName = (i.item as any).base || baseMod?.optionName || baseMod?.name || null;
       return {
         id: i.item.id,
         name: i.item.name,
@@ -609,7 +619,10 @@ export function useBenzinState() {
         qty: i.quantity,
         modifiers: i.selectedModifiers,
         notes: combinedNotes,
-        note: combinedNotes
+        note: combinedNotes,
+        base: baseName,
+        isDaku: Boolean(isDaku),
+        package: isDaku ? 'Daku ($65 Unlimited Refill)' : undefined,
       };
     });
 
@@ -621,11 +634,21 @@ export function useBenzinState() {
       const modNames = (i.selectedModifiers || []).map(m => m.optionName || m.name || '').filter(Boolean);
       const instr = i.specialInstructions || '';
       const combinedNotes = [instr, ...modNames.filter(mn => mn && !instr.includes(mn))].filter(Boolean).join(' · ');
+      const isDaku = (i.item as any).isDaku || i.selectedModifiers.some(m => (m.optionName || m.name || '').toLowerCase().includes('daku'));
+      const baseMod = i.selectedModifiers.find(m => (m.groupName || '').toLowerCase().includes('base') || (m.optionName || m.name || '').toLowerCase().includes('base'));
+      const baseName = (i.item as any).base || baseMod?.optionName || baseMod?.name || null;
+      const iceBase = (i.item as any).iceBase || i.selectedModifiers.some(m => (m.optionName || m.name || '').toLowerCase().includes('ice base'));
+      const iceHose = (i.item as any).iceHose || i.selectedModifiers.some(m => (m.optionName || m.name || '').toLowerCase().includes('ice hose'));
       return {
         flavor: { name: i.item.name, id: i.item.id },
         name: i.item.name,
         qty: i.quantity,
         price: i.item.price,
+        base: baseName,
+        isDaku: Boolean(isDaku),
+        iceBase: Boolean(iceBase),
+        iceHose: Boolean(iceHose),
+        package: isDaku ? 'Daku ($65 Unlimited Refill)' : undefined,
         modifiers: i.selectedModifiers,
         notes: combinedNotes,
         note: combinedNotes
@@ -672,6 +695,8 @@ export function useBenzinState() {
       customer_nickname: effectiveNickname,
       customerName: effectiveNickname,
       name: effectiveNickname,
+      notes: orderNotes || '',
+      note: orderNotes || '',
       subtotal: cartSubtotal,
       taxAmount: cartTax,
       gratuityAmount: cartGratuity,
@@ -819,6 +844,7 @@ export function useBenzinState() {
     placeOrder,
     allCategories,
     allMenuItems,
+    hookahConfig,
     refreshLiveMenu: loadLiveMenu,
     logOutSession,
     // Order Tracking System

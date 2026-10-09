@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, StyleSheet, SafeAreaView, StatusBar } from 'react-native';
 import { ThemeProvider, useRestaurantTheme } from '../theme/ThemeContext';
 import { useBenzinState } from '../state/useBenzinState';
@@ -14,12 +14,14 @@ import { CallServerModal } from '../components/Server/CallServerModal';
 import { HookahMixLabModal } from '../components/HookahMixLab/HookahMixLabModal';
 import { OrderNicknameModal } from '../components/Cart/OrderNicknameModal';
 import { TrackOrderLookupModal } from '../components/Tracking/TrackOrderLookupModal';
+import { CartFlyAnimation } from '../components/Cart/CartFlyAnimation';
 
 import { ConversationStep } from '../types';
 
 function MainAppContent() {
   const { theme } = useRestaurantTheme();
   const [hostInitialStep, setHostInitialStep] = React.useState<ConversationStep>('welcome_category');
+  const [flyAnimationItem, setFlyAnimationItem] = useState<string | null>(null);
 
   const {
     currentScreen,
@@ -50,6 +52,7 @@ function MainAppContent() {
     placeOrder,
     allCategories,
     allMenuItems,
+    hookahConfig,
     refreshLiveMenu,
     logOutSession,
     // Tracking System
@@ -63,10 +66,17 @@ function MainAppContent() {
     saveTrackingSession,
   } = useBenzinState();
 
+  const [orderNotes, setOrderNotes] = useState<string>('');
+
   const handleStartOrder = (step?: ConversationStep) => {
     setHostInitialStep(step || 'welcome_category');
     navigate('start_order');
   };
+
+  const handleAddToCart = React.useCallback((item: any, qty: number, mods: any[], notes?: string) => {
+    addToCart(item, qty, mods, notes);
+    setFlyAnimationItem(item.name || 'Item');
+  }, [addToCart]);
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: theme.backgroundColor }]}>
@@ -90,7 +100,7 @@ function MainAppContent() {
           isTrackingActive={!!activeTrackingSession}
           onOpenCart={() => setIsCartDrawerOpen(true)}
           onSelectItem={(item) => setActiveItemForDetail(item)}
-          onAddToCart={addToCart}
+          onAddToCart={handleAddToCart}
           onLogOut={logOutSession}
           cartCount={totalCartCount}
           allMenuItems={allMenuItems}
@@ -104,7 +114,7 @@ function MainAppContent() {
         <MenuBrowsing
           onBack={() => navigate('home')}
           onSelectItem={(item) => setActiveItemForDetail(item)}
-          onAddToCart={addToCart}
+          onAddToCart={handleAddToCart}
           onOpenCart={() => setIsCartDrawerOpen(true)}
           onCallServer={() => setIsCallServerModalOpen(true)}
           onOpenTrackOrder={handleOpenTrackOrder}
@@ -118,6 +128,7 @@ function MainAppContent() {
           onRemoveItem={removeFromCart}
           allCategories={allCategories}
           allMenuItems={allMenuItems}
+          hookahConfig={hookahConfig}
         />
       )}
 
@@ -138,7 +149,7 @@ function MainAppContent() {
           cartItems={cart}
           onUpdateQuantity={updateQuantity}
           onRemoveItem={removeFromCart}
-          onAddToCart={addToCart}
+          onAddToCart={handleAddToCart}
           onPlaceOrder={() => setIsNicknameModalOpen(true)}
           allCategories={allCategories}
           allMenuItems={allMenuItems}
@@ -172,12 +183,17 @@ function MainAppContent() {
         onUpdateQuantity={updateQuantity}
         onRemoveItem={removeFromCart}
         onSelectItem={(item) => setActiveItemForDetail(item)}
-        onPlaceOrder={() => {
+        onAddToCart={handleAddToCart}
+        onPlaceOrder={(notes) => {
+          if (notes) setOrderNotes(notes);
           setIsCartDrawerOpen(false);
           setIsNicknameModalOpen(true);
         }}
         activeTrackingSession={activeTrackingSession}
         onOpenTrackOrder={handleOpenTrackOrder}
+        allMenuItems={allMenuItems}
+        orderNotes={orderNotes}
+        onOrderNotesChange={setOrderNotes}
       />
 
       {/* Customer Nickname Modal */}
@@ -186,7 +202,7 @@ function MainAppContent() {
         onClose={() => setIsNicknameModalOpen(false)}
         onSubmit={(nickname) => {
           setIsNicknameModalOpen(false);
-          placeOrder(nickname);
+          placeOrder(nickname, orderNotes);
         }}
         tableNumber={theme.tableNumber || '1'}
       />
@@ -206,7 +222,7 @@ function MainAppContent() {
         item={activeItemForDetail}
         onClose={() => setActiveItemForDetail(null)}
         onAddToCart={(item, qty, mods, notes) => {
-          addToCart(item, qty, mods, notes);
+          handleAddToCart(item, qty, mods, notes);
           setActiveItemForDetail(null);
         }}
       />
@@ -223,10 +239,19 @@ function MainAppContent() {
         visible={isMixLabOpen}
         onClose={() => setIsMixLabOpen(false)}
         onAddMixToCart={(item, qty, mods, notes) => {
-          addToCart(item, qty, mods, notes);
+          handleAddToCart(item, qty, mods, notes);
           setIsMixLabOpen(false);
         }}
+        hookahConfig={hookahConfig}
+        allMenuItems={allMenuItems}
       />
+
+      {flyAnimationItem && (
+        <CartFlyAnimation
+          itemName={flyAnimationItem}
+          onComplete={() => setFlyAnimationItem(null)}
+        />
+      )}
 
     </SafeAreaView>
   );

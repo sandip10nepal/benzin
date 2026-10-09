@@ -489,7 +489,7 @@ export class TenantApiService {
    */
   static async lookupTracking(params: {
     nickname: string;
-    orderId: string;
+    orderId?: string;
     table?: string;
   }): Promise<{
     success: boolean;

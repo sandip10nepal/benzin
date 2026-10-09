@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { DakuUpgradeModal } from '../DakuUpgradeModal';
 import { 
   View, 
   Text, 
@@ -24,27 +25,28 @@ import {
   MenuItem, 
   SelectedModifier 
 } from '../../types';
-import { HOOKAH_FLAVORS_DATABASE } from '../../data/hookahMixData';
-
-const BRANDS_LIST = ['ALL', 'Eternal', 'Adalya', 'Fumari', 'Afzal', 'Al Fakhar', 'Starbuzz'];
+import { HOOKAH_FLAVORS_DATABASE, DEFAULT_HOOKAH_BASES, DAKU_PACKAGE } from '../../data/hookahMixData';
 
 interface HookahMixLabModalProps {
   visible: boolean;
   onClose: () => void;
   onAddMixToCart: (item: MenuItem, quantity: number, modifiers: SelectedModifier[], specialNotes?: string) => void;
+  hookahConfig?: any;
+  allMenuItems?: MenuItem[];
 }
 
 export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
   visible,
   onClose,
   onAddMixToCart,
+  hookahConfig,
+  allMenuItems,
 }) => {
   const { theme } = useRestaurantTheme();
   const layout = useResponsiveLayout();
   const isMobile = layout.isMobilePhone;
 
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedBrand, setSelectedBrand] = useState<string>('ALL');
   const [iceBase, setIceBase] = useState<boolean>(false);
   const [iceHose, setIceHose] = useState<boolean>(false);
 
@@ -52,19 +54,99 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
   const [selectedFlavors, setSelectedFlavors] = useState<HookahFlavor[]>([]);
   const [customMixName, setCustomMixName] = useState<string>('ROYAL CUSTOM BOWL');
   const [isEditingName, setIsEditingName] = useState<boolean>(false);
+  const [flavorPercentages, setFlavorPercentages] = useState<Record<string, number>>({});
+  const [selectedBaseId, setSelectedBaseId] = useState<string>('base_water');
+  const [showDakuModal, setShowDakuModal] = useState<boolean>(false);
 
-  // Calculate percentages dynamically
+  const dakuPkg = useMemo(() => {
+    if (hookahConfig?.packages && Array.isArray(hookahConfig.packages)) {
+      return hookahConfig.packages.find((p: any) => p.id === 'daku' || (p.name && p.name.toLowerCase().includes('daku'))) || DAKU_PACKAGE;
+    }
+    return DAKU_PACKAGE;
+  }, [hookahConfig]);
+
+  const flavorsDatabase = useMemo(() => {
+    if (!allMenuItems) return HOOKAH_FLAVORS_DATABASE;
+    const dbFlavors = allMenuItems.filter(item => {
+      const isHkFlavorCatId = item.category_id && String(item.category_id).includes('cat_hk_flavors');
+      const isHkFlavorCatIds = Array.isArray(item.category_ids) && item.category_ids.some(c => 
+        String(c).includes('cat_hk_flavors') || String(c).includes('Hookah Flavors')
+      );
+      return isHkFlavorCatId || isHkFlavorCatIds;
+    });
+    if (dbFlavors.length > 0) {
+      return dbFlavors.map(item => ({
+        id: item.id,
+        name: item.name,
+        brand: item.brand || 'House',
+        category: (item.brand || 'house').toLowerCase(),
+        description: item.description,
+        color: item.color || item.imageUrl || '#8B5CF6',
+        emoji: item.emoji || '💨',
+        tags: item.tags || []
+      })) as HookahFlavor[];
+    }
+    return HOOKAH_FLAVORS_DATABASE;
+  }, [allMenuItems]);
+
+  const basesDatabase = useMemo(() => {
+    if (hookahConfig?.bases && Array.isArray(hookahConfig.bases) && hookahConfig.bases.length > 0) {
+      return hookahConfig.bases.filter((b: any) => b.active !== false);
+    }
+    return DEFAULT_HOOKAH_BASES;
+  }, [hookahConfig]);
+
+  const selectedBase = basesDatabase.find((b: any) => b.id === selectedBaseId) || basesDatabase[0];
+
+  // Calculate percentages dynamically with user overrides
   const flavorsInMix: FlavorInMix[] = useMemo(() => {
     const total = selectedFlavors.length;
     if (total === 0) return [];
+
+    const hasAll = selectedFlavors.every(f => typeof flavorPercentages[f.id] === 'number');
+    if (hasAll) {
+      return selectedFlavors.map(f => ({
+        flavor: f,
+        percentage: flavorPercentages[f.id] || 0,
+      }));
+    }
+
     const basePct = Math.floor(100 / total);
     const remainder = 100 - basePct * total;
-
     return selectedFlavors.map((flavor, idx) => ({
       flavor,
       percentage: idx === 0 ? basePct + remainder : basePct,
     }));
-  }, [selectedFlavors]);
+  }, [selectedFlavors, flavorPercentages]);
+
+  const totalPercentage = useMemo(() => {
+    return flavorsInMix.reduce((sum, f) => sum + (Number(f.percentage) || 0), 0);
+  }, [flavorsInMix]);
+
+  const handleAdjustPercentage = (flavorId: string, delta: number) => {
+    const current = flavorsInMix.find(f => f.flavor.id === flavorId)?.percentage || 0;
+    const nextVal = Math.max(5, Math.min(95, current + delta));
+    if (nextVal === current) return;
+
+    const newMap: Record<string, number> = {};
+    flavorsInMix.forEach(f => {
+      newMap[f.flavor.id] = f.percentage;
+    });
+    newMap[flavorId] = nextVal;
+    setFlavorPercentages(newMap);
+  };
+
+  const handleAutoBalance = () => {
+    const total = selectedFlavors.length;
+    if (total === 0) return;
+    const basePct = Math.floor(100 / total);
+    const remainder = 100 - basePct * total;
+    const newMap: Record<string, number> = {};
+    selectedFlavors.forEach((f, idx) => {
+      newMap[f.id] = idx === 0 ? basePct + remainder : basePct;
+    });
+    setFlavorPercentages(newMap);
+  };
 
   // Auto Name Generator
   const generateMixName = (flavors: HookahFlavor[]) => {
@@ -94,6 +176,16 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
     }
     const newFlavors = [...selectedFlavors, flavor];
     setSelectedFlavors(newFlavors);
+
+    // Auto-balance initial percentages
+    const basePct = Math.floor(100 / newFlavors.length);
+    const remainder = 100 - basePct * newFlavors.length;
+    const newPercentages: Record<string, number> = {};
+    newFlavors.forEach((f, idx) => {
+      newPercentages[f.id] = idx === 0 ? basePct + remainder : basePct;
+    });
+    setFlavorPercentages(newPercentages);
+
     if (customMixName === 'MY CUSTOM BOWL' || customMixName === 'ROYAL CUSTOM BOWL') {
       setCustomMixName(generateMixName(newFlavors));
     }
@@ -103,22 +195,36 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
   const handleRemoveFlavor = (flavorId: string) => {
     const newFlavors = selectedFlavors.filter(f => f.id !== flavorId);
     setSelectedFlavors(newFlavors);
+    const newPercentages: Record<string, number> = {};
     if (newFlavors.length > 0) {
+      const basePct = Math.floor(100 / newFlavors.length);
+      const remainder = 100 - basePct * newFlavors.length;
+      newFlavors.forEach((f, idx) => {
+        newPercentages[f.id] = idx === 0 ? basePct + remainder : basePct;
+      });
       setCustomMixName(generateMixName(newFlavors));
     } else {
       setCustomMixName('MY CUSTOM BOWL');
     }
+    setFlavorPercentages(newPercentages);
   };
 
   // Surprise Me Randomizer
   const handleSurpriseMe = () => {
-    const pool = selectedBrand === 'ALL' 
-      ? HOOKAH_FLAVORS_DATABASE 
-      : HOOKAH_FLAVORS_DATABASE.filter(f => f.brand?.toLowerCase() === selectedBrand.toLowerCase());
+    const pool = flavorsDatabase;
     const shuffled = [...pool].sort(() => 0.5 - Math.random());
     const count = Math.floor(Math.random() * 2) + 2;
     const randomMix = shuffled.slice(0, count);
     setSelectedFlavors(randomMix);
+
+    const basePct = Math.floor(100 / count);
+    const remainder = 100 - basePct * count;
+    const newPercentages: Record<string, number> = {};
+    randomMix.forEach((f, idx) => {
+      newPercentages[f.id] = idx === 0 ? basePct + remainder : basePct;
+    });
+    setFlavorPercentages(newPercentages);
+
     if (randomMix.length > 0) {
       setCustomMixName(`${randomMix[0].name.toUpperCase()} MASTERPIECE`);
     }
@@ -127,59 +233,110 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
   // Clear Entire Mix
   const handleClearMix = () => {
     setSelectedFlavors([]);
+    setFlavorPercentages({});
     setCustomMixName('MY CUSTOM BOWL');
   };
 
   // Filtered Flavors by Search Query and Brand
   const filteredFlavors = useMemo(() => {
-    return HOOKAH_FLAVORS_DATABASE.filter(f => {
-      const brandMatch = selectedBrand === 'ALL' || (f.brand && f.brand.toLowerCase() === selectedBrand.toLowerCase());
-      if (!brandMatch) return false;
+    return flavorsDatabase.filter(f => {
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase().trim();
       return (
         f.name.toLowerCase().includes(q) ||
         (f.brand && f.brand.toLowerCase().includes(q)) ||
-        f.description.toLowerCase().includes(q) ||
-        f.tags.some(t => t.toLowerCase().includes(q))
+        (f.description && f.description.toLowerCase().includes(q)) ||
+        (f.tags && f.tags.some(t => t.toLowerCase().includes(q)))
       );
     });
-  }, [searchQuery, selectedBrand]);
+  }, [searchQuery, flavorsDatabase]);
 
   const basePrice = 25.0;
-  const totalPrice = basePrice + (iceBase ? 2 : 0) + (iceHose ? 6 : 0);
+  const totalPrice = basePrice + (selectedBase?.price || 0) + (iceBase ? 2 : 0) + (iceHose ? 6 : 0);
 
   // Submit Mix to Cart
-  const handleAddMixToCart = () => {
+  const handleAddInitiated = () => {
     if (selectedFlavors.length === 0) return;
+    if (totalPercentage !== 100) {
+      handleAutoBalance();
+    }
+    setShowDakuModal(true);
+  };
 
+  const processAddToCart = (isDaku: boolean) => {
+    setShowDakuModal(false);
     const compositionDesc = flavorsInMix
       .map(f => `${f.flavor.brand ? f.flavor.brand + ' ' : ''}${f.flavor.name} (${f.percentage}%)`)
       .join(' • ');
 
     const selectedOptions: SelectedModifier[] = [];
-    if (iceBase) selectedOptions.push({ id: 'OPT_ICE_BASE', optionId: 'OPT_ICE_BASE', optionName: 'Ice Base', name: 'Ice Base', price: 2 });
-    if (iceHose) selectedOptions.push({ id: 'OPT_ICE_HOSE', optionId: 'OPT_ICE_HOSE', optionName: 'Ice Hose', name: 'Ice Hose', price: 6 });
+    if (isDaku) {
+      selectedOptions.push({
+        id: 'PKG_DAKU',
+        optionId: 'PKG_DAKU',
+        name: dakuPkg.name,
+        optionName: `${dakuPkg.name} ($${dakuPkg.price}) - ${dakuPkg.description}`,
+        price: Math.max(0, dakuPkg.price - 25),
+      });
+    }
+    if (selectedBase && selectedBase.id !== 'base_water') {
+      selectedOptions.push({
+        id: `BASE_${selectedBase.id}`,
+        optionId: `BASE_${selectedBase.id}`,
+        name: `Base: ${selectedBase.name}`,
+        optionName: `${selectedBase.name} Base${isDaku ? ' (Included)' : ''}`,
+        price: isDaku ? 0 : (selectedBase.price || 0),
+      });
+    }
+    if (iceBase) selectedOptions.push({ id: 'OPT_ICE_BASE', optionId: 'OPT_ICE_BASE', optionName: isDaku ? 'Ice Base (Included)' : 'Ice Base', name: 'Ice Base', price: isDaku ? 0 : 2 });
+    if (iceHose) selectedOptions.push({ id: 'OPT_ICE_HOSE', optionId: 'OPT_ICE_HOSE', optionName: isDaku ? 'Ice Hose (Included)' : 'Ice Hose', name: 'Ice Hose', price: isDaku ? 0 : 6 });
+
+    const recipe = flavorsInMix.map(f => ({
+      ingredient_id: f.flavor.id,
+      quantity: 20 * (f.percentage / 100), // 20g standard bowl
+      unit: 'g'
+    }));
+
+    const notesParts: string[] = [`Composition: ${compositionDesc}`];
+    if (isDaku) notesParts.push(`🔥 ${dakuPkg.name.toUpperCase()}: $${dakuPkg.price} ${dakuPkg.description}`);
+    if (selectedBase && selectedBase.id !== 'base_water') {
+      notesParts.push(`Base: ${selectedBase.name}${isDaku ? ' (Included)' : (selectedBase.price ? ` (+$${selectedBase.price})` : '')}`);
+    }
+    if (iceBase) notesParts.push(isDaku ? 'Ice Base (Included)' : 'Ice Base (+$2)');
+    if (iceHose) notesParts.push(isDaku ? 'Ice Hose (Included)' : 'Ice Hose (+$6)');
 
     const customHookahItem: MenuItem = {
       id: `custom_mix_${Date.now()}`,
       name: customMixName || 'Custom Hookah Mix',
-      price: totalPrice,
-      description: `Custom Laboratory Bowl: ${compositionDesc}${iceBase ? ' • Ice Base (+$2)' : ''}${iceHose ? ' • Ice Hose (+$6)' : ''}`,
+      price: basePrice,
+      description: `Custom Laboratory Bowl: ${compositionDesc}${isDaku ? ` • ${dakuPkg.name} $${dakuPkg.price} ${dakuPkg.description}` : ''}${selectedBase && selectedBase.id !== 'base_water' ? ` • Base: ${selectedBase.name}` : ''}${iceBase ? ' • Ice Base' : ''}${iceHose ? ' • Ice Hose' : ''}`,
       category: 'hookah',
       subcategory: 'Mix Lab Creation',
-      badge: `🧪 $${totalPrice.toFixed(2)} CUSTOM`,
+      badge: `🧪 $${(isDaku ? dakuPkg.price : totalPrice).toFixed(2)} CUSTOM`,
       emoji: '🧪',
-    };
+      isDaku: Boolean(isDaku),
+      base: selectedBase.name,
+      package: isDaku ? `${dakuPkg.name} ($${dakuPkg.price} ${dakuPkg.description})` : undefined,
+      recipe: recipe,
+    } as any;
 
-    onAddMixToCart(customHookahItem, 1, selectedOptions, `Composition: ${compositionDesc}`);
+    onAddMixToCart(customHookahItem, 1, selectedOptions, notesParts.join(' · '));
     onClose();
   };
+
+  const handleAcceptDaku = () => processAddToCart(true);
+  const handleDeclineDaku = () => processAddToCart(false);
 
   if (!visible) return null;
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <DakuUpgradeModal
+        visible={showDakuModal}
+        onAccept={handleAcceptDaku}
+        onDecline={handleDeclineDaku}
+        onClose={() => setShowDakuModal(false)}
+      />
       <View style={[styles.overlay, isMobile && { padding: 4 }]}>
         <View style={[
           styles.modalContainer, 
@@ -196,9 +353,6 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                 <Text style={[styles.headerTitle, { color: theme.textColor, fontSize: isMobile ? 15 : 18 }]} numberOfLines={1}>
                   CUSTOM HOOKAH FLAVOR LAB
                 </Text>
-                <Text style={{ color: '#E5B13A', fontSize: 11, fontWeight: '800' }}>
-                  $25.00 BASE • SELECT UP TO 5 FLAVORS ACROSS PREMIUM BRANDS
-                </Text>
               </View>
             </View>
 
@@ -210,105 +364,99 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
           {/* MOBILE VIEW: VERTICAL STACK WITH FIXED BOTTOM CTA */}
           {isMobile ? (
             <View style={{ flex: 1 }}>
-              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12, paddingBottom: 180 }} showsVerticalScrollIndicator={false}>
-                {/* 1. VISUAL MIXING BOWL */}
-                <View style={[styles.mobileChamberCard, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}>
-                  <View style={styles.chamberHeader}>
-                    {isEditingName ? (
-                      <TextInput
-                        style={[styles.mixNameInput, { color: theme.textColor, borderColor: '#E5B13A' }]}
-                        value={customMixName}
-                        onChangeText={setCustomMixName}
-                        onBlur={() => setIsEditingName(false)}
-                        autoFocus
-                      />
-                    ) : (
-                      <TouchableOpacity onPress={() => setIsEditingName(true)} style={styles.mixNameRow}>
-                        <Text style={[styles.mixNameText, { color: theme.textColor, fontSize: 14 }]}>{customMixName}</Text>
-                        <Text style={{ fontSize: 12 }}>✏️</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-
-                  <View style={[styles.visualBowlContainer, { borderColor: '#E5B13A', minHeight: 100, marginBottom: 8 }]}>
-                    <View style={styles.bowlTopRim}>
-                      <Text style={styles.rimText}>BOWL COMPOSITION ({selectedFlavors.length}/5)</Text>
-                    </View>
-
-                    {selectedFlavors.length === 0 ? (
-                      <View style={styles.emptyChamber}>
-                        <Text style={{ fontSize: 24 }}>🧪</Text>
-                        <Text style={[styles.emptyChamberTitle, { color: theme.textColor, fontSize: 12 }]}>
-                          SELECT FLAVORS BELOW BY BRAND
-                        </Text>
-                      </View>
-                    ) : (
-                      <View style={styles.bowlLiquidLayers}>
-                        {flavorsInMix.map((item, idx) => (
-                          <View 
-                            key={item.flavor.id || `mix_m_${idx}`} 
-                            style={[styles.flavorLayer, { backgroundColor: item.flavor.color, paddingVertical: 5, paddingHorizontal: 8 }]}
-                          >
-                            <View style={styles.layerInfoRow}>
-                              <Text style={{ fontSize: 13 }}>{item.flavor.emoji}</Text>
-                              <Text style={[styles.layerName, { fontSize: 11 }]} numberOfLines={1}>
-                                {item.flavor.brand} {item.flavor.name}
-                              </Text>
-                              <Text style={[styles.layerPct, { fontSize: 11 }]}>{item.percentage}%</Text>
-                              <TouchableOpacity
-                                onPress={() => handleRemoveFlavor(item.flavor.id)}
-                                style={[styles.removeLayerBtn, { paddingHorizontal: 6, paddingVertical: 2 }]}
-                              >
-                                <Trash2 size={11} color="#FFFFFF" />
-                              </TouchableOpacity>
-                            </View>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                  </View>
+              {/* 1. VISUAL MIXING BOWL (STATIC) */}
+              <View style={[styles.mobileChamberCard, { backgroundColor: theme.cardColor, borderColor: theme.borderColor, margin: 12, marginBottom: 0 }]}>
+                <View style={styles.chamberHeader}>
+                  {isEditingName ? (
+                    <TextInput
+                      style={[styles.mixNameInput, { color: theme.textColor, borderColor: '#E5B13A' }]}
+                      value={customMixName}
+                      onChangeText={setCustomMixName}
+                      onBlur={() => setIsEditingName(false)}
+                      autoFocus
+                    />
+                  ) : (
+                    <TouchableOpacity onPress={() => setIsEditingName(true)} style={styles.mixNameRow}>
+                      <Text style={[styles.mixNameText, { color: theme.textColor, fontSize: 14 }]}>{customMixName}</Text>
+                      <Text style={{ fontSize: 12 }}>✏️</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
 
-                {/* 2. BRAND FILTER PILLS */}
-                <ScrollView 
-                  horizontal 
-                  showsHorizontalScrollIndicator={false}
-                  style={{ marginBottom: 8 }}
-                  contentContainerStyle={{ gap: 6 }}
-                >
-                  {BRANDS_LIST.map(bName => {
-                    const isAct = selectedBrand.toLowerCase() === bName.toLowerCase();
-                    return (
-                      <TouchableOpacity
-                        key={`brand_m_${bName}`}
-                        onPress={() => setSelectedBrand(bName)}
-                        style={[
-                          styles.brandPill,
-                          isAct ? { backgroundColor: '#E5B13A', borderColor: '#E5B13A' } : { backgroundColor: theme.cardColor, borderColor: theme.borderColor }
-                        ]}
-                      >
-                        <Text style={[styles.brandPillText, { color: isAct ? '#000000' : theme.mutedTextColor }]}>
-                          {bName.toUpperCase()}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
+                <View style={[styles.visualBowlContainer, { borderColor: '#E5B13A', minHeight: 100, marginBottom: 8 }]}>
+                  <View style={styles.bowlTopRim}>
+                    <Text style={styles.rimText}>BOWL COMPOSITION ({selectedFlavors.length}/5)</Text>
+                  </View>
 
-                {/* 3. SEARCH FILTER */}
-                <View style={styles.filterControlBlock}>
-                  <View style={[styles.searchBox, { backgroundColor: theme.cardColor, borderColor: theme.borderColor, paddingVertical: 6 }]}>
-                    <Search size={16} color={theme.mutedTextColor} />
+                  {selectedFlavors.length === 0 ? (
+                    <View style={styles.emptyChamber}>
+                      <Text style={{ fontSize: 24 }}>🧪</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.bowlLiquidLayers}>
+                      {flavorsInMix.map((item, idx) => (
+                        <View 
+                          key={item.flavor.id || `mix_m_${idx}`} 
+                          style={[styles.flavorLayer, { backgroundColor: item.flavor.color, paddingVertical: 5, paddingHorizontal: 8 }]}
+                        >
+                          <View style={styles.layerInfoRow}>
+                            <Text style={{ fontSize: 13 }}>{item.flavor.emoji}</Text>
+                            <Text style={[styles.layerName, { fontSize: 11, flex: 1 }]} numberOfLines={1}>
+                              {item.flavor.brand} {item.flavor.name}
+                            </Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginHorizontal: 4 }}>
+                              <TouchableOpacity
+                                onPress={() => handleAdjustPercentage(item.flavor.id, -5)}
+                                style={{ paddingHorizontal: 5, paddingVertical: 2, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 4 }}
+                              >
+                                <Text style={{ color: '#FFFFFF', fontWeight: '900', fontSize: 11 }}>-</Text>
+                              </TouchableOpacity>
+                              <Text style={[styles.layerPct, { fontSize: 11, minWidth: 30, textAlign: 'center' }]}>{item.percentage}%</Text>
+                              <TouchableOpacity
+                                onPress={() => handleAdjustPercentage(item.flavor.id, 5)}
+                                style={{ paddingHorizontal: 5, paddingVertical: 2, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 4 }}
+                              >
+                                <Text style={{ color: '#FFFFFF', fontWeight: '900', fontSize: 11 }}>+</Text>
+                              </TouchableOpacity>
+                            </View>
+                            <TouchableOpacity
+                              onPress={() => handleRemoveFlavor(item.flavor.id)}
+                              style={[styles.removeLayerBtn, { paddingHorizontal: 6, paddingVertical: 2 }]}
+                            >
+                              <Trash2 size={11} color="#FFFFFF" />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                  {selectedFlavors.length > 0 && totalPercentage !== 100 && (
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 6, backgroundColor: 'rgba(239,68,68,0.2)', borderRadius: 8, marginTop: 4 }}>
+                      <Text style={{ color: '#FCA5A5', fontSize: 10, fontWeight: '700' }}>
+                        Total: {totalPercentage}% (Needs 100%)
+                      </Text>
+                      <TouchableOpacity onPress={handleAutoBalance} style={{ backgroundColor: '#E5B13A', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 4 }}>
+                        <Text style={{ color: '#000000', fontSize: 9, fontWeight: '900' }}>AUTO-BALANCE</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              <View style={[styles.filterControlBlock, { paddingHorizontal: 12, marginTop: 12 }]}>
+                <View style={[styles.searchBox, { backgroundColor: theme.cardColor, borderColor: theme.borderColor, paddingVertical: 6 }]}>
+                  <Search size={16} color={theme.mutedTextColor} />
                     <TextInput
                       style={[styles.searchInput, { color: theme.textColor, fontSize: 12 }]}
-                      placeholder={`Search ${selectedBrand === 'ALL' ? '' : selectedBrand + ' '}Flavors...`}
+                      placeholder="Search Flavors..."
                       placeholderTextColor={theme.mutedTextColor}
                       value={searchQuery}
                       onChangeText={setSearchQuery}
                     />
-                  </View>
                 </View>
+              </View>
 
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12, paddingBottom: 180 }} showsVerticalScrollIndicator={false}>
                 {/* 4. FLAVOR LIST */}
                 <View style={styles.flavorCardsGridMobile}>
                   {filteredFlavors.map((flavor, idx) => {
@@ -382,6 +530,48 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                   )}
                 </View>
 
+
+
+                {/* Base Selection */}
+                <View style={{ marginBottom: 6 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                    <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10, fontWeight: '700' }}>
+                      SELECT BASE
+                    </Text>
+                    {selectedBaseId !== 'base_water' && (
+                      <TouchableOpacity onPress={() => setSelectedBaseId('base_water')}>
+                        <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 9.5, fontWeight: '600' }}>
+                          SKIP (Standard)
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 5 }}>
+                    {DEFAULT_HOOKAH_BASES.map(b => {
+                      const isSelected = selectedBaseId === b.id;
+                      return (
+                        <TouchableOpacity
+                          key={b.id}
+                          activeOpacity={0.8}
+                          onPress={() => setSelectedBaseId(b.id)}
+                          style={{
+                            paddingVertical: 3,
+                            paddingHorizontal: 7,
+                            borderRadius: 6,
+                            borderWidth: 1,
+                            borderColor: isSelected ? '#10B981' : 'rgba(255,255,255,0.15)',
+                            backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.22)' : 'rgba(255,255,255,0.04)',
+                          }}
+                        >
+                          <Text style={{ color: isSelected ? '#10B981' : '#E2E8F0', fontSize: 10, fontWeight: '800' }}>
+                            {b.name} {b.price ? `(+$${b.price})` : '($0)'}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+
                 {/* Add-on options: Ice Base & Ice Hose */}
                 <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
                   <TouchableOpacity
@@ -426,7 +616,7 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                 </View>
 
                 <TouchableOpacity
-                  onPress={handleAddMixToCart}
+                  onPress={handleAddInitiated}
                   disabled={selectedFlavors.length === 0}
                   activeOpacity={0.88}
                   style={[
@@ -447,39 +637,13 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
             <View style={styles.labBody}>
               {/* LEFT SIDE: FLAVOR CATALOG */}
               <View style={styles.flavorExplorerSide}>
-                {/* Brand Selector Tabs */}
-                <ScrollView 
-                  horizontal 
-                  showsHorizontalScrollIndicator={false}
-                  style={{ marginBottom: 10 }}
-                  contentContainerStyle={{ gap: 8 }}
-                >
-                  {BRANDS_LIST.map(bName => {
-                    const isAct = selectedBrand.toLowerCase() === bName.toLowerCase();
-                    return (
-                      <TouchableOpacity
-                        key={`brand_d_${bName}`}
-                        onPress={() => setSelectedBrand(bName)}
-                        style={[
-                          styles.brandPill,
-                          isAct ? { backgroundColor: '#E5B13A', borderColor: '#E5B13A' } : { backgroundColor: theme.cardColor, borderColor: theme.borderColor }
-                        ]}
-                      >
-                        <Text style={[styles.brandPillText, { color: isAct ? '#000000' : theme.mutedTextColor }]}>
-                          {bName.toUpperCase()}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-
                 {/* Search Box */}
                 <View style={styles.filterControlBlock}>
                   <View style={[styles.searchBox, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}>
                     <Search size={18} color={theme.mutedTextColor} />
                     <TextInput
                       style={[styles.searchInput, { color: theme.textColor }]}
-                      placeholder={`Search ${selectedBrand === 'ALL' ? '' : selectedBrand + ' '}Flavors...`}
+                      placeholder="Search Flavors..."
                       placeholderTextColor={theme.mutedTextColor}
                       value={searchQuery}
                       onChangeText={setSearchQuery}
@@ -574,9 +738,6 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                     <View style={styles.emptyChamber}>
                       <Text style={{ fontSize: 44, marginBottom: 8 }}>🧪</Text>
                       <Text style={[styles.emptyChamberTitle, { color: theme.textColor }]}>YOUR BOWL IS EMPTY</Text>
-                      <Text style={{ color: theme.mutedTextColor, fontSize: 12, marginTop: 4 }}>
-                        Select your favorite brand & flavors from the left
-                      </Text>
                     </View>
                   ) : (
                     <View style={styles.bowlLiquidLayers}>
@@ -587,10 +748,24 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                         >
                           <View style={styles.layerInfoRow}>
                             <Text style={{ fontSize: 16 }}>{item.flavor.emoji}</Text>
-                            <Text style={styles.layerName} numberOfLines={1}>
+                            <Text style={[styles.layerName, { flex: 1 }]} numberOfLines={1}>
                               {item.flavor.brand} • {item.flavor.name}
                             </Text>
-                            <Text style={styles.layerPct}>{item.percentage}%</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginHorizontal: 6 }}>
+                              <TouchableOpacity
+                                onPress={() => handleAdjustPercentage(item.flavor.id, -5)}
+                                style={{ paddingHorizontal: 6, paddingVertical: 2, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 4 }}
+                              >
+                                <Text style={{ color: '#FFFFFF', fontWeight: '900', fontSize: 12 }}>-</Text>
+                              </TouchableOpacity>
+                              <Text style={[styles.layerPct, { minWidth: 36, textAlign: 'center' }]}>{item.percentage}%</Text>
+                              <TouchableOpacity
+                                onPress={() => handleAdjustPercentage(item.flavor.id, 5)}
+                                style={{ paddingHorizontal: 6, paddingVertical: 2, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 4 }}
+                              >
+                                <Text style={{ color: '#FFFFFF', fontWeight: '900', fontSize: 12 }}>+</Text>
+                              </TouchableOpacity>
+                            </View>
                             <TouchableOpacity
                               onPress={() => handleRemoveFlavor(item.flavor.id)}
                               style={[styles.removeLayerBtn, { paddingHorizontal: 8, paddingVertical: 4 }]}
@@ -601,6 +776,16 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                           </View>
                         </View>
                       ))}
+                    </View>
+                  )}
+                  {selectedFlavors.length > 0 && totalPercentage !== 100 && (
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 8, backgroundColor: 'rgba(239,68,68,0.2)', borderRadius: 8, marginTop: 6 }}>
+                      <Text style={{ color: '#FCA5A5', fontSize: 11, fontWeight: '700' }}>
+                        Total: {totalPercentage}% (Must sum to 100%)
+                      </Text>
+                      <TouchableOpacity onPress={handleAutoBalance} style={{ backgroundColor: '#E5B13A', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
+                        <Text style={{ color: '#000000', fontSize: 10, fontWeight: '900' }}>AUTO-BALANCE</Text>
+                      </TouchableOpacity>
                     </View>
                   )}
                 </View>
@@ -625,6 +810,48 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                       <Text style={[styles.actionPillText, { color: '#EF4444' }]}>CLEAR BOWL</Text>
                     </TouchableOpacity>
                   )}
+                </View>
+
+
+
+                {/* Base Selection */}
+                <View style={{ marginTop: 6, marginBottom: 4 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: '700' }}>
+                      HOOKAH BASE
+                    </Text>
+                    {selectedBaseId !== 'base_water' && (
+                      <TouchableOpacity onPress={() => setSelectedBaseId('base_water')}>
+                        <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, fontWeight: '600' }}>
+                          SKIP (Standard)
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                    {DEFAULT_HOOKAH_BASES.map(b => {
+                      const isSelected = selectedBaseId === b.id;
+                      return (
+                        <TouchableOpacity
+                          key={b.id}
+                          activeOpacity={0.8}
+                          onPress={() => setSelectedBaseId(b.id)}
+                          style={{
+                            paddingVertical: 5,
+                            paddingHorizontal: 9,
+                            borderRadius: 8,
+                            borderWidth: 1,
+                            borderColor: isSelected ? '#10B981' : 'rgba(255,255,255,0.15)',
+                            backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.22)' : 'rgba(255,255,255,0.04)',
+                          }}
+                        >
+                          <Text style={{ color: isSelected ? '#10B981' : '#E2E8F0', fontSize: 11, fontWeight: '800' }}>
+                            {b.name} {b.price ? `(+$${b.price})` : '($0)'}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
                 </View>
 
                 {/* Add-on Options: Ice Base & Ice Hose */}
@@ -672,7 +899,7 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
 
                 {/* Add to Order Button */}
                 <TouchableOpacity
-                  onPress={handleAddMixToCart}
+                  onPress={handleAddInitiated}
                   disabled={selectedFlavors.length === 0}
                   activeOpacity={0.88}
                   style={[

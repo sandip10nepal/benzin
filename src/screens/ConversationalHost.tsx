@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { DakuUpgradeModal } from '../components/DakuUpgradeModal';
 import { 
   View, 
   Text, 
@@ -25,6 +26,7 @@ import { BenzinHeader } from '../components/Navigation/BenzinHeader';
 import { MenuItem, SelectedModifier, CartItem, ConversationStep } from '../types';
 import { getItemImageSource } from '../data/menu_images';
 import { itemRequiresModifierSelection } from '../utils/modifierUtils';
+import { DEFAULT_HOOKAH_BASES, DAKU_PACKAGE } from '../data/hookahMixData';
 
 interface ConversationalHostProps {
   onBackToHome: () => void;
@@ -78,23 +80,53 @@ const HostHookahCard: React.FC<HostHookahCardProps> = ({
 }) => {
   const [iceBase, setIceBase] = useState(false);
   const [iceHose, setIceHose] = useState(false);
+  const [showDakuModal, setShowDakuModal] = useState(false);
 
-  const totalPrice = hookah.price + (iceBase ? 2 : 0) + (iceHose ? 6 : 0);
+  const baseHookahPrice = hookah.price;
+  const totalPrice = baseHookahPrice + (iceBase ? 2 : 0) + (iceHose ? 6 : 0);
 
-  const handleAdd = () => {
+  const handleAddInitiated = () => {
+    setShowDakuModal(true);
+  };
+
+  const handleAcceptDaku = () => {
+    setShowDakuModal(false);
+    const selectedOpts: SelectedModifier[] = [];
+    selectedOpts.push({
+      id: 'PKG_DAKU',
+      name: 'Make It Daku',
+      optionName: 'Daku Package ($65) - Unlimited Head Refill',
+      price: Math.max(0, 65 - hookah.price),
+    });
+    // Include Ice Base and Ice Hose for free!
+    if (iceBase) selectedOpts.push({ id: 'OPT_ICE_BASE', name: 'Ice Base', optionName: 'Ice Base (Included)', price: 0 });
+    if (iceHose) selectedOpts.push({ id: 'OPT_ICE_HOSE', name: 'Ice Hose', optionName: 'Ice Hose (Included)', price: 0 });
+    
+    const noteParts: string[] = [];
+    noteParts.push('🔥 DAKU: $65 Unlimited Head Refill');
+    if (iceBase) noteParts.push('Ice Base (Included)');
+    if (iceHose) noteParts.push('Ice Hose (Included)');
+    
+    onAddWithAddons(hookah, 1, selectedOpts, noteParts.join(' · '));
+  };
+
+  const handleDeclineDaku = () => {
+    setShowDakuModal(false);
     const selectedOpts: SelectedModifier[] = [];
     if (iceBase) selectedOpts.push({ id: 'OPT_ICE_BASE', name: 'Ice Base', optionName: 'Ice Base', price: 2 });
     if (iceHose) selectedOpts.push({ id: 'OPT_ICE_HOSE', name: 'Ice Hose', optionName: 'Ice Hose', price: 6 });
+    
     const noteParts: string[] = [];
     if (iceBase) noteParts.push('Ice Base (+$2)');
     if (iceHose) noteParts.push('Ice Hose (+$6)');
+    
     onAddWithAddons(hookah, 1, selectedOpts, noteParts.join(' · '));
   };
 
   return (
     <TouchableOpacity
       activeOpacity={0.9}
-      onPress={() => onSelectItem ? onSelectItem(hookah) : handleAdd()}
+      onPress={() => onSelectItem ? onSelectItem(hookah) : handleAddInitiated()}
       style={[
         styles.hostHookahCard,
         {
@@ -105,6 +137,12 @@ const HostHookahCard: React.FC<HostHookahCardProps> = ({
         isMobile ? { width: '100%' } : { width: 340, maxWidth: 360 }
       ]}
     >
+      <DakuUpgradeModal
+        visible={showDakuModal}
+        onAccept={handleAcceptDaku}
+        onDecline={handleDeclineDaku}
+        onClose={() => setShowDakuModal(false)}
+      />
       <View style={{ width: '100%' }}>
         {/* Title and Price Row */}
         <View style={styles.hostHookahTitleRow}>
@@ -132,8 +170,11 @@ const HostHookahCard: React.FC<HostHookahCardProps> = ({
           </Text>
         ) : null}
 
+        {/* MAKE IT DAKU - $65 Option */}
+
+
         {/* Inline Add-On Options (Ice Base & Ice Hose) */}
-        <View style={{ flexDirection: 'row', gap: 8, marginTop: 10, marginBottom: 12 }}>
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 12 }}>
           {/* Ice Base Toggle Pill */}
           <TouchableOpacity
             activeOpacity={0.8}
@@ -207,7 +248,7 @@ const HostHookahCard: React.FC<HostHookahCardProps> = ({
         <TouchableOpacity
           onPress={(e) => {
             if (e && e.stopPropagation) e.stopPropagation();
-            handleAdd();
+            handleAddInitiated();
           }}
           activeOpacity={0.85}
           style={[
@@ -247,7 +288,7 @@ const HostHookahCard: React.FC<HostHookahCardProps> = ({
           <TouchableOpacity
             onPress={(e) => {
               if (e && e.stopPropagation) e.stopPropagation();
-              handleAdd();
+              handleAddInitiated();
             }}
             activeOpacity={0.8}
             style={[styles.stepperBtn, { backgroundColor: '#2C2B2A', borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1 }]}
@@ -327,8 +368,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (itemName: string) => {
-    setToastMessage(` Added "${itemName}" to cart`);
-    setTimeout(() => setToastMessage(null), 2200);
+    
   };
 
   const hasHookahs = useMemo(() => (allMenuItems || []).some(item => item.category === 'hookah'), [allMenuItems]);
@@ -615,14 +655,6 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-      {/* Toast Notification Banner */}
-      {toastMessage && (
-        <View style={[styles.floatingToast, { backgroundColor: theme.primaryColor }]}>
-          <ShoppingBag size={18} color="#FFFFFF" />
-          <Text style={styles.toastText}>{toastMessage}</Text>
-          <Check size={18} color="#FFFFFF" />
-        </View>
-      )}
 
       {/* Top Header */}
       <BenzinHeader

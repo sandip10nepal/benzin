@@ -59,18 +59,15 @@ export const BenzinHeader: React.FC<BenzinHeaderProps> = ({
             <ArrowLeft size={isMobilePhone ? 16 : 20} color={theme.textColor} />
             {!isMobilePhone && <Text style={[styles.backText, { color: theme.textColor }]}>BACK</Text>}
           </TouchableOpacity>
-        ) : onLogOut ? (
-          <TouchableOpacity
-            onPress={onLogOut}
-            activeOpacity={0.7}
+        ) : (
+          <View
             style={[styles.backBtn, { backgroundColor: theme.cardColor, borderColor: theme.borderColor, paddingHorizontal: isMobilePhone ? 8 : 14 }]}
           >
-            <LogOut size={isMobilePhone ? 14 : 16} color={theme.secondaryColor} />
             <Text style={[styles.backText, { color: theme.secondaryColor, fontSize: isMobilePhone ? 10 : 11, fontWeight: '800' }]}>
               TBL {theme.tableNumber}
             </Text>
-          </TouchableOpacity>
-        ) : null}
+          </View>
+        )}
       </View>
 
       {/* Center: RESTAURANT BRANDING (Restaurant-first header) */}

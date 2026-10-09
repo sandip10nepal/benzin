@@ -197,3 +197,26 @@ export const POPULAR_MIX_RECIPES = [
     flavors: ['flv_love_66_12', 'flv_skyfall_14'],
   },
 ];
+
+export interface HookahBaseOption {
+  id: string;
+  name: string;
+  price: number;
+  description?: string;
+  active: boolean;
+}
+
+export const DEFAULT_HOOKAH_BASES: HookahBaseOption[] = [
+  { id: 'base_water', name: 'Standard Water Base', price: 0, description: 'Clean crisp purified ice water', active: true },
+  { id: 'base_rooh_afza', name: 'Rooh Afza Base', price: 5, description: 'Rose & herbal cooling refreshment', active: true },
+  { id: 'base_watermelon', name: 'Watermelon Syrup Base', price: 5, description: 'Sweet concentrated watermelon nectar', active: true },
+  { id: 'base_milk', name: 'Cream / Milk Base', price: 6, description: 'Extra thick and silky clouds', active: true },
+];
+
+export const DAKU_PACKAGE = {
+  id: 'pkg_daku',
+  name: 'Daku',
+  price: 65,
+  description: 'Unlimited head refill included',
+  includes_unlimited_refills: true,
+};
