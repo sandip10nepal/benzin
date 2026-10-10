@@ -20,6 +20,8 @@ interface OrderReminderModalProps {
   type: 'dessert' | 'drinks';
   title?: string;
   helperText?: string;
+  browseBtnText?: string;
+  skipBtnText?: string;
   theme: any;
   isMobile: boolean;
   quickAddItems?: MenuItem[];
@@ -34,6 +36,8 @@ export const OrderReminderModal: React.FC<OrderReminderModalProps> = ({
   type,
   title,
   helperText,
+  browseBtnText,
+  skipBtnText,
   theme,
   isMobile,
   quickAddItems = [],
@@ -56,8 +60,8 @@ export const OrderReminderModal: React.FC<OrderReminderModalProps> = ({
     ? 'Complete your session with warm Kunafa, Biscoff cake, or traditional sweets.'
     : 'Pair your dishes with crisp mojitos, fresh juices, Karak chai, or ice-cold sodas.');
 
-  const browseBtnText = isDessert ? 'Browse Desserts 🍰' : 'Browse Drinks 🥤';
-  const skipBtnText = isDessert ? 'Skip Dessert & Continue →' : 'Skip Drinks & Review Order →';
+  const finalBrowseBtnText = browseBtnText || (isDessert ? 'Browse Desserts 🍰' : 'Browse Drinks 🥤');
+  const finalSkipBtnText = skipBtnText || (isDessert ? 'Skip Dessert & Continue →' : 'Skip Drinks & Review Order →');
 
   return (
     <Modal
@@ -166,7 +170,7 @@ export const OrderReminderModal: React.FC<OrderReminderModalProps> = ({
               activeOpacity={0.88}
               style={[styles.browseBtn, { backgroundColor: badgeColor }]}
             >
-              <Text style={styles.browseBtnText}>{browseBtnText}</Text>
+              <Text style={styles.browseBtnText}>{finalBrowseBtnText}</Text>
               <ArrowRight size={18} color="#FFFFFF" />
             </TouchableOpacity>
 
@@ -176,7 +180,7 @@ export const OrderReminderModal: React.FC<OrderReminderModalProps> = ({
               style={[styles.skipBtn, { borderColor: theme.borderColor }]}
             >
               <Text style={[styles.skipBtnText, { color: theme.mutedTextColor }]}>
-                {skipBtnText}
+                {finalSkipBtnText}
               </Text>
             </TouchableOpacity>
           </View>

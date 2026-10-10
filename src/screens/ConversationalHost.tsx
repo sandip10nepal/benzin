@@ -303,6 +303,155 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
     return (allMenuItems || []).filter(isDrinkItem).slice(0, 2);
   }, [allMenuItems]);
 
+  // Subcategory filter states
+  const [foodSubcategory, setFoodSubcategory] = useState<string>('ALL');
+  const [drinkSubcategory, setDrinkSubcategory] = useState<string>('ALL');
+
+  // Subcategories for Food
+  const foodSubcategories = useMemo(() => {
+    if (allCategories && allCategories.length > 0) {
+      const foodSuper = allCategories.find(c => c.parent_id === null && (c.name.toLowerCase().includes('food') || c.title.toLowerCase().includes('food')));
+      if (foodSuper) {
+        const subs = allCategories
+          .filter(c => c.parent_id === (foodSuper._id || foodSuper.id) && c.active !== false)
+          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+        if (subs.length > 0) {
+          return ['ALL', ...subs.map(s => s.name || s.title)];
+        }
+      }
+    }
+    const source = (allMenuItems || []).filter(item => item.category === 'food');
+    const subs = new Set<string>();
+    source.forEach(f => {
+      if (f.subcategory) subs.add(f.subcategory);
+    });
+    return ['ALL', ...Array.from(subs)];
+  }, [allCategories, allMenuItems]);
+
+  // Subcategories for Drinks
+  const drinkSubcategories = useMemo(() => {
+    if (allCategories && allCategories.length > 0) {
+      const drinkSuper = allCategories.find(c => c.parent_id === null && (c.name.toLowerCase().includes('beverage') || c.name.toLowerCase().includes('drink') || c.title.toLowerCase().includes('beverage') || c.title.toLowerCase().includes('drink')));
+      if (drinkSuper) {
+        const subs = allCategories
+          .filter(c => c.parent_id === (drinkSuper._id || drinkSuper.id) && c.active !== false)
+          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+        if (subs.length > 0) {
+          return ['ALL', ...subs.map(s => s.name || s.title)];
+        }
+      }
+    }
+    const source = (allMenuItems || []).filter(item => item.category === 'drinks');
+    const subs = new Set<string>();
+    source.forEach(d => {
+      if (d.subcategory) subs.add(d.subcategory);
+    });
+    return ['ALL', ...Array.from(subs)];
+  }, [allCategories, allMenuItems]);
+
+  const handleNavigateCategory = useCallback((catId: any) => {
+    let rawStr = '';
+    if (typeof catId === 'string') {
+      rawStr = catId;
+    } else if (catId && typeof catId === 'object') {
+      rawStr = catId.target || catId.categoryId || catId.ref_id || catId.id || '';
+    }
+    const cleanId = String(rawStr || '').replace(/^category:/, '').trim();
+    if (!cleanId) return;
+
+    // Check if it's the drinks super category
+    if (
+      cleanId === 'cat_super_drinks' ||
+      cleanId.toLowerCase().includes('super_drinks') ||
+      cleanId.toLowerCase().includes('super_res_eed4e9d266df_drinks')
+    ) {
+      setDrinkSubcategory('ALL');
+      setStep('select_drink');
+      return;
+    }
+
+    // Check if it's the food super category
+    if (
+      cleanId === 'cat_super_food' ||
+      cleanId.toLowerCase().includes('super_food') ||
+      cleanId.toLowerCase().includes('super_res_eed4e9d266df_food')
+    ) {
+      setFoodSubcategory('ALL');
+      setStep('select_food');
+      return;
+    }
+
+    // Check if it's hookah super or custom mix lab
+    if (cleanId === 'cat_super_hookah' || cleanId.toLowerCase().includes('super_hookah')) {
+      setStep('select_hookah');
+      return;
+    }
+    if (cleanId === 'CAT_HOOKAH_CUSTOM' || cleanId.toLowerCase().includes('custom_mix')) {
+      if (onOpenMixLab) onOpenMixLab();
+      else setStep('select_hookah');
+      return;
+    }
+
+    const cat = (allCategories || []).find((c: any) => {
+      const id = String(c.id || c._id || '');
+      const cName = String(c.name || '');
+      const cTitle = String(c.title || '');
+      return (
+        id === cleanId ||
+        id.toLowerCase() === cleanId.toLowerCase() ||
+        cName.toLowerCase() === cleanId.toLowerCase() ||
+        cTitle.toLowerCase() === cleanId.toLowerCase()
+      );
+    });
+
+    const resolvedName = cat?.name || cat?.title || cleanId;
+    const parentId = String(cat?.parent_id || '').toLowerCase();
+    const menuType = String(cat?.menu_type || '').toLowerCase();
+
+    // Check if Drinks
+    const isDrinkCat =
+      parentId.includes('drink') ||
+      parentId.includes('beverage') ||
+      menuType.includes('drink') ||
+      menuType.includes('beverage') ||
+      cleanId.toLowerCase().includes('drink') ||
+      cleanId.toLowerCase().includes('tea') ||
+      cleanId.toLowerCase().includes('coffee') ||
+      cleanId.toLowerCase().includes('refresher') ||
+      cleanId.toLowerCase().includes('soft') ||
+      drinkSubcategories.some(
+        (sub) => sub !== 'ALL' && (sub.toLowerCase() === resolvedName.toLowerCase() || sub.toLowerCase() === cleanId.toLowerCase())
+      );
+
+    if (isDrinkCat) {
+      const matchedDrinkSub = drinkSubcategories.find(
+        (sub) => sub.toLowerCase() === resolvedName.toLowerCase() || sub.toLowerCase() === cleanId.toLowerCase()
+      ) || resolvedName;
+      setDrinkSubcategory(matchedDrinkSub);
+      setStep('select_drink');
+      return;
+    }
+
+    // Check if Hookah
+    const isHookahCat =
+      parentId.includes('hookah') ||
+      parentId.includes('shisha') ||
+      menuType.includes('hookah') ||
+      cleanId.toLowerCase().includes('hookah');
+
+    if (isHookahCat) {
+      setStep('select_hookah');
+      return;
+    }
+
+    // Otherwise Food (including Desserts, Wraps, Burgers, Appetizers, etc.)
+    const matchedFoodSub = foodSubcategories.find(
+      (sub) => sub.toLowerCase() === resolvedName.toLowerCase() || sub.toLowerCase() === cleanId.toLowerCase()
+    ) || resolvedName;
+    setFoodSubcategory(matchedFoodSub);
+    setStep('select_food');
+  }, [allCategories, drinkSubcategories, foodSubcategories, onOpenMixLab]);
+
   const {
     isEnabled: isVibeQuestEnabled,
     isDismissed: isVibeQuestDismissed,
@@ -332,22 +481,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
       else if (targetStage === 'drinks') setStep('select_drink');
       else if (targetStage === 'checkout') setStep('review_summary');
     },
-    onNavigateCategory: (catId: string) => {
-      const cat = (allCategories || []).find((c: any) => {
-        const id = c.id || c._id;
-        return (
-          id === catId ||
-          String(id).toLowerCase() === String(catId).toLowerCase() ||
-          c.name === catId ||
-          c.title === catId
-        );
-      });
-      const resolvedName = cat?.name || cat?.title || catId;
-      setFoodSubcategory(resolvedName);
-      if (step !== 'select_food') {
-        setStep('select_food');
-      }
-    },
+    onNavigateCategory: handleNavigateCategory,
     onNavigateFlow: (flow: string) => {
       if (flow === 'mix_lab') {
         if (onOpenMixLab) onOpenMixLab();
@@ -414,9 +548,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
     }
   }, [step, theme.name, theme.tableNumber]);
 
-  // Subcategory filter states
-  const [foodSubcategory, setFoodSubcategory] = useState<string>('ALL');
-  const [drinkSubcategory, setDrinkSubcategory] = useState<string>('ALL');
+  // Subcategory filter states are initialized above
 
   // Track draft quantities for multi-selection per step
   const [draftCounts, setDraftCounts] = useState<Record<string, number>>({});
@@ -561,47 +693,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
     ];
   }, [allCategories]);
 
-  // Subcategories for Food
-  const foodSubcategories = useMemo(() => {
-    if (allCategories && allCategories.length > 0) {
-      const foodSuper = allCategories.find(c => c.parent_id === null && (c.name.toLowerCase().includes('food') || c.title.toLowerCase().includes('food')));
-      if (foodSuper) {
-        const subs = allCategories
-          .filter(c => c.parent_id === (foodSuper._id || foodSuper.id) && c.active !== false)
-          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-        if (subs.length > 0) {
-          return ['ALL', ...subs.map(s => s.name || s.title)];
-        }
-      }
-    }
-    const source = (allMenuItems || []).filter(item => item.category === 'food');
-    const subs = new Set<string>();
-    source.forEach(f => {
-      if (f.subcategory) subs.add(f.subcategory);
-    });
-    return ['ALL', ...Array.from(subs)];
-  }, [allCategories, allMenuItems]);
-
-  // Subcategories for Drinks
-  const drinkSubcategories = useMemo(() => {
-    if (allCategories && allCategories.length > 0) {
-      const drinkSuper = allCategories.find(c => c.parent_id === null && (c.name.toLowerCase().includes('beverage') || c.name.toLowerCase().includes('drink') || c.title.toLowerCase().includes('beverage') || c.title.toLowerCase().includes('drink')));
-      if (drinkSuper) {
-        const subs = allCategories
-          .filter(c => c.parent_id === (drinkSuper._id || drinkSuper.id) && c.active !== false)
-          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-        if (subs.length > 0) {
-          return ['ALL', ...subs.map(s => s.name || s.title)];
-        }
-      }
-    }
-    const source = (allMenuItems || []).filter(item => item.category === 'drinks');
-    const subs = new Set<string>();
-    source.forEach(d => {
-      if (d.subcategory) subs.add(d.subcategory);
-    });
-    return ['ALL', ...Array.from(subs)];
-  }, [allCategories, allMenuItems]);
+  // Food and Drink subcategories are defined above
 
   const sortItemsByCategoryAndOrder = (items: MenuItem[], categories: any[] = []) => {
     const catMap = new Map<string, { sort_order: number; title: string }>();
@@ -756,14 +848,40 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
     return null;
   }, [step, hasFood, hasDrinks, hasHookahs, handleProceedFromFood, handleProceedFromDrinks]);
 
+  const dessertReminderQuestion = useMemo(() => {
+    return (vibeQuestConfig?.questions || []).find(q =>
+      q.navigation_trigger === 'cart_dessert' || q.id === 'q_dessert_reminder' || (q.stage === 'dessert' && q.repeat_policy === 'cart_conditional')
+    );
+  }, [vibeQuestConfig?.questions]);
+
+  const dessertBrowseAnswer = useMemo(() => {
+    return dessertReminderQuestion?.answers?.find(a => a.destination && a.destination !== 'skip') || dessertReminderQuestion?.answers?.[0];
+  }, [dessertReminderQuestion]);
+
+  const dessertSkipAnswer = useMemo(() => {
+    return dessertReminderQuestion?.answers?.find(a => a.destination === 'skip') || dessertReminderQuestion?.answers?.[1];
+  }, [dessertReminderQuestion]);
+
+  const drinkReminderQuestion = useMemo(() => {
+    return (vibeQuestConfig?.questions || []).find(q =>
+      q.navigation_trigger === 'cart_drinks' || (q.id === 'q_drink_reminder' && q.repeat_policy === 'cart_conditional')
+    );
+  }, [vibeQuestConfig?.questions]);
+
+  const drinkBrowseAnswer = useMemo(() => {
+    return drinkReminderQuestion?.answers?.find(a => a.destination && a.destination !== 'skip') || drinkReminderQuestion?.answers?.[0];
+  }, [drinkReminderQuestion]);
+
+  const drinkSkipAnswer = useMemo(() => {
+    return drinkReminderQuestion?.answers?.find(a => a.destination === 'skip') || drinkReminderQuestion?.answers?.[1];
+  }, [drinkReminderQuestion]);
+
   const handleDessertBrowse = useCallback(() => {
     setHandledReminders((prev) => new Set(prev).add('dessert'));
     setActiveReminder(null);
-    const destCat = vibeQuestConfig?.settings?.dessert_destination_category || 'CAT_DESSERTS';
-    const catTitle = resolveCategoryTitle(destCat, allCategories) || 'DESSERTS';
-    setFoodSubcategory(catTitle);
-    setStep('select_food');
-  }, [vibeQuestConfig?.settings?.dessert_destination_category, allCategories]);
+    const rawDest = dessertBrowseAnswer?.destination || vibeQuestConfig?.settings?.dessert_destination_category || 'CAT_DESSERTS';
+    handleNavigateCategory(rawDest);
+  }, [dessertBrowseAnswer, vibeQuestConfig?.settings?.dessert_destination_category, handleNavigateCategory]);
 
   const handleDessertQuickAdd = useCallback((item: MenuItem) => {
     setHandledReminders((prev) => new Set(prev).add('dessert'));
@@ -783,8 +901,9 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
   const handleDrinkBrowse = useCallback(() => {
     setHandledReminders((prev) => new Set(prev).add('drinks'));
     setActiveReminder(null);
-    setStep('select_drink');
-  }, []);
+    const rawDest = drinkBrowseAnswer?.destination || vibeQuestConfig?.settings?.drink_destination_category || 'cat_super_drinks';
+    handleNavigateCategory(rawDest);
+  }, [drinkBrowseAnswer, vibeQuestConfig?.settings?.drink_destination_category, handleNavigateCategory]);
 
   const handleDrinkQuickAdd = useCallback((item: MenuItem) => {
     setHandledReminders((prev) => new Set(prev).add('drinks'));
@@ -1006,9 +1125,8 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
                             setHookahExperienceSelected('house_mixes');
                             if (ans.destination === 'flow:mix_lab' || ans.destination === 'custom_mix_lab') {
                               if (onOpenMixLab) onOpenMixLab();
-                            } else if (ans.destination && ans.destination.startsWith('category:')) {
-                              const catId = ans.destination.replace(/^category:/, '');
-                              if (onNavigateCategory) onNavigateCategory(catId);
+                            } else if (ans.destination) {
+                              handleNavigateCategory(ans.destination);
                             }
                           }}
                           style={[
@@ -1675,7 +1793,10 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
       <OrderReminderModal
         visible={activeReminder === 'dessert'}
         type="dessert"
-        title={vibeQuestConfig?.settings?.dessert_reminder_text || "Should we save room for something sweet? 🍰"}
+        title={dessertReminderQuestion?.question_text || dessertReminderQuestion?.title || vibeQuestConfig?.settings?.dessert_reminder_text || "Should we save room for something sweet? 🍰"}
+        helperText={dessertReminderQuestion?.helper_text}
+        browseBtnText={dessertBrowseAnswer?.label || "Browse Desserts 🍰"}
+        skipBtnText={dessertSkipAnswer?.label || "Skip Dessert & Continue →"}
         theme={theme}
         isMobile={isMobile}
         quickAddItems={dessertQuickAddItems}
@@ -1691,7 +1812,10 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
       <OrderReminderModal
         visible={activeReminder === 'drinks'}
         type="drinks"
-        title={vibeQuestConfig?.settings?.drink_reminder_text || "Would you like something to drink? 🥤"}
+        title={drinkReminderQuestion?.question_text || drinkReminderQuestion?.title || vibeQuestConfig?.settings?.drink_reminder_text || "Would you like something to drink? 🥤"}
+        helperText={drinkReminderQuestion?.helper_text}
+        browseBtnText={drinkBrowseAnswer?.label || "Browse Drinks 🥤"}
+        skipBtnText={drinkSkipAnswer?.label || "Skip Drinks & Review Order →"}
         theme={theme}
         isMobile={isMobile}
         quickAddItems={drinkQuickAddItems}
