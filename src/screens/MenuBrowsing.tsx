@@ -17,11 +17,17 @@ import { BottomNavigation } from '../components/Navigation/BottomNavigation';
 import { MenuItem, SelectedModifier, CartItem, ConversationStep } from '../types';
 import { MENU_IMAGES, getItemImageSource } from '../data/menu_images';
 import { itemRequiresModifierSelection, getActionLabelForItem } from '../utils/modifierUtils';
-import { DEFAULT_HOOKAH_BASES, DAKU_PACKAGE } from '../data/hookahMixData';
-import { VibeQuestTransitionModal } from '../components/VibeQuest/VibeQuestTransitionModal';
 import { VibeQuestConfig, VibeQuestStage } from '../vibe-quest/vibe-quest.types';
 import { DEFAULT_VIBE_QUEST_CONFIG } from '../vibe-quest/vibe-quest.default';
 import { TenantApiService } from '../services/api';
+import { OrderReminderModal } from '../components/OrderReminder/OrderReminderModal';
+import {
+  isDessertInCart,
+  isDrinkInCart,
+  isDessertItem,
+  isDrinkItem,
+  resolveCategoryTitle,
+} from '../utils/orderFlowUtils';
 
 interface MenuBrowsingProps {
   onBack: () => void;
@@ -348,18 +354,19 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
   const [activeQuestionByStage, setActiveQuestionByStage] = useState<Record<string, string>>({});
   const [vibeReactionMessage, setVibeReactionMessage] = useState<string | null>(null);
   const [isVibeSectionDismissed, setIsVibeSectionDismissed] = useState<boolean>(false);
-  const [completedStages, setCompletedStages] = useState<Set<string>>(new Set());
-  const [transitionModal, setTransitionModal] = useState<{
-    visible: boolean;
-    stage: VibeQuestStage;
-    targetCatId: string | null;
-    nextStageLabel: string;
-  }>({
-    visible: false,
-    stage: 'hookah',
-    targetCatId: null,
-    nextStageLabel: 'Food Menu',
-  });
+
+  // Order Reminders State
+  const [activeReminder, setActiveReminder] = useState<'dessert' | 'drinks' | null>(null);
+  const [handledReminders, setHandledReminders] = useState<Set<'dessert' | 'drinks'>>(new Set());
+  const [pendingTargetCatId, setPendingTargetCatId] = useState<string | null>(null);
+
+  const dessertQuickAddItems = useMemo(() => {
+    return (allMenuItems || []).filter(isDessertItem).slice(0, 2);
+  }, [allMenuItems]);
+
+  const drinkQuickAddItems = useMemo(() => {
+    return (allMenuItems || []).filter(isDrinkItem).slice(0, 2);
+  }, [allMenuItems]);
 
   const effectiveRestaurantId = restaurantId || 'RES_EED4E9D266DF';
   const effectiveTableNumber = tableNumber || theme.tableNumber || '1';
@@ -388,13 +395,6 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
 
   const isVibeQuestEnabled = useMemo(() => {
     return !!(vibeQuestConfig && vibeQuestConfig.enabled !== false);
-  }, [vibeQuestConfig]);
-
-  const hasStageDiscoveryQuestions = useCallback((stageName: VibeQuestStage) => {
-    if (!vibeQuestConfig || !vibeQuestConfig.questions) return false;
-    return vibeQuestConfig.questions.some(
-      (q) => q.stage === stageName && q.active !== false
-    );
   }, [vibeQuestConfig]);
 
   const getStageForCategory = useCallback((catId: string): VibeQuestStage => {
@@ -659,52 +659,9 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
   const handleSuperCategoryChange = useCallback((targetCatId: string) => {
     if (targetCatId === activeSuperCatId) return;
 
-    if (activeSuperCatId !== 'ALL') {
-      const fromStage = getStageForCategory(activeSuperCatId);
-      const toStage = getStageForCategory(targetCatId);
-
-      if (
-        fromStage !== toStage &&
-        isVibeQuestEnabled &&
-        !completedStages.has(fromStage) &&
-        hasStageDiscoveryQuestions(fromStage)
-      ) {
-        setTransitionModal({
-          visible: true,
-          stage: fromStage,
-          targetCatId,
-          nextStageLabel: toStage === 'drinks' ? 'Drinks Menu' : toStage === 'food' ? 'Food Menu' : 'Hookah Menu',
-        });
-        return;
-      }
-    }
-
     setActiveSuperCatId(targetCatId);
     setActiveSubCatId('ALL');
-  }, [activeSuperCatId, getStageForCategory, isVibeQuestEnabled, completedStages, hasStageDiscoveryQuestions]);
-
-  const handleProceedFromTransitionModal = useCallback(() => {
-    const stageCompleted = transitionModal.stage;
-    const targetCatId = transitionModal.targetCatId;
-    setCompletedStages(prev => new Set(prev).add(stageCompleted));
-    setTransitionModal(prev => ({ ...prev, visible: false }));
-
-    if (targetCatId) {
-      setActiveSuperCatId(targetCatId);
-      setActiveSubCatId('ALL');
-    } else if (stageCompleted === 'drinks') {
-      onOpenCart();
-    }
-  }, [transitionModal, onOpenCart]);
-
-  const handleTriggerDiscovery = useCallback((stageToTrigger: VibeQuestStage) => {
-    setTransitionModal({
-      visible: true,
-      stage: stageToTrigger,
-      targetCatId: null,
-      nextStageLabel: stageToTrigger === 'hookah' ? 'Food Menu' : stageToTrigger === 'food' ? 'Drinks Menu' : 'Review Cart',
-    });
-  }, []);
+  }, [activeSuperCatId]);
 
   const matchProductById = useCallback((pId: string, items: MenuItem[]): MenuItem | undefined => {
     if (!pId || !items || items.length === 0) return undefined;
@@ -747,33 +704,22 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
     const activeQ = currentVibeQuestion;
     const selectedAnsIds = (activeQ && selectedVibeAnswers[activeQ.id]) || [];
 
+    // Never auto-populate or hang recommendations shelf unless the user actively made a choice
+    if (!activeQ || selectedAnsIds.length === 0) {
+      return [];
+    }
+
     const pinnedIds: string[] = [];
 
-    // 1. First priority: pinned products of user's active answer selection
-    if (activeQ && selectedAnsIds.length > 0) {
-      activeQ.answers
-        .filter((a) => selectedAnsIds.includes(a.id))
-        .forEach((a) => {
-          const p = (a as any).pinned_product_ids || (a as any).curated_product_ids || [];
-          p.forEach((pid: string) => {
-            if (pid && !pinnedIds.includes(pid)) pinnedIds.push(pid);
-          });
+    // Pinned products of user's active answer selection
+    activeQ.answers
+      .filter((a) => selectedAnsIds.includes(a.id))
+      .forEach((a) => {
+        const p = (a as any).pinned_product_ids || (a as any).curated_product_ids || [];
+        p.forEach((pid: string) => {
+          if (pid && !pinnedIds.includes(pid)) pinnedIds.push(pid);
         });
-    }
-
-    // 2. Second priority: pinned products across all stage questions
-    if (vibeQuestConfig?.questions) {
-      vibeQuestConfig.questions
-        .filter((q) => (currentStage === 'hookah' ? q.stage === 'hookah' : currentStage === 'drinks' ? q.stage === 'drinks' : currentStage === 'dessert' ? q.stage === 'dessert' : q.stage === 'food') && q.active !== false)
-        .forEach((q) => {
-          (q.answers || []).forEach((a) => {
-            const p = (a as any).pinned_product_ids || (a as any).curated_product_ids || [];
-            p.forEach((pid: string) => {
-              if (pid && !pinnedIds.includes(pid)) pinnedIds.push(pid);
-            });
-          });
-        });
-    }
+      });
 
     const recs: MenuItem[] = [];
     pinnedIds.forEach((pId) => {
@@ -783,84 +729,129 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
       }
     });
 
-    if (recs.length < 4) {
-      const fallbacks = allMenuItems.filter((m) => {
-        if (recs.some((r) => (r.id || (r as any)._id) === (m.id || (m as any)._id))) return false;
-        if (m.available === false) return false;
-        const cat = (m.category || (m as any).category_id || '').toLowerCase();
-        if (currentStage === 'hookah') return cat.includes('hookah');
-        if (currentStage === 'drinks') return cat.includes('drink') || cat.includes('beverage');
-        if (currentStage === 'dessert') return cat.includes('dessert');
-        return cat.includes('food') || cat.includes('appetizer') || cat.includes('main');
-      }).slice(0, 4 - recs.length);
-      recs.push(...fallbacks);
+    return recs.slice(0, 6);
+  }, [allMenuItems, currentVibeQuestion, selectedVibeAnswers, matchProductById]);
+
+  const handleDessertBrowse = useCallback(() => {
+    setHandledReminders((prev) => new Set(prev).add('dessert'));
+    setActiveReminder(null);
+    setActiveSuperCatId('cat_super_food');
+    const destCat = vibeQuestConfig?.settings?.dessert_destination_category || 'CAT_DESSERTS';
+    const catTitle = resolveCategoryTitle(destCat, allCategories) || 'DESSERTS';
+    setActiveSubCatId(catTitle);
+  }, [vibeQuestConfig?.settings?.dessert_destination_category, allCategories]);
+
+  const handleDessertQuickAdd = useCallback((item: MenuItem) => {
+    setHandledReminders((prev) => new Set(prev).add('dessert'));
+    setActiveReminder(null);
+    if (onAddToCart) onAddToCart(item, 1, []);
+    if (pendingTargetCatId) {
+      setActiveSuperCatId(pendingTargetCatId);
+      setActiveSubCatId('ALL');
+      setPendingTargetCatId(null);
+    } else {
+      onOpenCart();
+    }
+  }, [onAddToCart, pendingTargetCatId, onOpenCart]);
+
+  const handleDessertSkip = useCallback(() => {
+    setHandledReminders((prev) => new Set(prev).add('dessert'));
+    setActiveReminder(null);
+    if (pendingTargetCatId) {
+      setActiveSuperCatId(pendingTargetCatId);
+      setActiveSubCatId('ALL');
+      setPendingTargetCatId(null);
+    } else {
+      onOpenCart();
+    }
+  }, [pendingTargetCatId, onOpenCart]);
+
+  const handleDrinkBrowse = useCallback(() => {
+    setHandledReminders((prev) => new Set(prev).add('drinks'));
+    setActiveReminder(null);
+    setActiveSuperCatId('cat_super_drinks');
+    setActiveSubCatId('ALL');
+  }, []);
+
+  const handleDrinkQuickAdd = useCallback((item: MenuItem) => {
+    setHandledReminders((prev) => new Set(prev).add('drinks'));
+    setActiveReminder(null);
+    if (onAddToCart) onAddToCart(item, 1, []);
+    onOpenCart();
+  }, [onAddToCart, onOpenCart]);
+
+  const handleDrinkSkip = useCallback(() => {
+    setHandledReminders((prev) => new Set(prev).add('drinks'));
+    setActiveReminder(null);
+    onOpenCart();
+  }, [onOpenCart]);
+
+  const handleHeaderOpenCart = useCallback(() => {
+    const drinkReminderEnabled = vibeQuestConfig?.settings?.drink_reminder_enabled !== false;
+    const hasDrink = isDrinkInCart(cartItems);
+    if (!hasDrink && drinkReminderEnabled && !handledReminders.has('drinks')) {
+      setActiveReminder('drinks');
+      return;
     }
 
-    return recs.slice(0, 6);
-  }, [allMenuItems, currentStage, currentVibeQuestion, selectedVibeAnswers, vibeQuestConfig, matchProductById]);
+    const dessertReminderEnabled = vibeQuestConfig?.settings?.dessert_reminder_enabled !== false;
+    const hasDessert = isDessertInCart(cartItems);
+    if (!hasDessert && dessertReminderEnabled && !handledReminders.has('dessert')) {
+      setActiveReminder('dessert');
+      return;
+    }
+
+    onOpenCart();
+  }, [vibeQuestConfig?.settings, cartItems, handledReminders, onOpenCart]);
 
   const handleBottomNavAdvance = useCallback(() => {
     const currentStage = getStageForCategory(activeSuperCatId);
 
     if (currentStage === 'hookah') {
       const targetCatId = 'CAT_APPETIZERS';
-      if (isVibeQuestEnabled && !completedStages.has('hookah') && hasStageDiscoveryQuestions('hookah')) {
-        setTransitionModal({
-          visible: true,
-          stage: 'hookah',
-          targetCatId,
-          nextStageLabel: 'Food Menu',
-        });
-        return;
-      }
       setActiveSuperCatId(targetCatId);
       setActiveSubCatId('ALL');
       return;
     }
 
     if (currentStage === 'food') {
-      const targetCatId = 'cat_super_drinks';
-      if (isVibeQuestEnabled && !completedStages.has('food') && hasStageDiscoveryQuestions('food')) {
-        setTransitionModal({
-          visible: true,
-          stage: 'food',
-          targetCatId,
-          nextStageLabel: 'Drinks Menu',
-        });
+      const dessertReminderEnabled = vibeQuestConfig?.settings?.dessert_reminder_enabled !== false;
+      const hasDessert = isDessertInCart(cartItems);
+      if (!hasDessert && dessertReminderEnabled && !handledReminders.has('dessert')) {
+        setActiveReminder('dessert');
+        setPendingTargetCatId('cat_super_drinks');
         return;
       }
+
+      const targetCatId = 'cat_super_drinks';
       setActiveSuperCatId(targetCatId);
       setActiveSubCatId('ALL');
       return;
     }
 
     if (currentStage === 'drinks') {
-      if (isVibeQuestEnabled && !completedStages.has('drinks') && hasStageDiscoveryQuestions('drinks')) {
-        setTransitionModal({
-          visible: true,
-          stage: 'drinks',
-          targetCatId: null,
-          nextStageLabel: 'Review Cart',
-        });
+      const drinkReminderEnabled = vibeQuestConfig?.settings?.drink_reminder_enabled !== false;
+      const hasDrink = isDrinkInCart(cartItems);
+      if (!hasDrink && drinkReminderEnabled && !handledReminders.has('drinks')) {
+        setActiveReminder('drinks');
         return;
       }
+
       onOpenCart();
       return;
     }
 
     // If ALL
-    if (isVibeQuestEnabled && !completedStages.has('hookah') && hasStageDiscoveryQuestions('hookah')) {
-      setTransitionModal({
-        visible: true,
-        stage: 'hookah',
-        targetCatId: 'CAT_APPETIZERS',
-        nextStageLabel: 'Food Menu',
-      });
-    } else {
-      setActiveSuperCatId('cat_super_hookah');
-      setActiveSubCatId('ALL');
-    }
-  }, [activeSuperCatId, getStageForCategory, isVibeQuestEnabled, completedStages, hasStageDiscoveryQuestions, onOpenCart]);
+    setActiveSuperCatId('cat_super_hookah');
+    setActiveSubCatId('ALL');
+  }, [
+    activeSuperCatId,
+    getStageForCategory,
+    onOpenCart,
+    vibeQuestConfig?.settings,
+    cartItems,
+    handledReminders,
+  ]);
 
   const bottomNavProps = useMemo(() => {
     const stage = getStageForCategory(activeSuperCatId);
@@ -1009,7 +1000,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
       <BenzinHeader
         showBackButton
         onBack={onBack}
-        onOpenCart={onOpenCart}
+        onOpenCart={handleHeaderOpenCart}
         onOpenCallServer={onCallServer}
         onOpenTrackOrder={onOpenTrackOrder}
         isTrackingActive={isTrackingActive}
@@ -1156,13 +1147,11 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
             </View>
 
             {/* LIVE RECOMMENDATIONS SHELF INSIDE VIBE QUEST */}
-            {stageRecommendations.length > 0 && (
+            {selectedVibeAnswers[currentVibeQuestion.id]?.length > 0 && stageRecommendations.length > 0 && (
               <View style={styles.inlineRecsShelf}>
                 <View style={styles.inlineRecsHeader}>
                   <Text style={styles.inlineRecsTitle}>
-                    {selectedVibeAnswers[currentVibeQuestion.id]?.length > 0
-                      ? '🎯 RECOMMENDED FOR YOUR VIBE'
-                      : `🔥 TOP ${currentStage.toUpperCase()} PICKS`}
+                    🎯 RECOMMENDED FOR YOUR VIBE
                   </Text>
                   <Text style={[styles.inlineRecsCount, { color: theme.mutedTextColor }]}>
                     {stageRecommendations.length} {stageRecommendations.length === 1 ? 'item' : 'items'}
@@ -1247,7 +1236,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
           >
             <Text style={{ fontSize: 16 }}>🎯</Text>
             <Text style={[styles.minimizedVibeText, { color: '#E5B13A' }]}>
-              Show {currentStage.toUpperCase()} Vibe Quest Questions & Recommendations →
+              Show {currentStage.toUpperCase()} Questions →
             </Text>
           </TouchableOpacity>
         )}
@@ -1527,24 +1516,37 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
         onPrimaryAction={handleBottomNavAdvance}
       />
 
-      {/* Vibe Quest Stage Transition Discovery Modal */}
-      <VibeQuestTransitionModal
-        visible={transitionModal.visible}
-        stage={transitionModal.stage}
-        nextStageLabel={transitionModal.nextStageLabel}
-        config={vibeQuestConfig}
-        allMenuItems={allMenuItems}
-        cartItems={cartItems || []}
+      {/* Smart Order Reminder Modals (Dessert & Drinks) */}
+      <OrderReminderModal
+        visible={activeReminder === 'dessert'}
+        type="dessert"
+        title={vibeQuestConfig?.settings?.dessert_reminder_text || "Should we save room for something sweet? 🍰"}
         theme={theme}
         isMobile={isMobile}
-        restaurantId={effectiveRestaurantId}
-        tableNumber={effectiveTableNumber}
-        onAddToCart={onAddToCart || (() => {})}
-        onUpdateQuantity={onUpdateQuantity}
-        onRemoveItem={onRemoveItem}
-        onProceed={handleProceedFromTransitionModal}
-        onClose={handleProceedFromTransitionModal}
-        onOpenMixLab={onOpenMixLab}
+        quickAddItems={dessertQuickAddItems}
+        onBrowse={handleDessertBrowse}
+        onQuickAdd={handleDessertQuickAdd}
+        onSkip={handleDessertSkip}
+        onClose={() => {
+          setHandledReminders((prev) => new Set(prev).add('dessert'));
+          setActiveReminder(null);
+        }}
+      />
+
+      <OrderReminderModal
+        visible={activeReminder === 'drinks'}
+        type="drinks"
+        title={vibeQuestConfig?.settings?.drink_reminder_text || "Would you like something to drink? 🥤"}
+        theme={theme}
+        isMobile={isMobile}
+        quickAddItems={drinkQuickAddItems}
+        onBrowse={handleDrinkBrowse}
+        onQuickAdd={handleDrinkQuickAdd}
+        onSkip={handleDrinkSkip}
+        onClose={() => {
+          setHandledReminders((prev) => new Set(prev).add('drinks'));
+          setActiveReminder(null);
+        }}
       />
     </View>
   );

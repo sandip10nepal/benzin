@@ -12,6 +12,8 @@ import { TenantApiService } from '../services/api';
 
 import { DEFAULT_VIBE_QUEST_CONFIG } from './vibe-quest.default';
 
+import { parseDestination } from '../utils/orderFlowUtils';
+
 interface UseVibeQuestProps {
   restaurantId?: string;
   tableNumber?: string;
@@ -22,6 +24,9 @@ interface UseVibeQuestProps {
   onOpenMixLab?: () => void;
   onSelectItem?: (item: MenuItem) => void;
   onNavigateStage?: (stage: VibeQuestStage) => void;
+  onNavigateCategory?: (categoryId: string) => void;
+  onNavigateFlow?: (flow: string) => void;
+  onSkip?: () => void;
 }
 
 export function useVibeQuest({
@@ -34,6 +39,9 @@ export function useVibeQuest({
   onOpenMixLab,
   onSelectItem,
   onNavigateStage,
+  onNavigateCategory,
+  onNavigateFlow,
+  onSkip,
 }: UseVibeQuestProps) {
   const [config, setConfig] = useState<VibeQuestConfig | null>(DEFAULT_VIBE_QUEST_CONFIG);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -206,20 +214,30 @@ export function useVibeQuest({
     }
   }, [currentQuestion, trackEvent]);
 
-  // Ensure recommendations are always populated for the active question and stage
+  // Ensure recommendations are only populated when the user has actively selected answers
   useEffect(() => {
-    if (!config || !allMenuItems || allMenuItems.length === 0) return;
+    if (!config || !allMenuItems || allMenuItems.length === 0) {
+      setRecommendations([]);
+      setShowRecsInline(false);
+      return;
+    }
     const activeQ = currentQuestion || (config.questions || []).find((q) => q.stage === currentStage && q.active !== false);
-    if (!activeQ) return;
+    if (!activeQ) {
+      setRecommendations([]);
+      setShowRecsInline(false);
+      return;
+    }
 
     const selectedAnswers = sessionState.answers[activeQ.id] || [];
-    const answerIds = selectedAnswers.length > 0
-      ? selectedAnswers
-      : (activeQ.answers?.[0] ? [activeQ.answers[0].id] : []);
+    if (selectedAnswers.length === 0) {
+      setRecommendations([]);
+      setShowRecsInline(false);
+      return;
+    }
 
     const recs = VibeQuestEngine.rankRecommendations({
       question: activeQ,
-      selectedAnswerIds: answerIds,
+      selectedAnswerIds: selectedAnswers,
       config,
       catalogProducts: allMenuItems,
       cart,
@@ -228,6 +246,9 @@ export function useVibeQuest({
     if (recs && recs.length > 0) {
       setRecommendations(recs);
       setShowRecsInline(true);
+    } else {
+      setRecommendations([]);
+      setShowRecsInline(false);
     }
   }, [config, currentQuestion, currentStage, sessionState.answers, allMenuItems, cart]);
 
@@ -307,41 +328,68 @@ export function useVibeQuest({
         cart
       );
 
-      switch (nextDest.type) {
-        case 'question':
-          if (nextDest.ref_id) {
-            setActiveQuestionId(nextDest.ref_id);
-          }
-          break;
+      const parsed = parseDestination(nextDest);
 
-        case 'recommendations':
-          // Recommendations already rendered above
-          break;
-
-        case 'custom_mix_lab':
-          if (onOpenMixLab) onOpenMixLab();
-          break;
-
-        case 'product':
-        case 'product_customization':
-          if (nextDest.ref_id && onSelectItem) {
-            const prod = allMenuItems.find((p) => (p._id || p.id) === nextDest.ref_id);
-            if (prod) onSelectItem(prod);
-          }
-          break;
-
-        case 'next_stage':
-          if (nextDest.ref_id && onNavigateStage) {
-            onNavigateStage(nextDest.ref_id as VibeQuestStage);
-          }
-          break;
-
-        case 'end_discovery':
-          setIsDismissed(true);
-          break;
+      if (parsed.type === 'category' && parsed.target) {
+        if (onNavigateCategory) onNavigateCategory(parsed.target);
+      } else if (parsed.type === 'flow') {
+        if (parsed.target === 'mix_lab' && onOpenMixLab) {
+          onOpenMixLab();
+        } else if (onNavigateFlow) {
+          onNavigateFlow(parsed.target || '');
+        }
+      } else if (parsed.type === 'stage' && parsed.target) {
+        if (onNavigateStage) onNavigateStage(parsed.target as VibeQuestStage);
+      } else if (parsed.type === 'skip') {
+        if (onSkip) onSkip();
+      } else if (parsed.type === 'product' && parsed.target && onSelectItem) {
+        const prod = allMenuItems.find((p) => (p._id || p.id) === parsed.target);
+        if (prod) onSelectItem(prod);
+      } else if (parsed.type === 'question' && parsed.target) {
+        setActiveQuestionId(parsed.target);
+      } else if (typeof nextDest === 'object' && nextDest !== null) {
+        switch (nextDest.type) {
+          case 'question':
+            if (nextDest.ref_id) {
+              setActiveQuestionId(nextDest.ref_id);
+            }
+            break;
+          case 'recommendations':
+            break;
+          case 'custom_mix_lab':
+            if (onOpenMixLab) onOpenMixLab();
+            break;
+          case 'product':
+          case 'product_customization':
+            if (nextDest.ref_id && onSelectItem) {
+              const prod = allMenuItems.find((p) => (p._id || p.id) === nextDest.ref_id);
+              if (prod) onSelectItem(prod);
+            }
+            break;
+          case 'next_stage':
+            if (nextDest.ref_id && onNavigateStage) {
+              onNavigateStage(nextDest.ref_id as VibeQuestStage);
+            }
+            break;
+          case 'end_discovery':
+            setIsDismissed(true);
+            break;
+        }
       }
     },
-    [config, sessionState, cart, allMenuItems, onOpenMixLab, onSelectItem, onNavigateStage, trackEvent]
+    [
+      config,
+      sessionState,
+      cart,
+      allMenuItems,
+      onOpenMixLab,
+      onSelectItem,
+      onNavigateStage,
+      onNavigateCategory,
+      onNavigateFlow,
+      onSkip,
+      trackEvent,
+    ]
   );
 
   // Handle skipping a question

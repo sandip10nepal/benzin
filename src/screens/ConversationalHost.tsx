@@ -19,6 +19,7 @@ import {
   Minus,
   X
 } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRestaurantTheme } from '../theme/ThemeContext';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { BenzinHeader } from '../components/Navigation/BenzinHeader';
@@ -28,9 +29,15 @@ import { itemRequiresModifierSelection } from '../utils/modifierUtils';
 import { DEFAULT_HOOKAH_BASES, DAKU_PACKAGE } from '../data/hookahMixData';
 import { useVibeQuest } from '../vibe-quest/useVibeQuest';
 import { VibeQuestCard } from '../components/VibeQuest/VibeQuestCard';
-import { VibeQuestRecommendations } from '../components/VibeQuest/VibeQuestRecommendations';
-import { VibeQuestTransitionModal } from '../components/VibeQuest/VibeQuestTransitionModal';
 import { VibeQuestStage } from '../vibe-quest/vibe-quest.types';
+import { OrderReminderModal } from '../components/OrderReminder/OrderReminderModal';
+import {
+  isDessertInCart,
+  isDrinkInCart,
+  isDessertItem,
+  isDrinkItem,
+  resolveCategoryTitle,
+} from '../utils/orderFlowUtils';
 
 interface ConversationalHostProps {
   onBackToHome: () => void;
@@ -250,6 +257,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
   const { theme } = useRestaurantTheme();
   const layout = useResponsiveLayout();
   const isMobile = layout.isMobilePhone;
+  const insets = useSafeAreaInsets();
 
   const [step, setStep] = React.useState<ConversationalStep>(
     (initialStep as ConversationalStep) || 'welcome_category'
@@ -280,6 +288,21 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
     }
   }, [step]);
 
+  // Hookah Selection Screen Configuration & State
+  const [hookahExperienceSelected, setHookahExperienceSelected] = useState<'selection' | 'house_mixes'>('selection');
+
+  // Order Reminders State
+  const [activeReminder, setActiveReminder] = useState<'dessert' | 'drinks' | null>(null);
+  const [handledReminders, setHandledReminders] = useState<Set<'dessert' | 'drinks'>>(new Set());
+
+  const dessertQuickAddItems = useMemo(() => {
+    return (allMenuItems || []).filter(isDessertItem).slice(0, 2);
+  }, [allMenuItems]);
+
+  const drinkQuickAddItems = useMemo(() => {
+    return (allMenuItems || []).filter(isDrinkItem).slice(0, 2);
+  }, [allMenuItems]);
+
   const {
     isEnabled: isVibeQuestEnabled,
     isDismissed: isVibeQuestDismissed,
@@ -309,58 +332,51 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
       else if (targetStage === 'drinks') setStep('select_drink');
       else if (targetStage === 'checkout') setStep('review_summary');
     },
-  });
-
-  // Vibe Quest Stage Transition Modal State
-  const [transitionModal, setTransitionModal] = useState<{
-    visible: boolean;
-    stage: VibeQuestStage;
-    targetStep: ConversationalStep;
-    nextStageLabel: string;
-  }>({
-    visible: false,
-    stage: 'hookah',
-    targetStep: 'select_food',
-    nextStageLabel: 'Food Menu',
-  });
-
-  const [completedVibeQuestStages, setCompletedVibeQuestStages] = useState<Set<string>>(new Set());
-
-  const hasStageDiscoveryQuestions = useCallback((stageName: VibeQuestStage) => {
-    if (!vibeQuestConfig || !vibeQuestConfig.questions) return false;
-    return vibeQuestConfig.questions.some(
-      (q) => q.stage === stageName && q.active !== false
-    );
-  }, [vibeQuestConfig]);
-
-  const handleRequestTransition = useCallback((
-    fromStage: VibeQuestStage,
-    targetStep: ConversationalStep,
-    nextStageLabel: string
-  ) => {
-    if (
-      isVibeQuestEnabled &&
-      !completedVibeQuestStages.has(fromStage) &&
-      hasStageDiscoveryQuestions(fromStage)
-    ) {
-      setTransitionModal({
-        visible: true,
-        stage: fromStage,
-        targetStep,
-        nextStageLabel,
+    onNavigateCategory: (catId: string) => {
+      const cat = (allCategories || []).find((c: any) => {
+        const id = c.id || c._id;
+        return (
+          id === catId ||
+          String(id).toLowerCase() === String(catId).toLowerCase() ||
+          c.name === catId ||
+          c.title === catId
+        );
       });
-      return;
-    }
-    setStep(targetStep);
-  }, [isVibeQuestEnabled, completedVibeQuestStages, hasStageDiscoveryQuestions]);
+      const resolvedName = cat?.name || cat?.title || catId;
+      setFoodSubcategory(resolvedName);
+      if (step !== 'select_food') {
+        setStep('select_food');
+      }
+    },
+    onNavigateFlow: (flow: string) => {
+      if (flow === 'mix_lab') {
+        if (onOpenMixLab) onOpenMixLab();
+      } else if (flow === 'house_mixes') {
+        setHookahExperienceSelected('house_mixes');
+        setStep('select_hookah');
+      }
+    },
+    onSkip: () => {
+      if (step === 'select_hookah') {
+        setStep('select_food');
+      }
+    },
+  });
 
-  const handleProceedFromTransitionModal = useCallback(() => {
-    const stageCompleted = transitionModal.stage;
-    const nextStep = transitionModal.targetStep;
-    setCompletedVibeQuestStages((prev) => new Set(prev).add(stageCompleted));
-    setTransitionModal((prev) => ({ ...prev, visible: false }));
-    setStep(nextStep);
-  }, [transitionModal]);
+  const isHookahSelectionEnabled = useMemo(() => {
+    return vibeQuestConfig?.settings?.hookah_selection_screen_enabled !== false;
+  }, [vibeQuestConfig?.settings?.hookah_selection_screen_enabled]);
+
+  const hookahExperienceQuestion = useMemo(() => {
+    return (vibeQuestConfig?.questions || []).find(q => q.id === 'q_hookah_experience');
+  }, [vibeQuestConfig?.questions]);
+
+  // Bypass selection screen if disabled by admin
+  React.useEffect(() => {
+    if (!isHookahSelectionEnabled || (hookahExperienceQuestion && hookahExperienceQuestion.active === false)) {
+      setHookahExperienceSelected('house_mixes');
+    }
+  }, [isHookahSelectionEnabled, hookahExperienceQuestion]);
 
   const vibeQuestSelectedAnswers = useMemo(() => {
     if (!vibeQuestQuestion) return [];
@@ -519,15 +535,6 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
     showToast(hookah.name);
   };
 
-  const handleSelectVibeRec = useCallback((item: MenuItem) => {
-    if (item.category === 'hookah') {
-      handleAddHookahWithAddons(item, 1, []);
-    } else {
-      onAddToCart(item, 1, []);
-    }
-    showToast(item.name);
-  }, [handleAddHookahWithAddons, onAddToCart]);
-
   // Dynamic Super Categories
   const superCategories = useMemo(() => {
     if (allCategories && allCategories.length > 0) {
@@ -639,9 +646,21 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
       return catIds.some(cid => String(cid).toUpperCase().includes('FOOD') || String(cid).toUpperCase().includes('APPETIZER') || String(cid).toUpperCase().includes('VEGETARIAN') || String(cid).toUpperCase().includes('MAIN') || String(cid).toUpperCase().includes('WING') || String(cid).toUpperCase().includes('BURGER') || String(cid).toUpperCase().includes('WRAP') || String(cid).toUpperCase().includes('DESSERT'));
     });
     if (foodSubcategory === 'ALL') return sortItemsByCategoryAndOrder(source, allCategories);
+    const targetLower = foodSubcategory.toLowerCase();
     const filtered = source.filter(item => {
       const catIds = item.category_ids || [];
-      return catIds.includes(foodSubcategory) || item.subcategory === foodSubcategory || item.category_id === foodSubcategory;
+      if (catIds.includes(foodSubcategory)) return true;
+      if (item.category_id === foodSubcategory) return true;
+      if (item.subcategory === foodSubcategory) return true;
+      if (item.subcategory && item.subcategory.toLowerCase() === targetLower) return true;
+
+      const matchesCategoryObj = (allCategories || []).some(c => {
+        const cId = c.id || c._id;
+        const matchesTarget = (c.name || '').toLowerCase() === targetLower || (c.title || '').toLowerCase() === targetLower || String(cId).toLowerCase() === targetLower;
+        if (!matchesTarget) return false;
+        return catIds.includes(cId) || item.category_id === cId;
+      });
+      return matchesCategoryObj;
     });
     return sortItemsByCategoryAndOrder(filtered, allCategories);
   }, [allMenuItems, foodSubcategory, allCategories]);
@@ -653,9 +672,21 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
       return catIds.some(cid => String(cid).toUpperCase().includes('DRINK') || String(cid).toUpperCase().includes('BEVERAGE') || String(cid).toUpperCase().includes('REFRESHER') || String(cid).toUpperCase().includes('TEA') || String(cid).toUpperCase().includes('COFFEE'));
     });
     if (drinkSubcategory === 'ALL') return sortItemsByCategoryAndOrder(source, allCategories);
+    const targetLower = drinkSubcategory.toLowerCase();
     const filtered = source.filter(item => {
       const catIds = item.category_ids || [];
-      return catIds.includes(drinkSubcategory) || item.subcategory === drinkSubcategory || item.category_id === drinkSubcategory;
+      if (catIds.includes(drinkSubcategory)) return true;
+      if (item.category_id === drinkSubcategory) return true;
+      if (item.subcategory === drinkSubcategory) return true;
+      if (item.subcategory && item.subcategory.toLowerCase() === targetLower) return true;
+
+      const matchesCategoryObj = (allCategories || []).some(c => {
+        const cId = c.id || c._id;
+        const matchesTarget = (c.name || '').toLowerCase() === targetLower || (c.title || '').toLowerCase() === targetLower || String(cId).toLowerCase() === targetLower;
+        if (!matchesTarget) return false;
+        return catIds.includes(cId) || item.category_id === cId;
+      });
+      return matchesCategoryObj;
     });
     return sortItemsByCategoryAndOrder(filtered, allCategories);
   }, [allMenuItems, drinkSubcategory, allCategories]);
@@ -663,6 +694,32 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
   const hookahList = useMemo(() => {
     return (allMenuItems || []).filter(item => item.category === 'hookah');
   }, [allMenuItems]);
+
+  // Reminder transition handlers
+  const handleProceedFromFood = useCallback(() => {
+    const dessertReminderEnabled = vibeQuestConfig?.settings?.dessert_reminder_enabled !== false;
+    const hasDessert = isDessertInCart(cartItems);
+
+    if (!hasDessert && dessertReminderEnabled && !handledReminders.has('dessert')) {
+      setActiveReminder('dessert');
+      return;
+    }
+
+    const targetStep: ConversationalStep = hasDrinks ? 'select_drink' : 'review_summary';
+    setStep(targetStep);
+  }, [vibeQuestConfig?.settings?.dessert_reminder_enabled, cartItems, handledReminders, hasDrinks]);
+
+  const handleProceedFromDrinks = useCallback(() => {
+    const drinkReminderEnabled = vibeQuestConfig?.settings?.drink_reminder_enabled !== false;
+    const hasDrink = isDrinkInCart(cartItems);
+
+    if (!hasDrink && drinkReminderEnabled && !handledReminders.has('drinks')) {
+      setActiveReminder('drinks');
+      return;
+    }
+
+    setStep('review_summary');
+  }, [vibeQuestConfig?.settings?.drink_reminder_enabled, cartItems, handledReminders]);
 
   // Next action label and target
   const nextActionConfig = useMemo(() => {
@@ -673,29 +730,72 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
       };
     }
     if (step === 'select_hookah') {
-      const targetStep: ConversationalStep = hasFood ? 'select_food' : hasDrinks ? 'select_drink' : 'review_summary';
-      const label = hasFood ? 'NEXT: FOOD MENU' : hasDrinks ? 'NEXT: DRINKS' : 'REVIEW ORDER';
       return {
-        label,
-        action: () => handleRequestTransition('hookah', targetStep, hasFood ? 'Food Menu' : 'Drinks Menu')
+        label: 'NEXT: FOOD',
+        action: () => {
+          const targetStep: ConversationalStep = hasFood ? 'select_food' : hasDrinks ? 'select_drink' : 'review_summary';
+          setStep(targetStep);
+        }
       };
     }
     if (step === 'select_food' || step === 'prompt_food') {
-      const targetStep: ConversationalStep = hasDrinks ? 'select_drink' : 'review_summary';
       const label = hasDrinks ? 'NEXT: DRINKS' : 'REVIEW ORDER';
       return {
         label,
-        action: () => handleRequestTransition('food', targetStep, hasDrinks ? 'Drinks Menu' : 'Review Order')
+        action: handleProceedFromFood
       };
     }
     if (step === 'select_drink' || step === 'prompt_drink') {
       return {
         label: 'REVIEW ORDER',
-        action: () => handleRequestTransition('drinks', 'review_summary', 'Review Order')
+        action: handleProceedFromDrinks
       };
     }
     return null;
-  }, [step, hasFood, hasDrinks, hasHookahs, handleRequestTransition]);
+  }, [step, hasFood, hasDrinks, hasHookahs, handleProceedFromFood, handleProceedFromDrinks]);
+
+  const handleDessertBrowse = useCallback(() => {
+    setHandledReminders((prev) => new Set(prev).add('dessert'));
+    setActiveReminder(null);
+    const destCat = vibeQuestConfig?.settings?.dessert_destination_category || 'CAT_DESSERTS';
+    const catTitle = resolveCategoryTitle(destCat, allCategories) || 'DESSERTS';
+    setFoodSubcategory(catTitle);
+    setStep('select_food');
+  }, [vibeQuestConfig?.settings?.dessert_destination_category, allCategories]);
+
+  const handleDessertQuickAdd = useCallback((item: MenuItem) => {
+    setHandledReminders((prev) => new Set(prev).add('dessert'));
+    setActiveReminder(null);
+    onAddToCart(item, 1, []);
+    const targetStep: ConversationalStep = hasDrinks ? 'select_drink' : 'review_summary';
+    setStep(targetStep);
+  }, [onAddToCart, hasDrinks]);
+
+  const handleDessertSkip = useCallback(() => {
+    setHandledReminders((prev) => new Set(prev).add('dessert'));
+    setActiveReminder(null);
+    const targetStep: ConversationalStep = hasDrinks ? 'select_drink' : 'review_summary';
+    setStep(targetStep);
+  }, [hasDrinks]);
+
+  const handleDrinkBrowse = useCallback(() => {
+    setHandledReminders((prev) => new Set(prev).add('drinks'));
+    setActiveReminder(null);
+    setStep('select_drink');
+  }, []);
+
+  const handleDrinkQuickAdd = useCallback((item: MenuItem) => {
+    setHandledReminders((prev) => new Set(prev).add('drinks'));
+    setActiveReminder(null);
+    onAddToCart(item, 1, []);
+    setStep('review_summary');
+  }, [onAddToCart]);
+
+  const handleDrinkSkip = useCallback(() => {
+    setHandledReminders((prev) => new Set(prev).add('drinks'));
+    setActiveReminder(null);
+    setStep('review_summary');
+  }, []);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
@@ -866,88 +966,221 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
           {/* STEP 2: SELECT HOOKAH */}
           {step === 'select_hookah' && (
             <View style={{ flex: 1 }}>
-              {isVibeQuestEnabled && vibeQuestQuestion && (
-                <VibeQuestCard
-                  question={vibeQuestQuestion}
-                  selectedAnswerIds={vibeQuestSelectedAnswers}
-                  reactionMessage={reactionMessage}
-                  theme={theme}
-                  isMobile={isMobile}
-                  onSelectAnswer={handleSelectAnswer}
-                  onSkip={handleSkipQuestion}
-                  onDismiss={handleDismissDiscovery}
-                />
-              )}
-
-              {isVibeQuestEnabled && vibeQuestRecs.length > 0 && (
-                <VibeQuestRecommendations
-                  recommendations={vibeQuestRecs}
-                  theme={theme}
-                  isMobile={isMobile}
-                  onSelectProduct={handleSelectVibeRec}
-                  onDismiss={handleDismissDiscovery}
-                />
-              )}
-
-              {isVibeQuestDismissed && (
-                <TouchableOpacity
-                  onPress={handleReopenVibeQuest}
-                  activeOpacity={0.85}
-                  style={[styles.vibeRestoreBanner, { backgroundColor: theme.cardColor, borderColor: '#E5B13A' }]}
+              {/* Option A: Hookah Experience Selection Screen (if enabled & not yet chosen) */}
+              {isHookahSelectionEnabled && hookahExperienceQuestion?.active !== false && hookahExperienceSelected === 'selection' ? (
+                <ScrollView
+                  contentContainerStyle={[
+                    styles.hookahSelectionContainer,
+                    { paddingBottom: Math.max(120, insets.bottom + 90) }
+                  ]}
+                  showsVerticalScrollIndicator={false}
                 >
-                  <Text style={{ fontSize: 16 }}>🎯</Text>
-                  <Text style={[styles.vibeRestoreText, { color: '#E5B13A' }]}>
-                    Show Hookah Vibe Quest questions & recommendations →
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-
-              {onOpenMixLab && (
-                <TouchableOpacity
-                  onPress={onOpenMixLab}
-                  activeOpacity={0.88}
-                  style={[styles.mixLabCtaBanner, { backgroundColor: theme.cardColor, borderColor: '#3B82F6', borderWidth: 2 }, isMobile && { paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8 }]}
-                >
-                  <View style={styles.mixLabCtaLeft}>
-                    <Text style={{ fontSize: isMobile ? 20 : 24 }}>🧪</Text>
-                    <Text style={[styles.mixLabCtaTitle, { color: theme.textColor, fontSize: isMobile ? 12 : 13 }]}>
-                      CREATE CUSTOM HOOKAH MIX
+                  <View style={styles.hookahSelectionHeader}>
+                    <View style={[styles.hookahBadgePill, { backgroundColor: 'rgba(0,153,255,0.15)', borderColor: '#0099FF' }]}>
+                      <Text style={[styles.hookahBadgePillText, { color: '#0099FF' }]}>HOOKAH EXPERIENCE</Text>
+                    </View>
+                    <Text style={[styles.hookahSelectionTitle, { color: theme.textColor }]}>
+                      {hookahExperienceQuestion?.question || "What kind of hookah experience would you like?"}
+                    </Text>
+                    <Text style={[styles.hookahSelectionSub, { color: theme.mutedTextColor }]}>
+                      Choose between our curated signature house recipes or craft your own personalized blend from scratch.
                     </Text>
                   </View>
-                  <View style={[styles.mixLabCtaBtn, { backgroundColor: '#3B82F6', paddingVertical: 4, paddingHorizontal: 10 }]}>
-                    <Text style={[styles.mixLabCtaBtnText, { fontSize: 10 }]}>MIX LAB →</Text>
+
+                  <View style={[styles.hookahOptionsRow, isMobile && { flexDirection: 'column', gap: 14 }]}>
+                    {/* Option 1: House Mix Hookahs */}
+                    <TouchableOpacity
+                      activeOpacity={0.88}
+                      onPress={() => {
+                        setHookahExperienceSelected('house_mixes');
+                      }}
+                      style={[
+                        styles.hookahExperienceCard,
+                        { backgroundColor: theme.cardColor, borderColor: '#0099FF' },
+                        isMobile && { width: '100%', padding: 18 }
+                      ]}
+                    >
+                      <View style={styles.experienceCardTop}>
+                        <View style={[styles.experienceIconWrapper, { backgroundColor: 'rgba(0,153,255,0.18)' }]}>
+                          <Text style={{ fontSize: isMobile ? 28 : 36 }}>
+                            {hookahExperienceQuestion?.answers?.[0]?.icon || '💨'}
+                          </Text>
+                        </View>
+                        <View style={[styles.experienceTag, { backgroundColor: '#0099FF' }]}>
+                          <Text style={styles.experienceTagText}>SIGNATURE RECIPES</Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.experienceCardBody}>
+                        <Text style={[styles.experienceCardTitle, { color: theme.textColor }]}>
+                          {hookahExperienceQuestion?.answers?.[0]?.label || 'House Mix Hookahs'}
+                        </Text>
+                        <Text style={[styles.experienceCardDesc, { color: theme.mutedTextColor }]}>
+                          {hookahExperienceQuestion?.answers?.[0]?.subtitle || 'Curated signature blend recipes prepared by our master shisha artisans'}
+                        </Text>
+                      </View>
+
+                      <View style={styles.experienceCardFooter}>
+                        <Text style={[styles.experienceCardCta, { color: '#0099FF' }]}>
+                          EXPLORE HOUSE MIXES
+                        </Text>
+                        <ArrowRight size={18} color="#0099FF" />
+                      </View>
+                    </TouchableOpacity>
+
+                    {/* Option 2: Create Your Own Hookah */}
+                    <TouchableOpacity
+                      activeOpacity={0.88}
+                      onPress={() => {
+                        setHookahExperienceSelected('house_mixes');
+                        if (onOpenMixLab) onOpenMixLab();
+                      }}
+                      style={[
+                        styles.hookahExperienceCard,
+                        { backgroundColor: theme.cardColor, borderColor: '#E5B13A' },
+                        isMobile && { width: '100%', padding: 18 }
+                      ]}
+                    >
+                      <View style={styles.experienceCardTop}>
+                        <View style={[styles.experienceIconWrapper, { backgroundColor: 'rgba(229,177,58,0.18)' }]}>
+                          <Text style={{ fontSize: isMobile ? 28 : 36 }}>
+                            {hookahExperienceQuestion?.answers?.[1]?.icon || '🧪'}
+                          </Text>
+                        </View>
+                        <View style={[styles.experienceTag, { backgroundColor: '#E5B13A' }]}>
+                          <Text style={[styles.experienceTagText, { color: '#000000' }]}>CUSTOM CRAFT</Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.experienceCardBody}>
+                        <Text style={[styles.experienceCardTitle, { color: theme.textColor }]}>
+                          {hookahExperienceQuestion?.answers?.[1]?.label || 'Create Your Own Hookah'}
+                        </Text>
+                        <Text style={[styles.experienceCardDesc, { color: theme.mutedTextColor }]}>
+                          {hookahExperienceQuestion?.answers?.[1]?.subtitle || 'Build your custom bowl with premium tobacco flavors, bases & heads in the Mix Lab'}
+                        </Text>
+                      </View>
+
+                      <View style={styles.experienceCardFooter}>
+                        <Text style={[styles.experienceCardCta, { color: '#E5B13A' }]}>
+                          OPEN MIX LAB
+                        </Text>
+                        <ArrowRight size={18} color="#E5B13A" />
+                      </View>
+                    </TouchableOpacity>
                   </View>
-                </TouchableOpacity>
-              )}
+                </ScrollView>
+              ) : (
+                /* Option B: House Mix Hookah Page with experience switcher */
+                <>
+                  {isHookahSelectionEnabled && (
+                    <View style={styles.experienceSwitchBar}>
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => setHookahExperienceSelected('selection')}
+                        style={[styles.experienceSwitchBackBtn, { borderColor: theme.borderColor, backgroundColor: theme.cardColor }]}
+                      >
+                        <ArrowLeft size={14} color={theme.textColor} />
+                        <Text style={[styles.experienceSwitchBackText, { color: theme.textColor }]}>
+                          Change Experience
+                        </Text>
+                      </TouchableOpacity>
 
-              <ScrollView
-                showsHorizontalScrollIndicator={false}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={[
-                  styles.cardsScrollRow,
-                  isMobile
-                    ? { flexDirection: 'column', gap: 12, paddingHorizontal: 4 }
-                    : { flexDirection: 'row', flexWrap: 'wrap', gap: 16, justifyContent: 'center', maxWidth: 1100, alignSelf: 'center' }
-                ]}
-              >
-                {hookahList.map((hookah, idx) => {
-                  const count = draftCounts[hookah.id] || 0;
+                      <View style={styles.experienceTabsRow}>
+                        <View style={[styles.experienceTabActive, { backgroundColor: 'rgba(0,153,255,0.18)', borderColor: '#0099FF' }]}>
+                          <Text style={[styles.experienceTabActiveText, { color: '#0099FF' }]}>
+                            {hookahExperienceQuestion?.answers?.[0]?.icon || '💨'} {hookahExperienceQuestion?.answers?.[0]?.label || 'House Mixes'}
+                          </Text>
+                        </View>
+                        {onOpenMixLab && (
+                          <TouchableOpacity
+                            activeOpacity={0.8}
+                            onPress={onOpenMixLab}
+                            style={[styles.experienceTabInactive, { borderColor: theme.borderColor, backgroundColor: theme.cardColor }]}
+                          >
+                            <Text style={[styles.experienceTabInactiveText, { color: theme.textColor }]}>
+                              {hookahExperienceQuestion?.answers?.[1]?.icon || '🧪'} {hookahExperienceQuestion?.answers?.[1]?.label || 'Custom Mix Lab'} →
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                  )}
 
-                  return (
-                    <HostHookahCard
-                      key={hookah.id || `hookah_${idx}`}
-                      hookah={hookah}
+                  {isVibeQuestEnabled && vibeQuestQuestion && vibeQuestQuestion.id !== 'q_hookah_experience' && (
+                    <VibeQuestCard
+                      question={vibeQuestQuestion}
+                      selectedAnswerIds={vibeQuestSelectedAnswers}
+                      reactionMessage={reactionMessage}
                       theme={theme}
                       isMobile={isMobile}
-                      count={count}
-                      onAddWithAddons={handleAddHookahWithAddons}
-                      onItemQuantityChange={handleItemQuantityChange}
-                      onSelectItem={onSelectItem}
+                      onSelectAnswer={handleSelectAnswer}
+                      onSkip={handleSkipQuestion}
+                      onDismiss={handleDismissDiscovery}
                     />
-                  );
-                })}
-              </ScrollView>
+                  )}
+
+                  {isVibeQuestDismissed && (
+                    <TouchableOpacity
+                      onPress={handleReopenVibeQuest}
+                      activeOpacity={0.85}
+                      style={[styles.vibeRestoreBanner, { backgroundColor: theme.cardColor, borderColor: '#E5B13A' }]}
+                    >
+                      <Text style={{ fontSize: 16 }}>🎯</Text>
+                      <Text style={[styles.vibeRestoreText, { color: '#E5B13A' }]}>
+                        Show Hookah questions →
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {onOpenMixLab && (
+                    <TouchableOpacity
+                      onPress={onOpenMixLab}
+                      activeOpacity={0.88}
+                      style={[styles.mixLabCtaBanner, { backgroundColor: theme.cardColor, borderColor: '#3B82F6', borderWidth: 2 }, isMobile && { paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8 }]}
+                    >
+                      <View style={styles.mixLabCtaLeft}>
+                        <Text style={{ fontSize: isMobile ? 20 : 24 }}>🧪</Text>
+                        <Text style={[styles.mixLabCtaTitle, { color: theme.textColor, fontSize: isMobile ? 12 : 13 }]}>
+                          CREATE CUSTOM HOOKAH MIX
+                        </Text>
+                      </View>
+                      <View style={[styles.mixLabCtaBtn, { backgroundColor: '#3B82F6', paddingVertical: 4, paddingHorizontal: 10 }]}>
+                        <Text style={[styles.mixLabCtaBtnText, { fontSize: 10 }]}>MIX LAB →</Text>
+                      </View>
+                    </TouchableOpacity>
+                  )}
+
+                  <ScrollView
+                    showsHorizontalScrollIndicator={false}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={[
+                      styles.cardsScrollRow,
+                      { paddingBottom: Math.max(120, insets.bottom + 90) },
+                      isMobile
+                        ? { flexDirection: 'column', gap: 12, paddingHorizontal: 4 }
+                        : { flexDirection: 'row', flexWrap: 'wrap', gap: 16, justifyContent: 'center', maxWidth: 1100, alignSelf: 'center' }
+                    ]}
+                  >
+                    {hookahList.map((hookah, idx) => {
+                      const count = draftCounts[hookah.id] || 0;
+
+                      return (
+                        <HostHookahCard
+                          key={hookah.id || `hookah_${idx}`}
+                          hookah={hookah}
+                          theme={theme}
+                          isMobile={isMobile}
+                          count={count}
+                          onAddWithAddons={handleAddHookahWithAddons}
+                          onItemQuantityChange={handleItemQuantityChange}
+                          onSelectItem={onSelectItem}
+                        />
+                      );
+                    })}
+                  </ScrollView>
+                </>
+              )}
             </View>
           )}
 
@@ -965,7 +1198,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
 
               <TouchableOpacity
                 activeOpacity={0.88}
-                onPress={() => handleRequestTransition('food', 'prompt_drink', 'Drinks Menu')}
+                onPress={() => setStep(hasDrinks ? 'select_drink' : 'review_summary')}
                 style={[styles.promptChoiceCard, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }, isMobile && { padding: 20, width: '100%' }]}
               >
                 <Text style={[styles.promptIcon, isMobile && { fontSize: 36, marginBottom: 8 }]}>⏩</Text>
@@ -990,16 +1223,6 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
                 />
               )}
 
-              {isVibeQuestEnabled && vibeQuestRecs.length > 0 && (
-                <VibeQuestRecommendations
-                  recommendations={vibeQuestRecs}
-                  theme={theme}
-                  isMobile={isMobile}
-                  onSelectProduct={handleSelectVibeRec}
-                  onDismiss={handleDismissDiscovery}
-                />
-              )}
-
               {isVibeQuestDismissed && (
                 <TouchableOpacity
                   onPress={handleReopenVibeQuest}
@@ -1008,7 +1231,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
                 >
                   <Text style={{ fontSize: 16 }}>🎯</Text>
                   <Text style={[styles.vibeRestoreText, { color: '#E5B13A' }]}>
-                    Show Food Vibe Quest questions & recommendations →
+                    Show Food questions →
                   </Text>
                 </TouchableOpacity>
               )}
@@ -1153,7 +1376,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
 
                 <TouchableOpacity
                   activeOpacity={0.88}
-                  onPress={() => handleRequestTransition('drinks', 'review_summary', 'Review Order')}
+                  onPress={() => setStep('review_summary')}
                   style={[styles.promptChoiceCard, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }, isMobile && { padding: 20, width: '100%' }]}
                 >
                   <Text style={[styles.promptIcon, isMobile && { fontSize: 36, marginBottom: 8 }]}>📋</Text>
@@ -1179,16 +1402,6 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
                 />
               )}
 
-              {isVibeQuestEnabled && vibeQuestRecs.length > 0 && (
-                <VibeQuestRecommendations
-                  recommendations={vibeQuestRecs}
-                  theme={theme}
-                  isMobile={isMobile}
-                  onSelectProduct={handleSelectVibeRec}
-                  onDismiss={handleDismissDiscovery}
-                />
-              )}
-
               {isVibeQuestDismissed && (
                 <TouchableOpacity
                   onPress={handleReopenVibeQuest}
@@ -1197,7 +1410,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
                 >
                   <Text style={{ fontSize: 16 }}>🎯</Text>
                   <Text style={[styles.vibeRestoreText, { color: '#E5B13A' }]}>
-                    Show Drinks Vibe Quest questions & recommendations →
+                    Show Drinks questions →
                   </Text>
                 </TouchableOpacity>
               )}
@@ -1453,7 +1666,16 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
       </View>
 
       {/* Prominent Bottom Navigation Bar (Back & High-Visibility Next Button) */}
-      <View style={[styles.bottomActionBar, { backgroundColor: theme.cardColor, borderTopColor: theme.borderColor }]}>
+      <View
+        style={[
+          styles.bottomActionBar,
+          {
+            backgroundColor: theme.cardColor,
+            borderTopColor: theme.borderColor,
+            paddingBottom: Math.max(14, insets.bottom + 8),
+          },
+        ]}
+      >
         <TouchableOpacity
           onPress={handleStepBack}
           activeOpacity={0.8}
@@ -1477,24 +1699,37 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
         )}
       </View>
 
-      {/* Vibe Quest Stage Transition Modal */}
-      <VibeQuestTransitionModal
-        visible={transitionModal.visible}
-        stage={transitionModal.stage}
-        nextStageLabel={transitionModal.nextStageLabel}
-        config={vibeQuestConfig}
-        allMenuItems={allMenuItems}
-        cartItems={cartItems || []}
+      {/* Smart Order Reminder Modals (Dessert & Drinks) */}
+      <OrderReminderModal
+        visible={activeReminder === 'dessert'}
+        type="dessert"
+        title={vibeQuestConfig?.settings?.dessert_reminder_text || "Should we save room for something sweet? 🍰"}
         theme={theme}
         isMobile={isMobile}
-        restaurantId={restaurantId}
-        tableNumber={tableNumber}
-        onAddToCart={onAddToCart}
-        onUpdateQuantity={onUpdateQuantity}
-        onRemoveItem={onRemoveItem}
-        onProceed={handleProceedFromTransitionModal}
-        onClose={handleProceedFromTransitionModal}
-        onOpenMixLab={onOpenMixLab}
+        quickAddItems={dessertQuickAddItems}
+        onBrowse={handleDessertBrowse}
+        onQuickAdd={handleDessertQuickAdd}
+        onSkip={handleDessertSkip}
+        onClose={() => {
+          setHandledReminders((prev) => new Set(prev).add('dessert'));
+          setActiveReminder(null);
+        }}
+      />
+
+      <OrderReminderModal
+        visible={activeReminder === 'drinks'}
+        type="drinks"
+        title={vibeQuestConfig?.settings?.drink_reminder_text || "Would you like something to drink? 🥤"}
+        theme={theme}
+        isMobile={isMobile}
+        quickAddItems={drinkQuickAddItems}
+        onBrowse={handleDrinkBrowse}
+        onQuickAdd={handleDrinkQuickAdd}
+        onSkip={handleDrinkSkip}
+        onClose={() => {
+          setHandledReminders((prev) => new Set(prev).add('drinks'));
+          setActiveReminder(null);
+        }}
       />
     </View>
   );
@@ -2052,5 +2287,159 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     flex: 1,
+  },
+  // Hookah Category Selection Screen Styles
+  hookahSelectionContainer: {
+    paddingHorizontal: 12,
+    paddingTop: 16,
+    maxWidth: 960,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  hookahSelectionHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  hookahBadgePill: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  hookahBadgePillText: {
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1.2,
+  },
+  hookahSelectionTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  hookahSelectionSub: {
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+    maxWidth: 540,
+  },
+  hookahOptionsRow: {
+    flexDirection: 'row',
+    gap: 16,
+    justifyContent: 'center',
+    width: '100%',
+  },
+  hookahExperienceCard: {
+    flex: 1,
+    borderRadius: 22,
+    borderWidth: 2,
+    padding: 22,
+    justifyContent: 'space-between',
+    minHeight: 220,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  experienceCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  experienceIconWrapper: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  experienceTag: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  experienceTagText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  experienceCardBody: {
+    marginBottom: 18,
+  },
+  experienceCardTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  experienceCardDesc: {
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  experienceCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.08)',
+  },
+  experienceCardCta: {
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  // House Mix Switcher Bar Styles
+  experienceSwitchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    marginBottom: 8,
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  experienceSwitchBackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  experienceSwitchBackText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  experienceTabsRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  experienceTabActive: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  experienceTabActiveText: {
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  experienceTabInactive: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  experienceTabInactiveText: {
+    fontSize: 11,
+    fontWeight: '800',
   },
 });

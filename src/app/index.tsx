@@ -78,7 +78,7 @@ function MainAppContent() {
   }, [cart]);
 
   const handleStartOrder = (step?: ConversationStep) => {
-    setHostInitialStep(step || 'welcome_category');
+    setHostInitialStep(step || 'select_hookah');
     navigate('start_order');
   };
 

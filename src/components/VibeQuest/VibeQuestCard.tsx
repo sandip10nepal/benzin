@@ -1,12 +1,20 @@
-import React from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   Platform,
+  Animated,
+  LayoutAnimation,
+  UIManager,
 } from 'react-native';
+import { ChevronDown, ChevronUp, Check } from 'lucide-react-native';
 import { VibeQuestQuestion, VibeQuestAnswer } from '../../vibe-quest/vibe-quest.types';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 interface VibeQuestCardProps {
   question: VibeQuestQuestion;
@@ -29,107 +37,246 @@ export const VibeQuestCard: React.FC<VibeQuestCardProps> = ({
   onSkip,
   onDismiss,
 }) => {
+  // If an option is already selected, start minimized; otherwise expanded
+  const [isMinimized, setIsMinimized] = useState<boolean>(() => selectedAnswerIds.length > 0);
+  const animValue = useRef(new Animated.Value(selectedAnswerIds.length > 0 ? 1 : 0)).current;
+
+  // Find all selected answer objects
+  const selectedAnswers = useMemo<VibeQuestAnswer[]>(() => {
+    return (question.answers || []).filter((ans) => selectedAnswerIds.includes(ans.id));
+  }, [question.answers, selectedAnswerIds]);
+
+  // Smooth toggle animation between minimized and maximized
+  const toggleMinimized = useCallback((targetMinimized: boolean) => {
+    try {
+      LayoutAnimation.configureNext({
+        duration: 280,
+        create: {
+          type: LayoutAnimation.Types.easeInEaseOut,
+          property: LayoutAnimation.Properties.opacity,
+        },
+        update: {
+          type: LayoutAnimation.Types.easeInEaseOut,
+        },
+        delete: {
+          type: LayoutAnimation.Types.easeInEaseOut,
+          property: LayoutAnimation.Properties.opacity,
+        },
+      });
+    } catch {
+      // Ignore layout animation errors on web
+    }
+
+    setIsMinimized(targetMinimized);
+
+    Animated.timing(animValue, {
+      toValue: targetMinimized ? 1 : 0,
+      duration: 260,
+      useNativeDriver: Platform.OS !== 'web',
+    }).start();
+  }, [animValue]);
+
+  // Sync state if question changes
+  useEffect(() => {
+    const hasSelection = selectedAnswerIds.length > 0;
+    setIsMinimized(hasSelection);
+    animValue.setValue(hasSelection ? 1 : 0);
+  }, [question.id]);
+
+  // Expand automatically if selections are cleared externally
+  useEffect(() => {
+    if (selectedAnswerIds.length === 0 && isMinimized) {
+      toggleMinimized(false);
+    }
+  }, [selectedAnswerIds.length, isMinimized, toggleMinimized]);
+
+  // Handle selecting an option: register answer with tactile delay then smoothly minimize
+  const handleAnswerPress = (ansId: string) => {
+    onSelectAnswer(question.id, ansId);
+    setTimeout(() => {
+      toggleMinimized(true);
+    }, 200);
+  };
+
   return (
     <View
       style={[
         styles.cardContainer,
+        isMinimized && styles.cardContainerMinimized,
         {
           backgroundColor: '#18181B',
           borderColor: '#F59E0B',
         },
-        isMobile ? { marginHorizontal: 12, marginVertical: 10 } : { marginHorizontal: 24, marginVertical: 16 },
+        isMobile
+          ? { marginHorizontal: 12, marginVertical: isMinimized ? 6 : 10 }
+          : { marginHorizontal: 24, marginVertical: isMinimized ? 8 : 16 },
       ]}
     >
-      {/* Top Badge & Header */}
-      <View style={styles.headerRow}>
-        <View style={styles.badgeRow}>
-          <Text style={styles.stageTag}>{question.stage.toUpperCase()}</Text>
-        </View>
+      {isMinimized ? (
+        /* MINIMIZED STATE: Compact, informative bar showing question & selected choice */
         <TouchableOpacity
-          onPress={onDismiss}
-          style={styles.dismissBtn}
-          accessibilityLabel="Dismiss discovery"
+          activeOpacity={0.85}
+          onPress={() => toggleMinimized(false)}
+          style={styles.minimizedBar}
+          accessibilityRole="button"
+          accessibilityLabel={`Selected craving: ${selectedAnswers.map((a) => a.label).join(', ')}. Tap to change.`}
         >
-          <Text style={styles.dismissText}>✕ Browse Menu</Text>
-        </TouchableOpacity>
-      </View>
+          <View style={styles.minimizedLeft}>
+            <View style={styles.minimizedHeaderLine}>
+              <Text style={styles.stageTag}>{question.stage.toUpperCase()}</Text>
+              <Text
+                style={[
+                  styles.minimizedQuestionText,
+                  { fontSize: isMobile ? 13 : 15 },
+                ]}
+                numberOfLines={1}
+              >
+                {question.question_text}
+              </Text>
+            </View>
 
-      {/* Question Text */}
-      <View style={styles.questionSection}>
-        <Text style={[styles.questionText, { fontSize: isMobile ? 18 : 22 }]}>
-          {question.question_text}
-        </Text>
-        {question.helper_text ? (
-          <Text style={styles.helperText}>{question.helper_text}</Text>
-        ) : null}
-      </View>
-
-      {/* Reaction Prompt Banner if available */}
-      {reactionMessage ? (
-        <View style={styles.reactionBanner}>
-          <Text style={styles.reactionText}>{reactionMessage}</Text>
-        </View>
-      ) : null}
-
-      {/* Answer Options Grid */}
-      <View style={styles.answersGrid}>
-        {question.answers.map((ans: VibeQuestAnswer) => {
-          const isSelected = selectedAnswerIds.includes(ans.id);
-          return (
-            <TouchableOpacity
-              key={ans.id}
-              activeOpacity={0.8}
-              onPress={() => onSelectAnswer(question.id, ans.id)}
-              style={[
-                styles.answerCard,
-                {
-                  backgroundColor: isSelected ? 'rgba(245, 158, 11, 0.15)' : '#27272A',
-                  borderColor: isSelected ? '#F59E0B' : 'rgba(255, 255, 255, 0.1)',
-                  borderWidth: isSelected ? 2 : 1,
-                },
-                isMobile ? { width: '100%' } : { width: '48%' },
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel={ans.label}
-            >
-              <View style={styles.answerContentRow}>
-                {ans.emoji ? <Text style={styles.answerEmoji}>{ans.emoji}</Text> : null}
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[
-                      styles.answerLabel,
-                      { color: isSelected ? '#F59E0B' : '#FFFFFF' },
-                    ]}
-                  >
-                    {ans.label}
-                  </Text>
-                  {ans.description ? (
-                    <Text style={styles.answerDesc} numberOfLines={2}>
-                      {ans.description}
+            {selectedAnswers.length > 0 && (
+              <View style={styles.minimizedPillsRow}>
+                {selectedAnswers.map((ans) => (
+                  <View key={ans.id} style={styles.selectedAnswerPill}>
+                    {ans.emoji ? (
+                      <Text style={styles.selectedPillEmoji}>{ans.emoji}</Text>
+                    ) : null}
+                    <Text style={styles.selectedPillLabel} numberOfLines={1}>
+                      {ans.label}
                     </Text>
-                  ) : null}
-                </View>
-                {isSelected && (
-                  <View style={styles.checkmarkBadge}>
-                    <Text style={styles.checkmarkText}>✓</Text>
+                    <View style={styles.selectedPillCheckmark}>
+                      <Check size={11} color="#000000" strokeWidth={3} />
+                    </View>
                   </View>
-                )}
+                ))}
               </View>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+            )}
+          </View>
 
-      {/* Footer: Skip Actions */}
-      {question.skippable && (
-        <View style={styles.footerRow}>
-          <TouchableOpacity
-            onPress={() => onSkip(question.id)}
-            style={styles.skipButton}
-            accessibilityLabel="Skip question"
-          >
-            <Text style={styles.skipText}>Skip for now →</Text>
-          </TouchableOpacity>
+          <View style={styles.minimizedRight}>
+            <View style={styles.changeActionPill}>
+              <Text style={styles.changeActionText}>Change</Text>
+              <ChevronDown size={14} color="#F59E0B" />
+            </View>
+          </View>
+        </TouchableOpacity>
+      ) : (
+        /* MAXIMIZED (EXPANDED) STATE: Full question and options grid */
+        <View>
+          {/* Top Badge & Header Actions */}
+          <View style={styles.headerRow}>
+            <View style={styles.badgeRow}>
+              <Text style={styles.stageTag}>{question.stage.toUpperCase()}</Text>
+              {selectedAnswers.length > 0 && (
+                <View style={styles.currentlySelectedTag}>
+                  <Text style={styles.currentlySelectedTagText}>
+                    Active: {selectedAnswers[0].label}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.headerRightActions}>
+              {selectedAnswers.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => toggleMinimized(true)}
+                  style={styles.collapseHeaderBtn}
+                  activeOpacity={0.75}
+                  accessibilityLabel="Minimize question"
+                >
+                  <Text style={styles.collapseHeaderText}>Collapse</Text>
+                  <ChevronUp size={13} color="#F59E0B" />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                onPress={onDismiss}
+                style={styles.dismissBtn}
+                accessibilityLabel="Dismiss discovery"
+              >
+                <Text style={styles.dismissText}>✕ Browse Menu</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Question Text & Helper Subtext */}
+          <View style={styles.questionSection}>
+            <Text style={[styles.questionText, { fontSize: isMobile ? 18 : 22 }]}>
+              {question.question_text}
+            </Text>
+            {question.helper_text ? (
+              <Text style={styles.helperText}>{question.helper_text}</Text>
+            ) : null}
+          </View>
+
+          {/* Reaction Prompt Banner if available */}
+          {reactionMessage ? (
+            <View style={styles.reactionBanner}>
+              <Text style={styles.reactionText}>{reactionMessage}</Text>
+            </View>
+          ) : null}
+
+          {/* Answer Options Grid */}
+          <View style={styles.answersGrid}>
+            {question.answers.map((ans: VibeQuestAnswer) => {
+              const isSelected = selectedAnswerIds.includes(ans.id);
+              return (
+                <TouchableOpacity
+                  key={ans.id}
+                  activeOpacity={0.8}
+                  onPress={() => handleAnswerPress(ans.id)}
+                  style={[
+                    styles.answerCard,
+                    {
+                      backgroundColor: isSelected ? 'rgba(245, 158, 11, 0.18)' : '#27272A',
+                      borderColor: isSelected ? '#F59E0B' : 'rgba(255, 255, 255, 0.1)',
+                      borderWidth: isSelected ? 2 : 1,
+                    },
+                    isMobile ? { width: '100%' } : { width: '48%' },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={ans.label}
+                >
+                  <View style={styles.answerContentRow}>
+                    {ans.emoji ? <Text style={styles.answerEmoji}>{ans.emoji}</Text> : null}
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          styles.answerLabel,
+                          { color: isSelected ? '#F59E0B' : '#FFFFFF' },
+                        ]}
+                      >
+                        {ans.label}
+                      </Text>
+                      {ans.description ? (
+                        <Text style={styles.answerDesc} numberOfLines={2}>
+                          {ans.description}
+                        </Text>
+                      ) : null}
+                    </View>
+                    {isSelected && (
+                      <View style={styles.checkmarkBadge}>
+                        <Check size={12} color="#000000" strokeWidth={3} />
+                      </View>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Footer: Skip Actions */}
+          {question.skippable && (
+            <View style={styles.footerRow}>
+              <TouchableOpacity
+                onPress={() => onSkip(question.id)}
+                style={styles.skipButton}
+                accessibilityLabel="Skip question"
+              >
+                <Text style={styles.skipText}>Skip for now →</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       )}
     </View>
@@ -147,6 +294,90 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 6,
   },
+  cardContainerMinimized: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+  },
+  // Minimized Bar Layout
+  minimizedBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  minimizedLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  minimizedHeaderLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  minimizedQuestionText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    letterSpacing: -0.2,
+  },
+  minimizedPillsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  selectedAnswerPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(245, 158, 11, 0.18)',
+    borderColor: '#F59E0B',
+    borderWidth: 1.5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 16,
+  },
+  selectedPillEmoji: {
+    fontSize: 14,
+  },
+  selectedPillLabel: {
+    color: '#F59E0B',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  selectedPillCheckmark: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#F59E0B',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  minimizedRight: {
+    marginLeft: 12,
+  },
+  changeActionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderColor: 'rgba(245, 158, 11, 0.35)',
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  changeActionText: {
+    color: '#F59E0B',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  // Expanded Header Layout
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -158,13 +389,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  questBadge: {
-    color: '#F59E0B',
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-  },
   stageTag: {
     color: '#A1A1AA',
     fontSize: 10,
@@ -173,6 +397,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
+  },
+  currentlySelectedTag: {
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderColor: 'rgba(245, 158, 11, 0.25)',
+    borderWidth: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  currentlySelectedTagText: {
+    color: '#F59E0B',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  headerRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  collapseHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+    borderWidth: 1,
+  },
+  collapseHeaderText: {
+    color: '#F59E0B',
+    fontSize: 11,
+    fontWeight: '700',
   },
   dismissBtn: {
     paddingVertical: 4,
@@ -250,11 +508,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#F59E0B',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  checkmarkText: {
-    color: '#000000',
-    fontWeight: '900',
-    fontSize: 12,
   },
   footerRow: {
     marginTop: 14,

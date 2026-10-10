@@ -11,12 +11,16 @@ export type VibeQuestDestinationType =
   | 'custom_mix_lab'
   | 'daku'
   | 'next_stage'
-  | 'end_discovery';
+  | 'end_discovery'
+  | 'skip';
 
-export interface VibeQuestDestination {
+export interface VibeQuestDestinationObject {
   type: VibeQuestDestinationType;
   ref_id?: string;
+  [key: string]: any;
 }
+
+export type VibeQuestDestination = VibeQuestDestinationObject | string;
 
 export type VibeQuestConditionOperator =
   | 'answer_selected'
@@ -50,19 +54,25 @@ export interface VibeQuestAnswer {
   id: string;
   label: string;
   emoji?: string;
+  icon?: string;
   description?: string;
+  subtitle?: string;
+  subtext?: string;
   active: boolean;
   sort_order: number;
-  signals: string[];
+  signals?: string[];
+  preference_signals?: string[];
   weights?: Record<string, number>;
   pinned_product_ids?: string[];
+  curated_product_ids?: string[];
   eligible_category_ids?: string[];
   excluded_product_ids?: string[];
   destination?: VibeQuestDestination;
   conditions?: VibeQuestCondition[];
+  branching_rules?: any[];
 }
 
-export type VibeQuestRepeatPolicy = 'show_once' | 'show_always' | 'suppress_if_skipped' | 'cart_conditional';
+export type VibeQuestRepeatPolicy = 'show_once' | 'show_always' | 'suppress_if_skipped' | 'cart_conditional' | 'once_per_session';
 
 export interface VibeQuestRecommendationConfig {
   result_count?: number;
@@ -79,10 +89,13 @@ export interface VibeQuestQuestion {
   stage: VibeQuestStage;
   title: string;
   question_text: string;
+  question?: string;
   helper_text?: string;
   emoji?: string;
+  icon?: string;
   type: VibeQuestQuestionType;
   active: boolean;
+  order?: number;
   sort_order: number;
   priority?: number;
   required: boolean;
@@ -96,8 +109,16 @@ export interface VibeQuestQuestion {
 }
 
 export interface VibeQuestConfigSettings {
-  dessert_category_ids: string[];
-  dessert_trigger_stage: VibeQuestStage;
+  hookah_selection_screen_enabled?: boolean;
+  dessert_reminder_enabled?: boolean;
+  dessert_reminder_text?: string;
+  dessert_destination_category?: string;
+  drink_reminder_enabled?: boolean;
+  drink_reminder_text?: string;
+  drink_destination_category?: string;
+  dessert_category_ids?: string[];
+  drink_category_ids?: string[];
+  dessert_trigger_stage?: VibeQuestStage;
   intro_title?: string;
   intro_subtitle?: string;
   reactions?: Record<string, string>;
@@ -105,6 +126,7 @@ export interface VibeQuestConfigSettings {
   default_rec_count?: number;
   diversity_limit_per_category?: number;
   checkout_upsell_stage?: string;
+  [key: string]: any;
 }
 
 export interface VibeQuestConfig {
