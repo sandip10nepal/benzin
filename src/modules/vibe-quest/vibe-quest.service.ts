@@ -130,9 +130,20 @@ export class VibeQuestService {
 
     const sanitizedQuestions: VibeQuestQuestion[] = (questions || []).map((q, idx) => {
       let stage = q.stage;
-      if (q.navigation_trigger === 'start_order') stage = 'hookah';
-      else if (q.navigation_trigger === 'next_food') stage = 'food';
-      else if (q.navigation_trigger === 'next_drinks') stage = 'drinks';
+      let repeatPolicy = q.repeat_policy || 'show_once';
+      if (q.navigation_trigger === 'start_order') {
+        stage = 'hookah';
+      } else if (q.navigation_trigger === 'next_food') {
+        stage = 'food';
+      } else if (q.navigation_trigger === 'next_drinks') {
+        stage = 'drinks';
+      } else if (q.navigation_trigger === 'cart_dessert' || q.id === 'q_dessert_reminder') {
+        stage = 'dessert';
+        repeatPolicy = 'cart_conditional';
+      } else if (q.navigation_trigger === 'cart_drinks') {
+        stage = 'drinks';
+        repeatPolicy = 'cart_conditional';
+      }
 
       return {
         id: q.id || `q_${q.navigation_trigger || stage || idx}`,
@@ -145,7 +156,7 @@ export class VibeQuestService {
         type: q.type || 'single_select',
         required: q.required ?? false,
         skippable: q.skippable ?? true,
-        repeat_policy: q.repeat_policy || 'show_once',
+        repeat_policy: repeatPolicy,
         answers: (q.answers || []).map((ans, aIdx) => ({
           id: ans.id || `ans_${idx}_${aIdx}`,
           label: ans.label || '',
@@ -161,12 +172,30 @@ export class VibeQuestService {
       (q) => (q.navigation_trigger === 'start_order' || q.stage === 'hookah') && q.active !== false
     );
 
+    const dessertQ = sanitizedQuestions.find(
+      (q) => q.navigation_trigger === 'cart_dessert' || q.id === 'q_dessert_reminder' || q.stage === 'dessert'
+    );
+    const dessertBrowseAns = dessertQ?.answers?.find((a) => a.destination && a.destination !== 'skip');
+    const dessertDest = (dessertBrowseAns?.destination || customSettings?.dessert_destination_category || 'CAT_DESSERTS').replace(/^category:/, '');
+
+    const drinkCartQ = sanitizedQuestions.find(
+      (q) => q.navigation_trigger === 'cart_drinks' || (q.repeat_policy === 'cart_conditional' && q.stage === 'drinks')
+    );
+    const drinkBrowseAns = drinkCartQ?.answers?.find((a) => a.destination && a.destination !== 'skip');
+    const drinkDest = (drinkBrowseAns?.destination || customSettings?.drink_destination_category || 'cat_super_drinks').replace(/^category:/, '');
+
     const mergedSettings: VibeQuestConfigSettings = {
       ...(existingSettings?.draft?.settings || {}),
       ...(existingSettings?.published?.settings || {}),
       ...(customSettings || {}),
       hookah_selection_screen_enabled: isHookahActive,
       dessert_category_ids: ['CAT_DESSERTS'],
+      dessert_reminder_enabled: dessertQ ? dessertQ.active !== false : (customSettings?.dessert_reminder_enabled ?? true),
+      dessert_reminder_text: dessertQ?.question_text || customSettings?.dessert_reminder_text || 'Should we save room for something sweet? 🍰',
+      dessert_destination_category: dessertDest,
+      drink_reminder_enabled: drinkCartQ ? drinkCartQ.active !== false : (customSettings?.drink_reminder_enabled ?? true),
+      drink_reminder_text: drinkCartQ?.question_text || customSettings?.drink_reminder_text || 'Would you like something to drink? 🥤',
+      drink_destination_category: drinkDest,
     };
 
     const newConfig: VibeQuestConfig = {

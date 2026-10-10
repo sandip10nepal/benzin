@@ -1209,38 +1209,34 @@
               {
                 "id": "q_dessert_reminder",
                 "stage": "dessert",
-                "title": "Dessert Reminder",
+                "title": "Should we save room for something sweet? 🍰",
                 "question_text": "Should we save room for something sweet? 🍰",
                 "helper_text": "Warm Kunafa, artisanal cakes, and desi sweets",
                 "emoji": "🍰",
                 "type": "single_select",
                 "active": true,
-                "order": 1,
-                "sort_order": 1,
+                "order": 4,
+                "sort_order": 4,
                 "required": false,
                 "skippable": true,
                 "repeat_policy": "cart_conditional",
                 "answers": [
                   {
                     "id": "ans_d_browse",
-                    "label": "Browse Desserts",
-                    "emoji": "🍰",
-                    "subtext": "View Kunafa, molten cakes & sweet specialties",
+                    "label": "Browse Desserts 🍰",
                     "destination": "category:CAT_DESSERTS",
-                    "curated_product_ids": [
-                      "MI_kunafa_dessert",
-                      "MI_biscoff_cake_dessert"
-                    ]
+                    "preference_signals": [],
+                    "curated_product_ids": []
                   },
                   {
                     "id": "ans_d_skip",
-                    "label": "Skip Dessert",
-                    "emoji": "⏩",
-                    "subtext": "Continue with the rest of your order",
+                    "label": "Skip Dessert & Continue →",
                     "destination": "skip",
+                    "preference_signals": [],
                     "curated_product_ids": []
                   }
-                ]
+                ],
+                "navigation_trigger": "cart_dessert"
               },
               {
                 "id": "q_drink_reminder",
@@ -1494,38 +1490,34 @@
               {
                 "id": "q_dessert_reminder",
                 "stage": "dessert",
-                "title": "Dessert Reminder",
+                "title": "Should we save room for something sweet? 🍰",
                 "question_text": "Should we save room for something sweet? 🍰",
                 "helper_text": "Warm Kunafa, artisanal cakes, and desi sweets",
                 "emoji": "🍰",
                 "type": "single_select",
                 "active": true,
-                "order": 1,
-                "sort_order": 1,
+                "order": 4,
+                "sort_order": 4,
                 "required": false,
                 "skippable": true,
                 "repeat_policy": "cart_conditional",
                 "answers": [
                   {
                     "id": "ans_d_browse",
-                    "label": "Browse Desserts",
-                    "emoji": "🍰",
-                    "subtext": "View Kunafa, molten cakes & sweet specialties",
+                    "label": "Browse Desserts 🍰",
                     "destination": "category:CAT_DESSERTS",
-                    "curated_product_ids": [
-                      "MI_kunafa_dessert",
-                      "MI_biscoff_cake_dessert"
-                    ]
+                    "preference_signals": [],
+                    "curated_product_ids": []
                   },
                   {
                     "id": "ans_d_skip",
-                    "label": "Skip Dessert",
-                    "emoji": "⏩",
-                    "subtext": "Continue with the rest of your order",
+                    "label": "Skip Dessert & Continue →",
                     "destination": "skip",
+                    "preference_signals": [],
                     "curated_product_ids": []
                   }
-                ]
+                ],
+                "navigation_trigger": "cart_dessert"
               },
               {
                 "id": "q_drink_reminder",

@@ -7038,6 +7038,7 @@
         const rawQuestions = data.draft?.questions || data.questions || data.published?.questions || [];
 
         // Normalize questions into configuredQuestions
+        // Normalize questions into configuredQuestions
         if (Array.isArray(rawQuestions) && rawQuestions.length > 0) {
           configuredQuestions = rawQuestions.map((q, idx) => {
             let trigger = q.navigation_trigger;
@@ -7046,6 +7047,10 @@
                 trigger = 'start_order';
               } else if (q.stage === 'food' || q.id === 'q_food_craving') {
                 trigger = 'next_food';
+              } else if (q.stage === 'dessert' || q.id === 'q_dessert_reminder' || (q.repeat_policy === 'cart_conditional' && q.stage === 'dessert')) {
+                trigger = 'cart_dessert';
+              } else if (q.repeat_policy === 'cart_conditional' && q.stage === 'drinks') {
+                trigger = 'cart_drinks';
               } else if (q.stage === 'drinks' || q.id === 'q_drink_reminder') {
                 trigger = 'next_drinks';
               } else {
@@ -7064,6 +7069,24 @@
               })) : []
             };
           });
+
+          // Ensure cart_dessert question is present in configuredQuestions
+          if (!configuredQuestions.some(q => q.navigation_trigger === 'cart_dessert')) {
+            const dessertText = data.draft?.settings?.dessert_reminder_text || data.published?.settings?.dessert_reminder_text || data.settings?.dessert_reminder_text || 'Should we save room for something sweet? 🍰';
+            const dessertActive = (data.draft?.settings?.dessert_reminder_enabled ?? data.published?.settings?.dessert_reminder_enabled ?? data.settings?.dessert_reminder_enabled) !== false;
+            const rawDessertDest = data.draft?.settings?.dessert_destination_category || data.published?.settings?.dessert_destination_category || data.settings?.dessert_destination_category || 'CAT_DESSERTS';
+            const dessertDest = String(rawDessertDest).replace(/^category:/, '');
+            configuredQuestions.push({
+              id: 'q_dessert_reminder',
+              navigation_trigger: 'cart_dessert',
+              question_text: dessertText,
+              active: dessertActive,
+              answers: [
+                { id: 'ans_d_browse', label: 'Browse Desserts 🍰', destination: `category:${dessertDest}` },
+                { id: 'ans_d_skip', label: 'Skip Dessert & Continue →', destination: 'skip' }
+              ]
+            });
+          }
         } else {
           // Initialize default questions
           configuredQuestions = [
@@ -7095,6 +7118,16 @@
               answers: [
                 { id: 'ans_1', label: 'Browse Drinks Menu', destination: 'menu:drinks' },
                 { id: 'ans_2', label: 'Skip', destination: 'skip' }
+              ]
+            },
+            {
+              id: 'q_dessert_reminder',
+              navigation_trigger: 'cart_dessert',
+              question_text: 'Should we save room for something sweet? 🍰',
+              active: true,
+              answers: [
+                { id: 'ans_1', label: 'Browse Desserts 🍰', destination: 'category:CAT_DESSERTS' },
+                { id: 'ans_2', label: 'Skip Dessert & Continue →', destination: 'skip' }
               ]
             }
           ];
@@ -7194,9 +7227,11 @@
                 <div style="display: flex; align-items: center; gap: 8px;">
                   <label style="font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase;">Navigation Trigger:</label>
                   <select onchange="updateQuestionTrigger(${qIdx}, this.value)" style="padding: 6px 12px; font-size: 12px; font-weight: 800; border-radius: 8px; background: var(--card2); border: 1.5px solid var(--gold); color: var(--gold); cursor: pointer;">
-                    <option value="start_order" ${q.navigation_trigger === 'start_order' ? 'selected' : ''}>Start Order</option>
+                    <option value="start_order" ${q.navigation_trigger === 'start_order' ? 'selected' : ''}>Start Order (Hookah)</option>
                     <option value="next_food" ${q.navigation_trigger === 'next_food' ? 'selected' : ''}>Next: Food</option>
                     <option value="next_drinks" ${q.navigation_trigger === 'next_drinks' ? 'selected' : ''}>Next: Drinks</option>
+                    <option value="cart_dessert" ${q.navigation_trigger === 'cart_dessert' ? 'selected' : ''}>Cart Reminder: Dessert (Prompt if no dessert in cart)</option>
+                    <option value="cart_drinks" ${q.navigation_trigger === 'cart_drinks' ? 'selected' : ''}>Cart Reminder: Drinks (Prompt if no drink in cart)</option>
                   </select>
                 </div>
 
@@ -7390,12 +7425,52 @@
         }
       }
 
+      let dessertReminderText = 'Should we save room for something sweet? 🍰';
+      let dessertReminderEnabled = true;
+      let dessertDestCat = 'CAT_DESSERTS';
+      let drinkReminderText = 'Would you like something to drink? 🥤';
+      let drinkReminderEnabled = true;
+      let drinkDestCat = 'cat_super_drinks';
+
       const formattedQuestions = configuredQuestions.map((q, idx) => {
         const trigger = q.navigation_trigger || 'start_order';
-        const stage = trigger === 'start_order' ? 'hookah' : trigger === 'next_food' ? 'food' : trigger === 'next_drinks' ? 'drinks' : 'hookah';
+        let stage = 'hookah';
+        let repeatPolicy = 'always';
+        let qId = q.id || `q_${trigger}_${idx + 1}`;
+
+        if (trigger === 'start_order') {
+          stage = 'hookah';
+          qId = q.id && q.id.includes('hookah') ? q.id : 'q_hookah_experience';
+        } else if (trigger === 'next_food') {
+          stage = 'food';
+          qId = q.id && q.id.includes('food') ? q.id : 'q_food_craving';
+        } else if (trigger === 'next_drinks') {
+          stage = 'drinks';
+          qId = q.id && (q.id.includes('drink') || q.id.includes('bev')) ? q.id : 'q_drink_reminder';
+        } else if (trigger === 'cart_dessert') {
+          stage = 'dessert';
+          repeatPolicy = 'cart_conditional';
+          qId = 'q_dessert_reminder';
+          dessertReminderText = q.question_text.trim();
+          dessertReminderEnabled = q.active !== false;
+          const browseAns = (q.answers || []).find(a => a.destination && a.destination !== 'skip');
+          if (browseAns && browseAns.destination) {
+            dessertDestCat = browseAns.destination.replace(/^category:/, '');
+          }
+        } else if (trigger === 'cart_drinks') {
+          stage = 'drinks';
+          repeatPolicy = 'cart_conditional';
+          qId = 'q_drink_cart_reminder';
+          drinkReminderText = q.question_text.trim();
+          drinkReminderEnabled = q.active !== false;
+          const browseAns = (q.answers || []).find(a => a.destination && a.destination !== 'skip');
+          if (browseAns && browseAns.destination) {
+            drinkDestCat = browseAns.destination.replace(/^category:/, '');
+          }
+        }
 
         return {
-          id: q.id || `q_${trigger}_${idx + 1}`,
+          id: qId,
           navigation_trigger: trigger,
           stage: stage,
           title: q.question_text.trim(),
@@ -7404,7 +7479,7 @@
           sort_order: idx + 1,
           active: q.active !== false,
           skippable: true,
-          repeat_policy: 'always',
+          repeat_policy: repeatPolicy,
           answers: (q.answers || []).map((ans, aIdx) => ({
             id: ans.id || `ans_${idx + 1}_${aIdx + 1}`,
             label: ans.label.trim(),
@@ -7427,7 +7502,17 @@
         const res = await fetch(`${API_URL}/api/vibe-quest/admin/save-questions`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ questions: formattedQuestions })
+          body: JSON.stringify({
+            questions: formattedQuestions,
+            settings: {
+              dessert_reminder_enabled: dessertReminderEnabled,
+              dessert_reminder_text: dessertReminderText,
+              dessert_destination_category: dessertDestCat,
+              drink_reminder_enabled: drinkReminderEnabled,
+              drink_reminder_text: drinkReminderText,
+              drink_destination_category: drinkDestCat
+            }
+          })
         });
         const data = await res.json();
         if (!data.success) {
