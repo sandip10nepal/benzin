@@ -368,7 +368,9 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
   }, [vibeQuestConfig?.settings?.hookah_selection_screen_enabled]);
 
   const hookahExperienceQuestion = useMemo(() => {
-    return (vibeQuestConfig?.questions || []).find(q => q.id === 'q_hookah_experience');
+    return (vibeQuestConfig?.questions || []).find(q =>
+      q.navigation_trigger === 'start_order' || q.id === 'q_hookah_experience' || q.stage === 'hookah'
+    );
   }, [vibeQuestConfig?.questions]);
 
   // Bypass selection screen if disabled by admin
@@ -976,98 +978,68 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
                   showsVerticalScrollIndicator={false}
                 >
                   <View style={styles.hookahSelectionHeader}>
-                    <View style={[styles.hookahBadgePill, { backgroundColor: 'rgba(0,153,255,0.15)', borderColor: '#0099FF' }]}>
-                      <Text style={[styles.hookahBadgePillText, { color: '#0099FF' }]}>HOOKAH EXPERIENCE</Text>
-                    </View>
                     <Text style={[styles.hookahSelectionTitle, { color: theme.textColor }]}>
-                      {hookahExperienceQuestion?.question || "What kind of hookah experience would you like?"}
-                    </Text>
-                    <Text style={[styles.hookahSelectionSub, { color: theme.mutedTextColor }]}>
-                      Choose between our curated signature house recipes or craft your own personalized blend from scratch.
+                      {hookahExperienceQuestion?.question_text || hookahExperienceQuestion?.question || "What kind of hookah experience would you like?"}
                     </Text>
                   </View>
 
                   <View style={[styles.hookahOptionsRow, isMobile && { flexDirection: 'column', gap: 14 }]}>
-                    {/* Option 1: House Mix Hookahs */}
-                    <TouchableOpacity
-                      activeOpacity={0.88}
-                      onPress={() => {
-                        setHookahExperienceSelected('house_mixes');
-                      }}
-                      style={[
-                        styles.hookahExperienceCard,
-                        { backgroundColor: theme.cardColor, borderColor: '#0099FF' },
-                        isMobile && { width: '100%', padding: 18 }
-                      ]}
-                    >
-                      <View style={styles.experienceCardTop}>
-                        <View style={[styles.experienceIconWrapper, { backgroundColor: 'rgba(0,153,255,0.18)' }]}>
-                          <Text style={{ fontSize: isMobile ? 28 : 36 }}>
-                            {hookahExperienceQuestion?.answers?.[0]?.icon || '💨'}
-                          </Text>
-                        </View>
-                        <View style={[styles.experienceTag, { backgroundColor: '#0099FF' }]}>
-                          <Text style={styles.experienceTagText}>SIGNATURE RECIPES</Text>
-                        </View>
-                      </View>
+                    {(hookahExperienceQuestion?.answers && hookahExperienceQuestion.answers.length > 0
+                      ? hookahExperienceQuestion.answers
+                      : [
+                          { id: 'opt_house', label: 'House Mix Hookahs', destination: 'menu:hookah', icon: '💨' },
+                          { id: 'opt_custom', label: 'Create Your Own Hookah', destination: 'flow:mix_lab', icon: '🧪' }
+                        ]
+                    ).map((ans: any, idx: number) => {
+                      const isOptionOne = idx === 0;
+                      const accentColor = isOptionOne ? '#0099FF' : (idx === 1 ? '#E5B13A' : '#10B981');
+                      const icon = ans.icon || ans.emoji || (isOptionOne ? '💨' : '🧪');
+                      const ctaText = ans.destination === 'flow:mix_lab' || ans.destination === 'custom_mix_lab'
+                        ? 'OPEN MIX LAB'
+                        : (ans.destination === 'menu:hookah' ? 'EXPLORE HOUSE MIXES' : 'SELECT');
 
-                      <View style={styles.experienceCardBody}>
-                        <Text style={[styles.experienceCardTitle, { color: theme.textColor }]}>
-                          {hookahExperienceQuestion?.answers?.[0]?.label || 'House Mix Hookahs'}
-                        </Text>
-                        <Text style={[styles.experienceCardDesc, { color: theme.mutedTextColor }]}>
-                          {hookahExperienceQuestion?.answers?.[0]?.subtitle || 'Curated signature blend recipes prepared by our master shisha artisans'}
-                        </Text>
-                      </View>
+                      return (
+                        <TouchableOpacity
+                          key={ans.id || `opt_${idx}`}
+                          activeOpacity={0.88}
+                          onPress={() => {
+                            setHookahExperienceSelected('house_mixes');
+                            if (ans.destination === 'flow:mix_lab' || ans.destination === 'custom_mix_lab') {
+                              if (onOpenMixLab) onOpenMixLab();
+                            } else if (ans.destination && ans.destination.startsWith('category:')) {
+                              const catId = ans.destination.replace(/^category:/, '');
+                              if (onNavigateCategory) onNavigateCategory(catId);
+                            }
+                          }}
+                          style={[
+                            styles.hookahExperienceCard,
+                            { backgroundColor: theme.cardColor, borderColor: accentColor },
+                            isMobile && { width: '100%', padding: 18 }
+                          ]}
+                        >
+                          <View style={styles.experienceCardTop}>
+                            <View style={[styles.experienceIconWrapper, { backgroundColor: `${accentColor}28` }]}>
+                              <Text style={{ fontSize: isMobile ? 28 : 36 }}>
+                                {icon}
+                              </Text>
+                            </View>
+                          </View>
 
-                      <View style={styles.experienceCardFooter}>
-                        <Text style={[styles.experienceCardCta, { color: '#0099FF' }]}>
-                          EXPLORE HOUSE MIXES
-                        </Text>
-                        <ArrowRight size={18} color="#0099FF" />
-                      </View>
-                    </TouchableOpacity>
+                          <View style={styles.experienceCardBody}>
+                            <Text style={[styles.experienceCardTitle, { color: theme.textColor }]}>
+                              {ans.label}
+                            </Text>
+                          </View>
 
-                    {/* Option 2: Create Your Own Hookah */}
-                    <TouchableOpacity
-                      activeOpacity={0.88}
-                      onPress={() => {
-                        setHookahExperienceSelected('house_mixes');
-                        if (onOpenMixLab) onOpenMixLab();
-                      }}
-                      style={[
-                        styles.hookahExperienceCard,
-                        { backgroundColor: theme.cardColor, borderColor: '#E5B13A' },
-                        isMobile && { width: '100%', padding: 18 }
-                      ]}
-                    >
-                      <View style={styles.experienceCardTop}>
-                        <View style={[styles.experienceIconWrapper, { backgroundColor: 'rgba(229,177,58,0.18)' }]}>
-                          <Text style={{ fontSize: isMobile ? 28 : 36 }}>
-                            {hookahExperienceQuestion?.answers?.[1]?.icon || '🧪'}
-                          </Text>
-                        </View>
-                        <View style={[styles.experienceTag, { backgroundColor: '#E5B13A' }]}>
-                          <Text style={[styles.experienceTagText, { color: '#000000' }]}>CUSTOM CRAFT</Text>
-                        </View>
-                      </View>
-
-                      <View style={styles.experienceCardBody}>
-                        <Text style={[styles.experienceCardTitle, { color: theme.textColor }]}>
-                          {hookahExperienceQuestion?.answers?.[1]?.label || 'Create Your Own Hookah'}
-                        </Text>
-                        <Text style={[styles.experienceCardDesc, { color: theme.mutedTextColor }]}>
-                          {hookahExperienceQuestion?.answers?.[1]?.subtitle || 'Build your custom bowl with premium tobacco flavors, bases & heads in the Mix Lab'}
-                        </Text>
-                      </View>
-
-                      <View style={styles.experienceCardFooter}>
-                        <Text style={[styles.experienceCardCta, { color: '#E5B13A' }]}>
-                          OPEN MIX LAB
-                        </Text>
-                        <ArrowRight size={18} color="#E5B13A" />
-                      </View>
-                    </TouchableOpacity>
+                          <View style={styles.experienceCardFooter}>
+                            <Text style={[styles.experienceCardCta, { color: accentColor }]}>
+                              {ctaText}
+                            </Text>
+                            <ArrowRight size={18} color={accentColor} />
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
                 </ScrollView>
               ) : (

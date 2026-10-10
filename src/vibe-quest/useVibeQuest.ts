@@ -102,7 +102,7 @@ export function useVibeQuest({
       try {
         // Load published config via resilient fetch
         const res = await TenantApiService.resilientFetchPublic(
-          `/api/vibe-quest?restaurantId=${encodeURIComponent(restaurantId)}`,
+          `/api/vibe-quest?restaurantId=${encodeURIComponent(restaurantId)}&restaurant_id=${encodeURIComponent(restaurantId)}`,
           {
             headers: { 'X-Restaurant-ID': restaurantId },
           }
@@ -174,8 +174,20 @@ export function useVibeQuest({
     if (!config || !config.enabled || isDismissed) return null;
 
     const stageQuestions = (config.questions || [])
-      .filter((q) => q.stage === currentStage)
-      .sort((a, b) => a.sort_order - b.sort_order);
+      .filter((q) => {
+        if (q.active === false) return false;
+        if (currentStage === 'hookah') {
+          return q.navigation_trigger === 'start_order' || q.stage === 'hookah' || q.id === 'q_hookah_experience';
+        }
+        if (currentStage === 'food') {
+          return q.navigation_trigger === 'next_food' || q.stage === 'food' || q.id === 'q_food_craving';
+        }
+        if (currentStage === 'drinks') {
+          return q.navigation_trigger === 'next_drinks' || q.stage === 'drinks' || q.id === 'q_drink_reminder';
+        }
+        return q.stage === currentStage;
+      })
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
 
     if (stageQuestions.length === 0) return null;
 
@@ -332,6 +344,14 @@ export function useVibeQuest({
 
       if (parsed.type === 'category' && parsed.target) {
         if (onNavigateCategory) onNavigateCategory(parsed.target);
+      } else if (parsed.type === 'menu' && parsed.target) {
+        if (parsed.target === 'hookah' && onNavigateStage) {
+          onNavigateStage('hookah');
+        } else if (parsed.target === 'food' && onNavigateStage) {
+          onNavigateStage('food');
+        } else if (parsed.target === 'drinks' && onNavigateStage) {
+          onNavigateStage('drinks');
+        }
       } else if (parsed.type === 'flow') {
         if (parsed.target === 'mix_lab' && onOpenMixLab) {
           onOpenMixLab();
