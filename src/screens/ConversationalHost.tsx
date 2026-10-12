@@ -94,13 +94,41 @@ const HostHookahCard: React.FC<HostHookahCardProps> = ({
   onSelectItem,
 }) => {
   const [showDakuModal, setShowDakuModal] = useState(false);
+  const [iceBase, setIceBase] = useState(false);
+  const [iceHose, setIceHose] = useState(false);
 
+  const iceBasePrice = 2;
+  const iceHosePrice = 6;
   const baseHookahPrice = hookah.price;
-  const totalPrice = baseHookahPrice;
+  const totalPrice = baseHookahPrice + (iceBase ? iceBasePrice : 0) + (iceHose ? iceHosePrice : 0);
+
+  const itemMods = hookah.modifierGroups || (hookah as any).modifier_groups || [];
+  const customGroups = itemMods.filter((g: any) => {
+    const gn = (g.name || g.id || '').toLowerCase();
+    const isEnhanceGroup = gn.includes('enhancement') || g.id === 'MOD_HOOKAH_ENHANCEMENTS';
+    const opts = g.options || [];
+    const onlyIceOpts = opts.length > 0 && opts.every((o: any) => {
+      const on = (o.name || o.id || '').toLowerCase();
+      return on.includes('ice base') || on.includes('ice hose');
+    });
+    return !(isEnhanceGroup && onlyIceOpts);
+  });
+  const hasCustomModifiers = customGroups.length > 0;
+  const requiresChoice = itemRequiresModifierSelection(hookah);
 
   const handleAddInitiated = () => {
+    if (requiresChoice && onSelectItem) {
+      onSelectItem(hookah);
+      return;
+    }
     if (isDakuInCart) {
-      onAddWithAddons(hookah, 1, [], '');
+      const selectedOpts: SelectedModifier[] = [];
+      if (iceBase) selectedOpts.push({ id: 'OPT_ICE_BASE', name: 'Ice Base', optionName: 'Ice Base', price: iceBasePrice });
+      if (iceHose) selectedOpts.push({ id: 'OPT_ICE_HOSE', name: 'Ice Hose', optionName: 'Ice Hose', price: iceHosePrice });
+      const noteParts: string[] = [];
+      if (iceBase) noteParts.push(`Ice Base (+$${iceBasePrice})`);
+      if (iceHose) noteParts.push(`Ice Hose (+$${iceHosePrice})`);
+      onAddWithAddons(hookah, 1, selectedOpts, noteParts.join(' · '));
     } else {
       setShowDakuModal(true);
     }
@@ -114,12 +142,23 @@ const HostHookahCard: React.FC<HostHookahCardProps> = ({
       optionName: 'Daku Package ($65) - Unlimited Head Refill',
       price: Math.max(0, 65 - hookah.price),
     }];
-    onAddWithAddons(hookah, 1, selectedOpts, '🔥 DAKU: $65 Unlimited Head Refill');
+    if (iceBase) selectedOpts.push({ id: 'OPT_ICE_BASE', name: 'Ice Base', optionName: 'Ice Base (Included)', price: 0 });
+    if (iceHose) selectedOpts.push({ id: 'OPT_ICE_HOSE', name: 'Ice Hose', optionName: 'Ice Hose (Included)', price: 0 });
+    const noteParts: string[] = ['🔥 DAKU: $65 Unlimited Head Refill'];
+    if (iceBase) noteParts.push('Ice Base (Included)');
+    if (iceHose) noteParts.push('Ice Hose (Included)');
+    onAddWithAddons(hookah, 1, selectedOpts, noteParts.join(' · '));
   };
 
   const handleDeclineDaku = () => {
     setShowDakuModal(false);
-    onAddWithAddons(hookah, 1, [], '');
+    const selectedOpts: SelectedModifier[] = [];
+    if (iceBase) selectedOpts.push({ id: 'OPT_ICE_BASE', name: 'Ice Base', optionName: 'Ice Base', price: iceBasePrice });
+    if (iceHose) selectedOpts.push({ id: 'OPT_ICE_HOSE', name: 'Ice Hose', optionName: 'Ice Hose', price: iceHosePrice });
+    const noteParts: string[] = [];
+    if (iceBase) noteParts.push(`Ice Base (+$${iceBasePrice})`);
+    if (iceHose) noteParts.push(`Ice Hose (+$${iceHosePrice})`);
+    onAddWithAddons(hookah, 1, selectedOpts, noteParts.join(' · '));
   };
 
   return (
@@ -169,34 +208,155 @@ const HostHookahCard: React.FC<HostHookahCardProps> = ({
           </Text>
         ) : null}
 
-        {/* MAKE IT DAKU - $65 Option */}
+        {/* Custom Modifier Badges from Admin */}
+        {hasCustomModifiers && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 6, marginBottom: 4 }}>
+            {customGroups.map((g: any, gIdx: number) => (
+              <TouchableOpacity
+                key={g.id || gIdx}
+                activeOpacity={0.8}
+                onPress={() => onSelectItem && onSelectItem(hookah)}
+                style={{
+                  backgroundColor: 'rgba(229,177,58,0.12)',
+                  borderColor: '#E5B13A',
+                  borderWidth: 1,
+                  borderRadius: 8,
+                  paddingHorizontal: 8,
+                  paddingVertical: 3,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                <Text style={{ color: '#E5B13A', fontSize: isMobile ? 10 : 11, fontWeight: '800' }}>
+                  ✨ {g.name}{g.required ? ' *' : ''} ({g.options?.length || 0} opts)
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
+        {/* Inline Add-On Options (Ice Base & Ice Hose) */}
+        <View style={{ flexDirection: 'row', gap: 6, marginVertical: 8 }}>
+          {/* Ice Base Toggle Pill */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={(e) => {
+              if (e && e.stopPropagation) e.stopPropagation();
+              setIceBase(!iceBase);
+            }}
+            style={{
+              flex: 1,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 4,
+              paddingVertical: isMobile ? 6 : 8,
+              paddingHorizontal: 6,
+              borderRadius: 10,
+              borderWidth: 1.5,
+              borderColor: iceBase ? '#0099FF' : 'rgba(255,255,255,0.18)',
+              backgroundColor: iceBase ? 'rgba(0,153,255,0.22)' : 'rgba(255,255,255,0.05)',
+            }}
+          >
+            <Text style={{ fontSize: isMobile ? 12 : 14 }}>🧊</Text>
+            <Text
+              style={{
+                color: iceBase ? '#0099FF' : theme.textColor,
+                fontSize: isMobile ? 11 : 12,
+                fontWeight: '900',
+              }}
+            >
+              {iceBase ? '✓ ICE BASE +$2' : '+ ICE BASE $2'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Ice Hose Toggle Pill */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={(e) => {
+              if (e && e.stopPropagation) e.stopPropagation();
+              setIceHose(!iceHose);
+            }}
+            style={{
+              flex: 1,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 4,
+              paddingVertical: isMobile ? 6 : 8,
+              paddingHorizontal: 6,
+              borderRadius: 10,
+              borderWidth: 1.5,
+              borderColor: iceHose ? '#14B8A6' : 'rgba(255,255,255,0.18)',
+              backgroundColor: iceHose ? 'rgba(20,184,166,0.22)' : 'rgba(255,255,255,0.05)',
+            }}
+          >
+            <Text style={{ fontSize: isMobile ? 12 : 14 }}>❄️</Text>
+            <Text
+              style={{
+                color: iceHose ? '#14B8A6' : theme.textColor,
+                fontSize: isMobile ? 11 : 12,
+                fontWeight: '900',
+              }}
+            >
+              {iceHose ? '✓ ICE HOSE +$6' : '+ ICE HOSE $6'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Action Button */}
       {count === 0 ? (
-        <TouchableOpacity
-          onPress={(e) => {
-            if (e && e.stopPropagation) e.stopPropagation();
-            handleAddInitiated();
-          }}
-          activeOpacity={0.85}
-          style={[
-            styles.hostHookahAddBtn,
-            {
-              backgroundColor: '#22C55E',
-              borderColor: '#22C55E',
-              borderWidth: 1.5,
-              paddingVertical: isMobile ? 9 : 11,
-              borderRadius: 12,
-            }
-          ]}
-        >
-          <Plus size={isMobile ? 15 : 17} color="#FFFFFF" />
-          <Text style={{ color: '#FFFFFF', fontSize: isMobile ? 12 : 13, fontWeight: '900' }}>
-            ADD TO ORDER (${totalPrice.toFixed(2)})
-          </Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 6, width: '100%' }}>
+          <TouchableOpacity
+            onPress={(e) => {
+              if (e && e.stopPropagation) e.stopPropagation();
+              handleAddInitiated();
+            }}
+            activeOpacity={0.85}
+            style={[
+              styles.hostHookahAddBtn,
+              {
+                backgroundColor: requiresChoice ? 'rgba(229,177,58,0.15)' : '#22C55E',
+                borderColor: requiresChoice ? '#E5B13A' : '#22C55E',
+                borderWidth: 1.5,
+                paddingVertical: isMobile ? 9 : 11,
+                flex: 1,
+                borderRadius: 12,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+              }
+            ]}
+          >
+            <Plus size={isMobile ? 15 : 17} color={requiresChoice ? '#E5B13A' : '#FFFFFF'} />
+            <Text style={{ color: requiresChoice ? '#E5B13A' : '#FFFFFF', fontSize: isMobile ? 12 : 13, fontWeight: '900' }}>
+              {requiresChoice ? `CUSTOMIZE & ADD ($${totalPrice.toFixed(2)})` : `ADD TO ORDER ($${totalPrice.toFixed(2)})`}
+            </Text>
+          </TouchableOpacity>
+
+          {hasCustomModifiers && !requiresChoice && (
+            <TouchableOpacity
+              onPress={() => onSelectItem && onSelectItem(hookah)}
+              activeOpacity={0.8}
+              style={{
+                backgroundColor: 'rgba(229,177,58,0.15)',
+                borderColor: '#E5B13A',
+                borderWidth: 1.5,
+                borderRadius: 12,
+                paddingHorizontal: 12,
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              <Text style={{ color: '#E5B13A', fontSize: isMobile ? 11 : 12, fontWeight: '900' }}>
+                OPTIONS
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
       ) : (
         <View style={[styles.quantityStepperRow, { width: '100%', justifyContent: 'space-between' }]}>
           <TouchableOpacity
@@ -1199,6 +1359,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
 
                   {isVibeQuestEnabled && vibeQuestQuestion && vibeQuestQuestion.id !== 'q_hookah_experience' && (
                     <VibeQuestCard
+                      key={vibeQuestQuestion.id}
                       question={vibeQuestQuestion}
                       selectedAnswerIds={vibeQuestSelectedAnswers}
                       reactionMessage={reactionMessage}
@@ -1302,6 +1463,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
             <View style={{ flex: 1 }}>
               {isVibeQuestEnabled && vibeQuestQuestion && (
                 <VibeQuestCard
+                  key={vibeQuestQuestion.id}
                   question={vibeQuestQuestion}
                   selectedAnswerIds={vibeQuestSelectedAnswers}
                   reactionMessage={reactionMessage}
@@ -1481,6 +1643,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
             <View style={{ flex: 1 }}>
               {isVibeQuestEnabled && vibeQuestQuestion && (
                 <VibeQuestCard
+                  key={vibeQuestQuestion.id}
                   question={vibeQuestQuestion}
                   selectedAnswerIds={vibeQuestSelectedAnswers}
                   reactionMessage={reactionMessage}

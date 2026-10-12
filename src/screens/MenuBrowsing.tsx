@@ -89,8 +89,26 @@ const HouseMixItemCard: React.FC<HouseMixItemCardProps> = ({
   
   const totalPrice = baseHookahPrice + (iceBase ? iceBasePrice : 0) + (iceHose ? iceHosePrice : 0);
 
+  const itemMods = item.modifierGroups || (item as any).modifier_groups || [];
+  const customGroups = itemMods.filter((g: any) => {
+    const gn = (g.name || g.id || '').toLowerCase();
+    const isEnhanceGroup = gn.includes('enhancement') || g.id === 'MOD_HOOKAH_ENHANCEMENTS';
+    const opts = g.options || [];
+    const onlyIceOpts = opts.length > 0 && opts.every((o: any) => {
+      const on = (o.name || o.id || '').toLowerCase();
+      return on.includes('ice base') || on.includes('ice hose');
+    });
+    return !(isEnhanceGroup && onlyIceOpts);
+  });
+  const hasCustomModifiers = customGroups.length > 0;
+  const requiresChoice = itemRequiresModifierSelection(item);
+
   const handleAddInitiated = (e: any) => {
     if (e && e.stopPropagation) e.stopPropagation();
+    if (requiresChoice) {
+      onSelectItem(item);
+      return;
+    }
     setShowDakuModal(true);
   };
 
@@ -186,6 +204,33 @@ const HouseMixItemCard: React.FC<HouseMixItemCardProps> = ({
           </View>
         ) : null}
 
+        {/* Custom Modifier Badges from Admin */}
+        {hasCustomModifiers && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginBottom: 10 }}>
+            {customGroups.map((g: any, gIdx: number) => (
+              <TouchableOpacity
+                key={g.id || gIdx}
+                activeOpacity={0.8}
+                onPress={() => onSelectItem(item)}
+                style={{
+                  backgroundColor: 'rgba(229,177,58,0.12)',
+                  borderColor: '#E5B13A',
+                  borderWidth: 1,
+                  borderRadius: 8,
+                  paddingHorizontal: 8,
+                  paddingVertical: 3,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                <Text style={{ color: '#E5B13A', fontSize: isMobile ? 10 : 11, fontWeight: '800' }}>
+                  ✨ {g.name}{g.required ? ' *' : ''} ({g.options?.length || 0} opts)
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {/* Inline Add-On Options (Ice Base & Ice Hose) */}
         <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
@@ -259,30 +304,52 @@ const HouseMixItemCard: React.FC<HouseMixItemCardProps> = ({
 
       {/* Action Button Row */}
       {count === 0 ? (
-        <TouchableOpacity
-          onPress={handleAddInitiated}
-          activeOpacity={0.85}
-          style={[
-            styles.quickAddBtn,
-            {
-              backgroundColor: '#22C55E',
-              borderColor: '#22C55E',
-              borderWidth: 1.5,
-              paddingVertical: isMobile ? 9 : 11,
-              width: '100%',
-              borderRadius: 12,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-            }
-          ]}
-        >
-          <Plus size={isMobile ? 15 : 17} color="#FFFFFF" />
-          <Text style={[styles.quickAddText, { color: '#FFFFFF', fontSize: isMobile ? 12 : 13, fontWeight: '900' }]}>
-            ADD TO ORDER (${totalPrice.toFixed(2)})
-          </Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 6, width: '100%' }}>
+          <TouchableOpacity
+            onPress={handleAddInitiated}
+            activeOpacity={0.85}
+            style={[
+              styles.quickAddBtn,
+              {
+                backgroundColor: requiresChoice ? 'rgba(229,177,58,0.15)' : '#22C55E',
+                borderColor: requiresChoice ? '#E5B13A' : '#22C55E',
+                borderWidth: 1.5,
+                paddingVertical: isMobile ? 9 : 11,
+                flex: 1,
+                borderRadius: 12,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+              }
+            ]}
+          >
+            <Plus size={isMobile ? 15 : 17} color={requiresChoice ? '#E5B13A' : '#FFFFFF'} />
+            <Text style={[styles.quickAddText, { color: requiresChoice ? '#E5B13A' : '#FFFFFF', fontSize: isMobile ? 12 : 13, fontWeight: '900' }]}>
+              {requiresChoice ? `CUSTOMIZE & ADD ($${totalPrice.toFixed(2)})` : `ADD TO ORDER ($${totalPrice.toFixed(2)})`}
+            </Text>
+          </TouchableOpacity>
+
+          {hasCustomModifiers && !requiresChoice && (
+            <TouchableOpacity
+              onPress={() => onSelectItem(item)}
+              activeOpacity={0.8}
+              style={{
+                backgroundColor: 'rgba(229,177,58,0.15)',
+                borderColor: '#E5B13A',
+                borderWidth: 1.5,
+                borderRadius: 12,
+                paddingHorizontal: 12,
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              <Text style={{ color: '#E5B13A', fontSize: isMobile ? 11 : 12, fontWeight: '900' }}>
+                OPTIONS
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
       ) : (
         <View style={[styles.browseStepperRow, { width: '100%', justifyContent: 'space-between' }]}>
           <TouchableOpacity

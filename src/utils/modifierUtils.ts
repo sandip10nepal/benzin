@@ -14,13 +14,14 @@ export const itemRequiresModifierSelection = (item?: MenuItem | null): boolean =
 
   const groups: ModifierGroup[] = item.modifierGroups || (item as any).modifier_groups || [];
   return groups.some((g: any) => {
+    if ((g.id === 'MOD_HOOKAH_ENHANCEMENTS' || (g.name || '').toLowerCase().includes('enhancement')) && !g.required) {
+      return false;
+    }
     const isRequired = Boolean(g.required) || 
       (g.min_selection !== undefined && g.min_selection > 0) || 
       (g.minSelect !== undefined && g.minSelect > 0);
-    const isSauce = (g.name || '').toLowerCase().includes('sauce') || 
-      (g.name || '').toLowerCase().includes('flavor') || 
-      (g.name || '').toLowerCase().includes('choice');
-    return isRequired || (isSauce && Array.isArray(g.options) && g.options.length > 0);
+    const isSauce = (g.name || '').toLowerCase().includes('sauce');
+    return isRequired || (isWings && isSauce && Array.isArray(g.options) && g.options.length > 0);
   });
 };
 
@@ -39,13 +40,15 @@ export const getMissingRequiredModifierGroup = (
     (item.name || '').toLowerCase().includes('wing');
 
   for (const group of groups) {
+    if ((group.id === 'MOD_HOOKAH_ENHANCEMENTS' || (group.name || '').toLowerCase().includes('enhancement')) && !group.required) {
+      continue;
+    }
     const groupNameLower = (group.name || '').toLowerCase();
-    const isSauceOrFlavor = groupNameLower.includes('sauce') || groupNameLower.includes('flavor');
+    const isSauce = groupNameLower.includes('sauce');
     const isRequired = Boolean(group.required) || 
       ((group as any).min_selection !== undefined && (group as any).min_selection > 0) || 
       (group.minSelect !== undefined && group.minSelect > 0) ||
-      (isWings && isSauceOrFlavor) ||
-      isSauceOrFlavor;
+      (isWings && isSauce);
 
     if (isRequired) {
       const grpId = group.id || (group as any)._id || group.name;

@@ -52,19 +52,52 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
   if (!item) return null;
 
+  const isHookah = React.useMemo(() => {
+    if (!item) return false;
+    return item.category === 'hookah' || 
+      item.category_id === 'CAT_HOOKAH_HOUSE_MIXES' || 
+      (Array.isArray(item.category_ids) && (
+        item.category_ids.includes('CAT_HOOKAH_HOUSE_MIXES') ||
+        item.category_ids.some(c => String(c).toLowerCase().includes('hookah'))
+      )) ||
+      (item.category_id && String(item.category_id).toLowerCase().includes('hookah')) ||
+      (item.category || '').toLowerCase().includes('hookah') ||
+      (item.category || '').toLowerCase().includes('house_mix') ||
+      item.subcategory === 'House Mixes' ||
+      /cavalli crush|cavali crush|shah jahan|habibi nights|kashmiri chai|anarkali|white king|zaalim|shokha|dubai nights|dragon/i.test(item.name || '');
+  }, [item]);
+
   const effectiveModifierGroups = React.useMemo<ModifierGroup[]>(() => {
     if (!item) return [];
     let groups: ModifierGroup[] = item.modifierGroups || (item as any).modifier_groups || [];
 
-    const isHouseMix = item.category_id === 'CAT_HOOKAH_HOUSE_MIXES' || 
-      (Array.isArray(item.category_ids) && item.category_ids.includes('CAT_HOOKAH_HOUSE_MIXES')) ||
-      (item.category || '').toLowerCase().includes('house_mix');
-
-    if (isHouseMix && groups.length > 0) {
-      groups = groups.filter(g => {
+    // Ensure House Mixes and Hookahs always expose Ice Base & Ice Hose options
+    if (isHookah) {
+      const hasIceGroup = groups.some(g => {
         const gn = (g.name || g.id || '').toLowerCase();
-        return !gn.includes('enhancement') && !gn.includes('ice') && !gn.includes('base');
+        const hasIceOption = (g.options || []).some(o => {
+          const on = (o.name || o.id || '').toLowerCase();
+          return on.includes('ice base') || on.includes('ice hose');
+        });
+        return hasIceOption || gn.includes('ice base') || gn.includes('ice hose') || g.id === 'MOD_HOOKAH_ENHANCEMENTS';
       });
+
+      if (!hasIceGroup) {
+        groups = [
+          ...groups,
+          {
+            id: 'MOD_HOOKAH_ENHANCEMENTS',
+            name: 'Hookah Enhancements',
+            minSelect: 0,
+            maxSelect: 2,
+            required: false,
+            options: [
+              { id: 'OPT_ICE_BASE', name: 'Ice Base', price: 2 },
+              { id: 'OPT_ICE_HOSE', name: 'Ice Hose', price: 6 },
+            ],
+          },
+        ];
+      }
     }
 
     if (groups.length > 0) return groups;
@@ -274,7 +307,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
       onAddToCart(item, quantity, [], specialInstructions);
     }
   } else {
-    if ((item.category === 'hookah' || (item.name || '').toLowerCase().includes('hookah')) && !(item as any).isDaku) {
+    if ((isHookah || item.category === 'hookah' || (item.name || '').toLowerCase().includes('hookah')) && !(item as any).isDaku) {
       setShowDakuModal(true);
       return;
     }

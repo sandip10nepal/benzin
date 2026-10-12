@@ -8,6 +8,8 @@ import {
   Animated,
   LayoutAnimation,
   UIManager,
+  Modal,
+  ScrollView,
 } from 'react-native';
 import { ChevronDown, ChevronUp, Check } from 'lucide-react-native';
 import { VibeQuestQuestion, VibeQuestAnswer } from '../../vibe-quest/vibe-quest.types';
@@ -83,13 +85,6 @@ export const VibeQuestCard: React.FC<VibeQuestCardProps> = ({
     animValue.setValue(hasSelection ? 1 : 0);
   }, [question.id]);
 
-  // Expand automatically if selections are cleared externally
-  useEffect(() => {
-    if (selectedAnswerIds.length === 0 && isMinimized) {
-      toggleMinimized(false);
-    }
-  }, [selectedAnswerIds.length, isMinimized, toggleMinimized]);
-
   // Handle selecting an option: register answer with tactile delay then smoothly minimize
   const handleAnswerPress = (ansId: string) => {
     onSelectAnswer(question.id, ansId);
@@ -98,192 +93,278 @@ export const VibeQuestCard: React.FC<VibeQuestCardProps> = ({
     }, 200);
   };
 
+  const handleDismissPress = () => {
+    toggleMinimized(true);
+    onDismiss();
+  };
+
+  const handleSkipPress = () => {
+    toggleMinimized(true);
+    onSkip(question.id);
+  };
+
   return (
-    <View
-      style={[
-        styles.cardContainer,
-        isMinimized && styles.cardContainerMinimized,
-        {
-          backgroundColor: '#18181B',
-          borderColor: '#F59E0B',
-        },
-        isMobile
-          ? { marginHorizontal: 12, marginVertical: isMinimized ? 6 : 10 }
-          : { marginHorizontal: 24, marginVertical: isMinimized ? 8 : 16 },
-      ]}
-    >
-      {isMinimized ? (
-        /* MINIMIZED STATE: Compact, informative bar showing question & selected choice */
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={() => toggleMinimized(false)}
-          style={styles.minimizedBar}
-          accessibilityRole="button"
-          accessibilityLabel={`Selected craving: ${selectedAnswers.map((a) => a.label).join(', ')}. Tap to change.`}
+    <>
+      {/* 1. MINIMIZED STATE: Compact informative banner sitting directly above subcategory pills */}
+      {isMinimized && (
+        <View
+          style={[
+            styles.minimizedContainer,
+            {
+              backgroundColor: '#18181B',
+              borderColor: '#F59E0B',
+            },
+            isMobile
+              ? { marginHorizontal: 12, marginVertical: 6 }
+              : { marginHorizontal: 24, marginVertical: 8, maxWidth: 1100, alignSelf: 'center', width: '100%' },
+          ]}
         >
-          <View style={styles.minimizedLeft}>
-            <View style={styles.minimizedHeaderLine}>
-              <Text style={styles.stageTag}>{question.stage.toUpperCase()}</Text>
-              <Text
-                style={[
-                  styles.minimizedQuestionText,
-                  { fontSize: isMobile ? 13 : 15 },
-                ]}
-                numberOfLines={1}
-              >
-                {question.question_text}
-              </Text>
-            </View>
-
-            {selectedAnswers.length > 0 && (
-              <View style={styles.minimizedPillsRow}>
-                {selectedAnswers.map((ans) => (
-                  <View key={ans.id} style={styles.selectedAnswerPill}>
-                    {ans.emoji ? (
-                      <Text style={styles.selectedPillEmoji}>{ans.emoji}</Text>
-                    ) : null}
-                    <Text style={styles.selectedPillLabel} numberOfLines={1}>
-                      {ans.label}
-                    </Text>
-                    <View style={styles.selectedPillCheckmark}>
-                      <Check size={11} color="#000000" strokeWidth={3} />
-                    </View>
-                  </View>
-                ))}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => toggleMinimized(false)}
+            style={styles.minimizedBar}
+            accessibilityRole="button"
+            accessibilityLabel={`Selected craving: ${selectedAnswers.map((a) => a.label).join(', ')}. Tap to change.`}
+          >
+            <View style={styles.minimizedLeft}>
+              <View style={styles.minimizedHeaderLine}>
+                <Text style={styles.stageTag}>{question.stage.toUpperCase()}</Text>
+                <Text
+                  style={[
+                    styles.minimizedQuestionText,
+                    { fontSize: isMobile ? 13 : 15 },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {question.question_text}
+                </Text>
               </View>
-            )}
-          </View>
 
-          <View style={styles.minimizedRight}>
-            <View style={styles.changeActionPill}>
-              <Text style={styles.changeActionText}>Change</Text>
-              <ChevronDown size={14} color="#F59E0B" />
-            </View>
-          </View>
-        </TouchableOpacity>
-      ) : (
-        /* MAXIMIZED (EXPANDED) STATE: Full question and options grid */
-        <View>
-          {/* Top Badge & Header Actions */}
-          <View style={styles.headerRow}>
-            <View style={styles.badgeRow}>
-              <Text style={styles.stageTag}>{question.stage.toUpperCase()}</Text>
               {selectedAnswers.length > 0 && (
-                <View style={styles.currentlySelectedTag}>
-                  <Text style={styles.currentlySelectedTagText}>
-                    Active: {selectedAnswers[0].label}
-                  </Text>
+                <View style={styles.minimizedPillsRow}>
+                  {selectedAnswers.map((ans) => (
+                    <View key={ans.id} style={styles.selectedAnswerPill}>
+                      {ans.emoji ? (
+                        <Text style={styles.selectedPillEmoji}>{ans.emoji}</Text>
+                      ) : null}
+                      <Text style={styles.selectedPillLabel} numberOfLines={1}>
+                        {ans.label}
+                      </Text>
+                      <View style={styles.selectedPillCheckmark}>
+                        <Check size={11} color="#000000" strokeWidth={3} />
+                      </View>
+                    </View>
+                  ))}
                 </View>
               )}
             </View>
 
-            <View style={styles.headerRightActions}>
-              {selectedAnswers.length > 0 && (
-                <TouchableOpacity
-                  onPress={() => toggleMinimized(true)}
-                  style={styles.collapseHeaderBtn}
-                  activeOpacity={0.75}
-                  accessibilityLabel="Minimize question"
-                >
-                  <Text style={styles.collapseHeaderText}>Collapse</Text>
-                  <ChevronUp size={13} color="#F59E0B" />
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity
-                onPress={onDismiss}
-                style={styles.dismissBtn}
-                accessibilityLabel="Dismiss discovery"
-              >
-                <Text style={styles.dismissText}>✕ Browse Menu</Text>
-              </TouchableOpacity>
+            <View style={styles.minimizedRight}>
+              <View style={styles.changeActionPill}>
+                <Text style={styles.changeActionText}>
+                  {selectedAnswers.length > 0 ? 'Change' : 'Questions'}
+                </Text>
+                <ChevronDown size={14} color="#F59E0B" />
+              </View>
             </View>
-          </View>
-
-          {/* Question Text & Helper Subtext */}
-          <View style={styles.questionSection}>
-            <Text style={[styles.questionText, { fontSize: isMobile ? 18 : 22 }]}>
-              {question.question_text}
-            </Text>
-            {question.helper_text ? (
-              <Text style={styles.helperText}>{question.helper_text}</Text>
-            ) : null}
-          </View>
-
-          {/* Reaction Prompt Banner if available */}
-          {reactionMessage ? (
-            <View style={styles.reactionBanner}>
-              <Text style={styles.reactionText}>{reactionMessage}</Text>
-            </View>
-          ) : null}
-
-          {/* Answer Options Grid */}
-          <View style={styles.answersGrid}>
-            {question.answers.map((ans: VibeQuestAnswer) => {
-              const isSelected = selectedAnswerIds.includes(ans.id);
-              return (
-                <TouchableOpacity
-                  key={ans.id}
-                  activeOpacity={0.8}
-                  onPress={() => handleAnswerPress(ans.id)}
-                  style={[
-                    styles.answerCard,
-                    {
-                      backgroundColor: isSelected ? 'rgba(245, 158, 11, 0.18)' : '#27272A',
-                      borderColor: isSelected ? '#F59E0B' : 'rgba(255, 255, 255, 0.1)',
-                      borderWidth: isSelected ? 2 : 1,
-                    },
-                    isMobile ? { width: '100%' } : { width: '48%' },
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityLabel={ans.label}
-                >
-                  <View style={styles.answerContentRow}>
-                    {ans.emoji ? <Text style={styles.answerEmoji}>{ans.emoji}</Text> : null}
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={[
-                          styles.answerLabel,
-                          { color: isSelected ? '#F59E0B' : '#FFFFFF' },
-                        ]}
-                      >
-                        {ans.label}
-                      </Text>
-                      {ans.description ? (
-                        <Text style={styles.answerDesc} numberOfLines={2}>
-                          {ans.description}
-                        </Text>
-                      ) : null}
-                    </View>
-                    {isSelected && (
-                      <View style={styles.checkmarkBadge}>
-                        <Check size={12} color="#000000" strokeWidth={3} />
-                      </View>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          {/* Footer: Skip Actions */}
-          {question.skippable && (
-            <View style={styles.footerRow}>
-              <TouchableOpacity
-                onPress={() => onSkip(question.id)}
-                style={styles.skipButton}
-                accessibilityLabel="Skip question"
-              >
-                <Text style={styles.skipText}>Skip for now →</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          </TouchableOpacity>
         </View>
       )}
-    </View>
+
+      {/* 2. FLOATING HANGING MODAL OVERLAY: Floats over the menu with menu visible underneath */}
+      <Modal
+        visible={!isMinimized}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => toggleMinimized(true)}
+      >
+        <View style={styles.modalOverlay}>
+          {/* Backdrop layer: tapping outside dismisses modal */}
+          <TouchableOpacity
+            style={StyleSheet.absoluteFillObject}
+            activeOpacity={1}
+            onPress={() => toggleMinimized(true)}
+            accessibilityLabel="Close question overlay"
+          />
+
+          {/* Floating Card hanging suspended over the menu */}
+          <View
+            style={[
+              styles.floatingCardContainer,
+              {
+                backgroundColor: '#18181B',
+                borderColor: '#F59E0B',
+              },
+              isMobile ? styles.floatingCardMobile : styles.floatingCardDesktop,
+            ]}
+          >
+            {/* Top Badge & Header Actions */}
+            <View style={styles.headerRow}>
+              <View style={styles.badgeRow}>
+                <Text style={styles.stageTag}>{question.stage.toUpperCase()}</Text>
+                {selectedAnswers.length > 0 && (
+                  <View style={styles.currentlySelectedTag}>
+                    <Text style={styles.currentlySelectedTagText}>
+                      Active: {selectedAnswers[0].label}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.headerRightActions}>
+                {selectedAnswers.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => toggleMinimized(true)}
+                    style={styles.collapseHeaderBtn}
+                    activeOpacity={0.75}
+                    accessibilityLabel="Close question overlay"
+                  >
+                    <Text style={styles.collapseHeaderText}>Close</Text>
+                    <ChevronUp size={13} color="#F59E0B" />
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  onPress={handleDismissPress}
+                  style={styles.dismissBtn}
+                  accessibilityLabel="Dismiss discovery"
+                >
+                  <Text style={styles.dismissText}>✕ Browse Menu</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Scrollable container for question and options */}
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+              contentContainerStyle={{ paddingBottom: 6 }}
+            >
+              {/* Question Text & Helper Subtext */}
+              <View style={styles.questionSection}>
+                <Text style={[styles.questionText, { fontSize: isMobile ? 18 : 22 }]}>
+                  {question.question_text}
+                </Text>
+                {question.helper_text ? (
+                  <Text style={styles.helperText}>{question.helper_text}</Text>
+                ) : null}
+              </View>
+
+              {/* Reaction Prompt Banner if available */}
+              {reactionMessage ? (
+                <View style={styles.reactionBanner}>
+                  <Text style={styles.reactionText}>{reactionMessage}</Text>
+                </View>
+              ) : null}
+
+              {/* Answer Options Grid */}
+              <View style={styles.answersGrid}>
+                {question.answers.map((ans: VibeQuestAnswer) => {
+                  const isSelected = selectedAnswerIds.includes(ans.id);
+                  return (
+                    <TouchableOpacity
+                      key={ans.id}
+                      activeOpacity={0.8}
+                      onPress={() => handleAnswerPress(ans.id)}
+                      style={[
+                        styles.answerCard,
+                        {
+                          backgroundColor: isSelected ? 'rgba(245, 158, 11, 0.18)' : '#27272A',
+                          borderColor: isSelected ? '#F59E0B' : 'rgba(255, 255, 255, 0.1)',
+                          borderWidth: isSelected ? 2 : 1,
+                        },
+                        isMobile ? { width: '100%' } : { width: '48%' },
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel={ans.label}
+                    >
+                      <View style={styles.answerContentRow}>
+                        {ans.emoji ? <Text style={styles.answerEmoji}>{ans.emoji}</Text> : null}
+                        <View style={{ flex: 1 }}>
+                          <Text
+                            style={[
+                              styles.answerLabel,
+                              { color: isSelected ? '#F59E0B' : '#FFFFFF' },
+                            ]}
+                          >
+                            {ans.label}
+                          </Text>
+                          {ans.description ? (
+                            <Text style={styles.answerDesc} numberOfLines={2}>
+                              {ans.description}
+                            </Text>
+                          ) : null}
+                        </View>
+                        {isSelected && (
+                          <View style={styles.checkmarkBadge}>
+                            <Check size={12} color="#000000" strokeWidth={3} />
+                          </View>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Footer: Skip Actions */}
+              {question.skippable && (
+                <View style={styles.footerRow}>
+                  <TouchableOpacity
+                    onPress={handleSkipPress}
+                    style={styles.skipButton}
+                    accessibilityLabel="Skip question"
+                  >
+                    <Text style={styles.skipText}>Skip for now →</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 };
 
 const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.68)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  floatingCardContainer: {
+    borderRadius: 22,
+    borderWidth: 1.5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 18,
+    elevation: 12,
+  },
+  floatingCardDesktop: {
+    width: '90%',
+    maxWidth: 700,
+    maxHeight: '86%',
+    padding: 24,
+  },
+  floatingCardMobile: {
+    width: '95%',
+    maxWidth: 440,
+    maxHeight: '88%',
+    padding: 16,
+  },
+  minimizedContainer: {
+    borderRadius: 16,
+    borderWidth: 1.5,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
+  },
   cardContainer: {
     borderRadius: 20,
     borderWidth: 1.5,
