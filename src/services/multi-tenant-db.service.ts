@@ -731,15 +731,31 @@ export class MultiTenantDbService {
         const catLower = (catTitle + ' ' + (item.category_id || '')).toLowerCase();
 
         let superCat = 'food';
-        if (catLower.includes('hookah')) {
+        if (catLower.includes('hookah') || item.category === 'hookah' || ((item as any).subcategory && String((item as any).subcategory).toLowerCase().includes('house mix')) || (cat?.parent_id && String(cat.parent_id).toLowerCase().includes('hookah')) || /cavalli crush|shah jahan|habibi nights|kashmiri chai|anarkali|white king|zaalim|shokha|dubai nights|dragon/i.test(item.name || '')) {
           superCat = 'hookah';
         } else if (catLower.includes('drink') || catLower.includes('beverage')) {
           superCat = 'drinks';
         }
 
-        const rawModGroups = (item.modifier_groups && item.modifier_groups.length > 0)
-          ? item.modifier_groups
-          : (superCat === 'hookah' ? [{
+        let rawModGroups: any[] = [];
+        if (Array.isArray(item.modifier_groups) && item.modifier_groups.length > 0) {
+          rawModGroups = [...item.modifier_groups];
+        } else if (Array.isArray((item as any).modifierGroups) && (item as any).modifierGroups.length > 0) {
+          rawModGroups = [...(item as any).modifierGroups];
+        }
+
+        if (superCat === 'hookah') {
+          const hasIceGroup = rawModGroups.some((g: any) => {
+            const gName = (g.name || g.id || '').toLowerCase();
+            const hasIceOpt = (g.options || []).some((o: any) => {
+              const oName = (o.name || o.id || '').toLowerCase();
+              return oName.includes('ice base') || oName.includes('ice hose');
+            });
+            return hasIceOpt || gName.includes('ice base') || gName.includes('ice hose') || g.id === 'MOD_HOOKAH_ENHANCEMENTS';
+          });
+
+          if (!hasIceGroup) {
+            rawModGroups.push({
               id: 'MOD_HOOKAH_ENHANCEMENTS',
               name: 'Hookah Enhancements',
               min_selection: 0,
@@ -750,7 +766,9 @@ export class MultiTenantDbService {
                 { id: 'OPT_ICE_BASE', name: 'Ice Base', price: 2, price_adjustment: 2, available: true, sort_order: 1 },
                 { id: 'OPT_ICE_HOSE', name: 'Ice Hose', price: 6, price_adjustment: 6, available: true, sort_order: 2 }
               ]
-            }] : []);
+            });
+          }
+        }
 
         const sanitizedModGroups = rawModGroups.map((g: any, gIdx: number) => {
           const isSoftDrinkGroup = (g.id === 'mod_soft_drink_choice' || (item.name && item.name.toLowerCase().includes('soft drink')));
@@ -2158,7 +2176,22 @@ export class MultiTenantDbService {
 
       return mongoDocs.map(i => {
         const isHookah = (i.category === 'hookah' || String(i.category_id || '').toLowerCase().includes('hookah') || i.subcategory === 'House Mixes' || /cavalli crush|shah jahan|habibi nights|kashmiri chai|anarkali|white king|zaalim|shokha|dubai nights|dragon/i.test(i.name || ''));
-        const mods = i.modifier_groups || i.modifierGroups || (isHookah ? hookahModifiers : []);
+        let mods = Array.isArray(i.modifier_groups) && i.modifier_groups.length > 0 
+          ? [...i.modifier_groups] 
+          : (Array.isArray(i.modifierGroups) && i.modifierGroups.length > 0 ? [...i.modifierGroups] : []);
+        if (isHookah) {
+          const hasIceGroup = mods.some((g: any) => {
+            const gName = (g.name || g.id || '').toLowerCase();
+            const hasIceOpt = (g.options || []).some((o: any) => {
+              const oName = (o.name || o.id || '').toLowerCase();
+              return oName.includes('ice base') || oName.includes('ice hose');
+            });
+            return hasIceOpt || gName.includes('ice base') || gName.includes('ice hose') || g.id === 'MOD_HOOKAH_ENHANCEMENTS';
+          });
+          if (!hasIceGroup) {
+            mods.push(...hookahModifiers);
+          }
+        }
         const itemCatIds = Array.isArray(i.category_ids) && i.category_ids.length > 0 ? i.category_ids : (i.category_id ? [i.category_id] : []);
         return {
           ...i,
@@ -2215,7 +2248,22 @@ export class MultiTenantDbService {
 
     return items.map(i => {
       const isHookah = (i.category === 'hookah' || String(i.category_id || '').toLowerCase().includes('hookah') || (i as any).subcategory === 'House Mixes' || /cavalli crush|shah jahan|habibi nights|kashmiri chai|anarkali|white king|zaalim|shokha|dubai nights|dragon/i.test(i.name || ''));
-      const mods = (i as any).modifier_groups || (i as any).modifierGroups || (isHookah ? hookahModifiers : []);
+      let mods = Array.isArray((i as any).modifier_groups) && (i as any).modifier_groups.length > 0 
+        ? [...(i as any).modifier_groups] 
+        : (Array.isArray((i as any).modifierGroups) && (i as any).modifierGroups.length > 0 ? [...(i as any).modifierGroups] : []);
+      if (isHookah) {
+        const hasIceGroup = mods.some((g: any) => {
+          const gName = (g.name || g.id || '').toLowerCase();
+          const hasIceOpt = (g.options || []).some((o: any) => {
+            const oName = (o.name || o.id || '').toLowerCase();
+            return oName.includes('ice base') || oName.includes('ice hose');
+          });
+          return hasIceOpt || gName.includes('ice base') || gName.includes('ice hose') || g.id === 'MOD_HOOKAH_ENHANCEMENTS';
+        });
+        if (!hasIceGroup) {
+          mods.push(...hookahModifiers);
+        }
+      }
       const itemCatIds = Array.isArray(i.category_ids) && i.category_ids.length > 0 ? i.category_ids : (i.category_id ? [i.category_id] : []);
       return {
         ...i,
