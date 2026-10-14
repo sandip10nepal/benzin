@@ -293,6 +293,9 @@ export class OrderService {
       assigned_at: orderData.assigned_at || orderData.assignedAt || (orderData.assigned_server_name || orderData.assignedServerName ? new Date().toISOString() : null),
     };
 
+    // Pre-validate that all referenced recipes and hookah flavors have sufficient stock
+    await RecipeService.validateOrderStock(payload, restaurantId);
+
     const created = await OrderRepository.create(payload);
     (created as any).trackingToken = rawTrackingToken;
     (created as any).trackingExpiresAt = trackingExpiresAt;

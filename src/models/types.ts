@@ -151,6 +151,7 @@ export interface HookahPackageConfig {
 }
 
 export interface HookahConfig {
+  total_flavor_weight?: number;
   flavors: HookahFlavorConfig[];
   bases: HookahBaseConfig[];
   addons: HookahAddonConfig[];
@@ -158,6 +159,7 @@ export interface HookahConfig {
 }
 
 export const DEFAULT_HOOKAH_CONFIG: HookahConfig = {
+  total_flavor_weight: 20,
   flavors: [
     { id: 'flv_cavali_crush', name: 'Cavalli Crush', active: true, emoji: '💨', description: 'Sweet exotic house blend' },
     { id: 'flv_lady_killer', name: 'Lady Killer', active: true, emoji: '🍓', description: 'Melon, mango, berries & mint' },
@@ -347,8 +349,12 @@ export interface MenuCategory {
 
 export interface MenuRecipeIngredient {
   ingredient_id: string;
+  ingredientId?: string;
   quantity: number;
+  amount?: number;
   unit: string;
+  percentage?: number;
+  name?: string;
 }
 
 export interface MenuItemModifierOption {
@@ -444,13 +450,18 @@ export interface Order {
   assigned_server_id?: string | null;
   assigned_server_name?: string | null;
   assigned_at?: string | null;
+  inventory_deducted?: boolean;
+  inventory_deductions?: any[];
+  inventory_restored?: boolean;
 }
 
 export interface InventoryItem {
   _id: string;
+  id?: string;
   restaurant_id: string;
   name: string;
   category: string;
+  category_id?: string;
   stock: number;
   unit: string;
   low_threshold: number;

@@ -1846,6 +1846,25 @@
         <button class="btn" onclick="closeHookahConfigModal()" style="padding: 6px 10px; font-size: 12px; border-radius: 8px;">✕</button>
       </div>
 
+      <!-- Total Hookah Flavor Weight (100%) Setting -->
+      <div style="background: rgba(229,177,58,0.08); border: 1.5px solid var(--gold); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 220px;">
+            <div style="font-size: 13px; font-weight: 800; color: var(--gold); display: flex; align-items: center; gap: 6px;">
+              <span>⚖️</span> Total Hookah Flavor Weight (100%)
+            </div>
+            <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">
+              Standard single-bowl capacity in grams used to calculate flavor deductions in Custom Mix Lab and percentage-based House Mixes.
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <input type="number" id="hkTotalFlavorWeight" min="1" max="200" step="1" value="20" style="width: 80px; padding: 8px 10px; background: var(--card2); border: 1.5px solid var(--gold); border-radius: 8px; color: var(--gold); font-size: 15px; font-weight: 800; text-align: center;" oninput="updateFlavorWeightPreview()">
+            <span style="font-weight: 800; color: var(--gold); font-size: 14px;">grams</span>
+          </div>
+        </div>
+        <div id="flavorWeightPreviewPills" style="display: flex; gap: 8px; margin-top: 10px; font-size: 11px; color: var(--cream); flex-wrap: wrap;"></div>
+      </div>
+
       <!-- Tabs Bar -->
       <div style="display: flex; gap: 6px; border-bottom: 1.5px solid var(--line); padding-bottom: 10px; margin-bottom: 16px;">
         <button class="sub-tab active" id="hkTabBtn-bases" onclick="switchHookahTab('bases')" style="padding: 6px 14px; border-radius: 8px; font-weight: 800; font-size: 12px;">🍯 Bases</button>
@@ -1870,10 +1889,11 @@
       <!-- FLAVORS TAB -->
       <div id="hkTab-flavors" style="display: none;">
         <div style="background: rgba(20,184,166,0.06); border: 1px dashed rgba(20,184,166,0.3); border-radius: 10px; padding: 12px; margin-bottom: 16px;">
-          <div style="font-size: 12px; font-weight: 800; color: var(--teal); margin-bottom: 8px;">➕ ADD NEW HOOKAH FLAVOR</div>
+          <div style="font-size: 12px; font-weight: 800; color: var(--teal); margin-bottom: 8px;">➕ ADD NEW HOOKAH FLAVOR TO INVENTORY</div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <input type="text" id="newHkFlavorName" placeholder="Flavor name (e.g. Love 66, Blue Mist)" style="flex: 2; min-width: 180px; padding: 8px 12px; background: var(--card2); border: 1px solid var(--line); border-radius: 8px; color: var(--cream); font-size: 13px;">
-            <input type="text" id="newHkFlavorCategory" placeholder="Category (e.g. Al Fakher, Starbuzz)" style="flex: 1; min-width: 120px; padding: 8px 12px; background: var(--card2); border: 1px solid var(--line); border-radius: 8px; color: var(--cream); font-size: 13px;">
+            <input type="text" id="newHkFlavorBrand" placeholder="Brand (e.g. Al Fakher, Adalya)" style="flex: 1; min-width: 120px; padding: 8px 12px; background: var(--card2); border: 1px solid var(--line); border-radius: 8px; color: var(--cream); font-size: 13px;">
+            <input type="number" id="newHkFlavorStock" placeholder="Stock (g)" value="500" style="width: 100px; padding: 8px 12px; background: var(--card2); border: 1px solid var(--line); border-radius: 8px; color: var(--teal); font-size: 13px; font-weight: 700;">
             <button class="btn btn-primary" onclick="addHookahFlavorRow()" style="padding: 8px 16px; font-weight: 800; font-size: 12px; background: var(--teal); color: #000;">Add Flavor</button>
           </div>
         </div>
@@ -3812,17 +3832,6 @@
 
       const itemsList = Object.values(inventory || {});
 
-      // Discover dynamic tenant categories from database
-      const dynamicCatMap = new Map();
-      dynamicCatMap.set('all', 'All Stock');
-      itemsList.forEach(item => {
-        const cat = (item.category || 'general').toLowerCase();
-        if (!dynamicCatMap.has(cat)) {
-          const title = cat.charAt(0).toUpperCase() + cat.slice(1);
-          dynamicCatMap.set(cat, title);
-        }
-      });
-
       renderInventoryCategoryTabs();
 
       const searchInput = document.getElementById('inventorySearchInput');
@@ -3830,7 +3839,7 @@
 
       let filtered = itemsList;
 
-      if (activeInventorySubTab && activeInventorySubTab !== 'all') {
+      if (activeInventorySubTab) {
         const activeCatObj = (inventoryCategories || []).find(cat => (cat._id || cat.id) === activeInventorySubTab || cat.id === activeInventorySubTab);
         const catTitle = (activeCatObj?.title || '').toLowerCase();
         const catId = (activeInventorySubTab || '').toLowerCase();
@@ -3839,17 +3848,25 @@
           const c = (item.category || '').toLowerCase();
           const cId = (item.category_id || '').toLowerCase();
 
-          if (catId === 'hookah' || catId === 'shisha' || catTitle.includes('shisha') || catTitle.includes('hookah')) {
-            return c.includes('shisha') || c.includes('hookah') || cId.includes('shisha');
-          }
-          if (catId === 'food' || catId === 'kitchen' || catTitle.includes('food') || catTitle.includes('kitchen') || catTitle.includes('raw')) {
-            return c.includes('food') || c.includes('kitchen') || c.includes('raw') || cId.includes('food');
-          }
-          if (catId === 'drinks' || catId === 'beverage' || catId === 'liquor' || catTitle.includes('drink') || catTitle.includes('beverage') || catTitle.includes('liquor')) {
-            return c.includes('drink') || c.includes('beverage') || c.includes('liquor') || c.includes('tea') || c.includes('coffee') || cId.includes('drink');
+          // Exact ID match
+          if (c === catId || cId === catId) return true;
+
+          // Hookah category match
+          if (catId.includes('hookah') || catId.includes('shisha') || catTitle.includes('hookah') || catTitle.includes('shisha') || catTitle.includes('flavour') || catTitle.includes('flavor')) {
+            return c === catId || cId === catId || c.includes('shisha') || c.includes('hookah') || c.includes('flavour') || c.includes('flavor') || item.unit === 'g';
           }
 
-          return c === catId || cId === catId || (catTitle && c === catTitle);
+          // Food category match
+          if (catId.includes('food') || catId.includes('kitchen') || catId.includes('raw') || catTitle.includes('food') || catTitle.includes('kitchen') || catTitle.includes('raw')) {
+            return c === catId || cId === catId || c.includes('food') || c.includes('kitchen') || c.includes('raw');
+          }
+
+          // Drinks category match
+          if (catId.includes('drink') || catId.includes('beverage') || catId.includes('liquor') || catTitle.includes('drink') || catTitle.includes('beverage') || catTitle.includes('liquor')) {
+            return c === catId || cId === catId || c.includes('drink') || c.includes('beverage') || c.includes('liquor') || c.includes('tea') || c.includes('coffee') || item.unit === 'bottle' || item.unit === 'can';
+          }
+
+          return c === catId || cId === catId || (catTitle && (c === catTitle || c.includes(catTitle)));
         });
       }
 
@@ -3943,7 +3960,7 @@
       document.getElementById('invNewName').value = '';
       document.getElementById('invNewStock').value = '';
       document.getElementById('invNewMinAlert').value = '200';
-      populateInventoryCategoryDropdowns('shisha');
+      populateInventoryCategoryDropdowns(activeInventorySubTab || 'INVCAT_1862EED65A2E');
       document.getElementById('invNewUnit').value = 'g';
       document.getElementById('addInventoryModal').style.display = 'flex';
     }
@@ -3957,7 +3974,7 @@
         const item = JSON.parse(decodeURIComponent(escapedObjStr));
         document.getElementById('invEditId').value = item.id || item._id || '';
         document.getElementById('invEditName').value = item.name || '';
-        populateInventoryCategoryDropdowns(item.category || 'shisha');
+        populateInventoryCategoryDropdowns(item.category_id || item.category || activeInventorySubTab || 'INVCAT_1862EED65A2E');
         document.getElementById('invEditUnit').value = item.unit || 'g';
         document.getElementById('invEditStock').value = item.stock !== undefined ? item.stock : 0;
         document.getElementById('invEditMinAlert').value = item.reorder_threshold !== undefined ? item.reorder_threshold : 100;
@@ -4083,52 +4100,129 @@
       renderMenuPage();
     }
 
-    function addRecipeIngredientRow(ingredientId = '', amount = '') {
+    function addRecipeIngredientRow(ingredientId = '', amount = '', unit = 'g', percentage = '') {
       const container = document.getElementById('recipeRowsContainer');
       if (!container) return;
 
       const rowDiv = document.createElement('div');
       rowDiv.className = 'recipe-row';
-      rowDiv.style.cssText = 'display: flex; gap: 8px; align-items: center; margin-bottom: 6px;';
+      rowDiv.style.cssText = 'display: flex; flex-direction: column; gap: 4px; background: rgba(255,255,255,0.03); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px;';
 
       const dbItems = Object.values(inventory || {});
-      let optionsHtml = '';
-      if (dbItems.length > 0) {
-        optionsHtml = dbItems.map(item => {
-          const itemKey = item.id || item._id || item.name;
-          const displayUnit = item.unit || 'g';
-          return `<option value="${itemKey}" ${itemKey === ingredientId ? 'selected' : ''}>📦 ${item.name} (${displayUnit})</option>`;
-        }).join('');
-      } else {
-        optionsHtml = `
-          <option value="pan_ras">💨 Pan Ras (Shisha)</option>
-          <option value="lady_killer">💨 Lady Killer (Shisha)</option>
-          <option value="bagdadi">💨 Bagdadi (Shisha)</option>
-          <option value="coffee_beans">☕ Coffee Beans</option>
-          <option value="milk">🥛 Fresh Milk</option>
-        `;
+      const matchedItem = dbItems.find(i => (i.id || i._id) === ingredientId || (i.name && i.name.toLowerCase() === String(ingredientId).toLowerCase()));
+      const isMissingOrInactive = ingredientId && (!matchedItem || matchedItem.active === false);
+
+      const totalWeight = (typeof currentHookahConfig !== 'undefined' && currentHookahConfig?.total_flavor_weight) ? Number(currentHookahConfig.total_flavor_weight) : 20;
+
+      let hookahOptions = '';
+      let otherOptions = '';
+
+      dbItems.forEach(item => {
+        const itemKey = item.id || item._id || item.name;
+        const isSel = (itemKey === ingredientId || (matchedItem && (item.id || item._id) === (matchedItem.id || matchedItem._id))) ? 'selected' : '';
+        const isHk = (item.unit === 'g' || String(item.category || '').toLowerCase().includes('hookah') || String(item.category || '').toLowerCase().includes('shisha') || String(item.category_id || '').toLowerCase().includes('hookah'));
+        const stockStr = `${item.stock !== undefined ? item.stock : 0}${item.unit || 'g'}`;
+        const optHtml = `<option value="${itemKey}" data-unit="${item.unit || 'g'}" data-stock="${item.stock || 0}" ${isSel}>${isHk ? '💨' : '📦'} ${escapeHtml(item.name)} (${stockStr} in stock)</option>`;
+        if (isHk) {
+          hookahOptions += optHtml;
+        } else {
+          otherOptions += optHtml;
+        }
+      });
+
+      let missingOpt = '';
+      if (isMissingOrInactive) {
+        missingOpt = `<option value="${ingredientId}" selected>⚠️ [Unavailable/Inactive] ${escapeHtml(matchedItem ? matchedItem.name : ingredientId)}</option>`;
       }
 
+      const initialMode = (percentage !== '' && percentage !== undefined && Number(percentage) > 0) ? 'pct' : 'g';
+      const initialVal = initialMode === 'pct' ? percentage : (amount || '');
+
       rowDiv.innerHTML = `
-        <select class="recipe-ing-select" style="flex: 2; padding: 8px; background: var(--card2); border: 1px solid var(--line); border-radius: 6px; color: var(--cream); font-size: 12px;">
-          <option value="">-- Select Raw Stock Item --</option>
-          ${optionsHtml}
-        </select>
-        <input type="number" step="1" class="recipe-ing-amount" placeholder="Amount (g/ml)" value="${amount || ''}" style="flex: 1; padding: 8px; background: var(--card2); border: 1px solid var(--line); border-radius: 6px; color: var(--cream); font-size: 12px;">
-        <button type="button" class="btn btn-danger" style="padding: 6px 10px; font-size: 12px;" onclick="this.parentElement.remove()">✕</button>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <select class="recipe-ing-select" style="flex: 2; min-width: 160px; padding: 8px; background: var(--card2); border: 1px solid ${isMissingOrInactive ? 'var(--danger)' : 'var(--line)'}; border-radius: 6px; color: var(--cream); font-size: 12px;" onchange="updateRecipeRowPreview(this)">
+            <option value="">-- Select Hookah Flavor / Raw Stock --</option>
+            ${missingOpt}
+            ${hookahOptions ? `<optgroup label="💨 Hookah Flavors">${hookahOptions}</optgroup>` : ''}
+            ${otherOptions ? `<optgroup label="📦 Raw Supplies & Ingredients">${otherOptions}</optgroup>` : ''}
+          </select>
+          <select class="recipe-ing-mode" style="width: 85px; padding: 8px; background: var(--card2); border: 1px solid var(--line); border-radius: 6px; color: var(--gold); font-size: 12px; font-weight: 800;" onchange="updateRecipeRowPreview(this)">
+            <option value="g" ${initialMode === 'g' ? 'selected' : ''}>Grams (g)</option>
+            <option value="pct" ${initialMode === 'pct' ? 'selected' : ''}>Ratio (%)</option>
+          </select>
+          <input type="number" step="0.5" min="0" class="recipe-ing-val" placeholder="${initialMode === 'pct' ? '50%' : '10g'}" value="${initialVal}" style="width: 90px; padding: 8px; background: var(--card2); border: 1px solid var(--line); border-radius: 6px; color: var(--cream); font-size: 12px; font-weight: 700;" oninput="updateRecipeRowPreview(this)">
+          <button type="button" class="btn btn-danger" style="padding: 6px 10px; font-size: 12px;" onclick="this.closest('.recipe-row').remove()">✕</button>
+        </div>
+        <div class="recipe-row-feedback" style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 2px;">
+          <span class="calc-preview" style="color: var(--gold);"></span>
+          ${isMissingOrInactive ? `<span style="color: #f87171; font-weight: 700;">⚠️ Referenced inventory item is missing or inactive in stock</span>` : ''}
+        </div>
       `;
 
       container.appendChild(rowDiv);
+      updateRecipeRowPreview(rowDiv.querySelector('.recipe-ing-val'));
+    }
+
+    function updateRecipeRowPreview(el) {
+      if (!el) return;
+      const row = el.closest('.recipe-row');
+      if (!row) return;
+      const mode = row.querySelector('.recipe-ing-mode')?.value || 'g';
+      const val = parseFloat(row.querySelector('.recipe-ing-val')?.value || '0') || 0;
+      const previewEl = row.querySelector('.calc-preview');
+      const totalWeight = (typeof currentHookahConfig !== 'undefined' && currentHookahConfig?.total_flavor_weight) ? Number(currentHookahConfig.total_flavor_weight) : 20;
+
+      if (!previewEl) return;
+      if (val <= 0) {
+        previewEl.innerText = '';
+        return;
+      }
+
+      if (mode === 'pct') {
+        const grams = ((val / 100) * totalWeight).toFixed(1).replace(/\.0$/, '');
+        previewEl.innerHTML = `Calculated: <b>${grams}g</b> (${val}% of ${totalWeight}g bowl)`;
+      } else {
+        const pct = ((val / totalWeight) * 100).toFixed(0);
+        previewEl.innerHTML = `Calculated: <b>${pct}%</b> of ${totalWeight}g bowl (${val}g)`;
+      }
     }
 
     function getRecipeFromModal() {
       const rows = document.querySelectorAll('#recipeRowsContainer .recipe-row');
       const recipe = [];
+      const totalWeight = (typeof currentHookahConfig !== 'undefined' && currentHookahConfig?.total_flavor_weight) ? Number(currentHookahConfig.total_flavor_weight) : 20;
+      const dbItems = Object.values(inventory || {});
+
       rows.forEach(row => {
         const ingId = row.querySelector('.recipe-ing-select')?.value;
-        const amount = parseFloat(row.querySelector('.recipe-ing-amount')?.value);
-        if (ingId && !isNaN(amount) && amount > 0) {
-          recipe.push({ ingredientId: ingId, amount });
+        const mode = row.querySelector('.recipe-ing-mode')?.value || 'g';
+        const rawVal = parseFloat(row.querySelector('.recipe-ing-val')?.value || '0');
+
+        if (ingId && !isNaN(rawVal) && rawVal > 0) {
+          const invMatch = dbItems.find(i => (i.id || i._id) === ingId || (i.name && i.name.toLowerCase() === ingId.toLowerCase()));
+          const itemName = invMatch ? invMatch.name : ingId;
+          const unit = invMatch?.unit || 'g';
+
+          let quantity = 0;
+          let percentage = undefined;
+
+          if (mode === 'pct') {
+            percentage = rawVal;
+            quantity = parseFloat(((rawVal / 100) * totalWeight).toFixed(2));
+          } else {
+            quantity = rawVal;
+            percentage = parseFloat(((rawVal / totalWeight) * 100).toFixed(1));
+          }
+
+          recipe.push({
+            ingredient_id: ingId,
+            ingredientId: ingId,
+            quantity,
+            amount: quantity,
+            percentage,
+            unit,
+            name: itemName
+          });
         }
       });
       return recipe;
@@ -4734,9 +4828,12 @@
         if (container) container.innerHTML = '';
 
         if (Array.isArray(item.recipe) && item.recipe.length > 0) {
-          item.recipe.forEach(r => addRecipeIngredientRow(r.ingredientId || r.ingredient_id, r.amount));
+          item.recipe.forEach(r => {
+            const rawAmount = r.amount !== undefined ? r.amount : (r.quantity !== undefined ? r.quantity : '');
+            addRecipeIngredientRow(r.ingredientId || r.ingredient_id, rawAmount, r.unit || 'g', r.percentage);
+          });
         } else if (item.ingredient_id) {
-          addRecipeIngredientRow(item.ingredient_id, item.ingredient_amount);
+          addRecipeIngredientRow(item.ingredient_id, item.ingredient_amount, 'g');
         } else {
           addRecipeIngredientRow();
         }
@@ -4907,38 +5004,38 @@
         if (data.success && data.hookah_config) {
           currentHookahConfig = data.hookah_config;
           if (!currentHookahConfig.flavors) currentHookahConfig.flavors = [];
-          
-          // Merge existing hookah flavors from Menu Catalog
-          const hkItems = menuItems.filter(item => 
-            (item.category_id && String(item.category_id).includes('cat_hk_flavors')) || 
-            (item.category_ids && item.category_ids.some(c => String(c).includes('cat_hk_flavors') || String(c).includes('Hookah Flavors')))
-          );
-          
-          if (hkItems.length > 0) {
-             const existingIds = new Set(currentHookahConfig.flavors.map(f => f.id));
-             const existingNames = new Set(currentHookahConfig.flavors.map(f => f.name));
-             const mappedFlavors = hkItems
-               .filter(item => !existingIds.has(item.id) && !existingNames.has(item.name))
-               .map(item => ({
-                 id: item.id || item._id,
-                 name: item.name,
-                 category: item.brand || item.category || 'Standard',
-                 description: item.description || '',
-                 color: item.color || '#8B5CF6',
-                 emoji: item.emoji || '💨',
-                 available: item.active !== false
-               }));
-             currentHookahConfig.flavors.push(...mappedFlavors);
-          }
         }
       } catch (err) {
         console.warn('Could not fetch hookah config, using defaults:', err);
       }
+      const weightInput = document.getElementById('hkTotalFlavorWeight');
+      if (weightInput) {
+        weightInput.value = currentHookahConfig.total_flavor_weight || 20;
+      }
+      updateFlavorWeightPreview();
       renderHookahConfigTabs();
       switchHookahTab(activeHookahTab || 'bases');
       const modal = document.getElementById('hookahConfigModal');
       if (modal) modal.style.display = 'flex';
       if (window.lucide) lucide.createIcons();
+    }
+
+    function updateFlavorWeightPreview() {
+      const input = document.getElementById('hkTotalFlavorWeight');
+      const val = Math.max(1, parseFloat(input?.value || '20') || 20);
+      const pillsCont = document.getElementById('flavorWeightPreviewPills');
+      if (!pillsCont) return;
+      const examples = [
+        { pct: 100, label: '100%' },
+        { pct: 50, label: '50/50 mix' },
+        { pct: 70, label: '70/30 (70%)' },
+        { pct: 30, label: '70/30 (30%)' },
+        { pct: 25, label: '25%' }
+      ];
+      pillsCont.innerHTML = examples.map(e => {
+        const g = ((e.pct / 100) * val).toFixed(1).replace(/\.0$/, '');
+        return `<span style="background: var(--card2); border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; font-weight: 700;">${e.label}: <span style="color:var(--gold); font-weight: 800;">${g}g</span></span>`;
+      }).join('');
     }
 
     function closeHookahConfigModal() {
@@ -4977,20 +5074,25 @@
       if (flavCont) {
         const flavors = currentHookahConfig.flavors || [];
         if (flavors.length === 0) {
-          flavCont.innerHTML = `<div style="text-align:center; padding:16px; color:var(--muted); font-size:12px;">No flavors configured. Default catalog flavors will be used.</div>`;
+          flavCont.innerHTML = `<div style="text-align:center; padding:16px; color:var(--muted); font-size:12px;">No hookah flavors found in inventory. Add flavors using the form above.</div>`;
         } else {
           flavCont.innerHTML = flavors.map((f, i) => `
             <div style="display:flex; justify-content:space-between; align-items:center; background:var(--card2); border:1px solid var(--line); border-radius:10px; padding:10px 14px;">
               <div style="flex:1;">
-                <input type="text" value="${escapeHtml(f.name)}" onchange="updateHookahFlavor(${i}, 'name', this.value)" style="background:transparent; border:none; border-bottom:1px solid rgba(255,255,255,0.1); color:var(--cream); font-weight:800; font-size:13px; outline:none; width:90%; margin-bottom:4px;" placeholder="Flavor Name">
-                <input type="text" value="${escapeHtml(f.category || 'Standard')}" onchange="updateHookahFlavor(${i}, 'category', this.value)" style="background:transparent; border:none; border-bottom:1px solid rgba(255,255,255,0.1); color:var(--teal); font-weight:700; font-size:11px; outline:none; width:90%;" placeholder="Category (e.g. Standard)">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-weight:800; font-size:13px; color:var(--cream);">${escapeHtml(f.fullName || f.name)}</span>
+                  <span style="font-size:11px; padding: 2px 6px; border-radius: 4px; background: rgba(59,130,246,0.15); color: #60a5fa; font-weight: 700;">${escapeHtml(f.brand || f.category || 'Hookah')}</span>
+                </div>
+                <div style="font-size:11px; color: ${(f.stock || 0) > 0 ? 'var(--teal)' : 'var(--danger)'}; font-weight:700; margin-top: 3px;">
+                  ⚖️ ${(f.stock || 0)}g in stock ${(f.stock || 0) <= 0 ? '(OUT OF STOCK)' : ''}
+                </div>
               </div>
               <div style="display:flex; align-items:center; gap:12px;">
                 <label style="display:flex; align-items:center; gap:6px; font-size:11px; font-weight:700; color:var(--muted); cursor:pointer;">
-                  <input type="checkbox" ${f.available !== false ? 'checked' : ''} onchange="toggleHookahFlavorAvail(${i}, this.checked)" style="accent-color:var(--teal);">
+                  <input type="checkbox" ${f.available !== false && (f.stock || 0) > 0 ? 'checked' : ''} onchange="toggleHookahFlavorAvail('${f.id || f.inventory_id}', this.checked)" style="accent-color:var(--teal);">
                   Available
                 </label>
-                <button class="btn btn-danger" onclick="deleteHookahFlavor(${i})" style="padding:4px 8px; font-size:11px;">✕</button>
+                <button class="btn btn-danger" onclick="deleteHookahFlavor('${f.id || f.inventory_id}')" style="padding:4px 8px; font-size:11px;" title="Delete flavor from inventory">✕</button>
               </div>
             </div>
           `).join('');
@@ -5045,9 +5147,17 @@
       }
     }
 
-    function toggleHookahFlavorAvail(i, val) {
-      if (currentHookahConfig.flavors && currentHookahConfig.flavors[i]) {
-        currentHookahConfig.flavors[i].available = val;
+    async function toggleHookahFlavorAvail(flavorId, isAvailable) {
+      try {
+        const headers = getAuthHeaders();
+        await fetch(`${API_URL}/api/orders/inventory/update`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ ingredientId: flavorId, active: isAvailable })
+        });
+        await loadData();
+      } catch (err) {
+        console.warn('Could not update flavor availability:', err);
       }
     }
 
@@ -5081,37 +5191,64 @@
       }
     }
 
-    function addHookahFlavorRow() {
+    async function addHookahFlavorRow() {
       const nameInput = document.getElementById('newHkFlavorName');
-      const catInput = document.getElementById('newHkFlavorCategory');
+      const brandInput = document.getElementById('newHkFlavorBrand');
+      const stockInput = document.getElementById('newHkFlavorStock');
       const name = (nameInput?.value || '').trim();
-      const category = (catInput?.value || '').trim() || 'General';
+      const brand = (brandInput?.value || '').trim();
+      const stock = parseFloat(stockInput?.value || '500') || 500;
       if (!name) {
         alert('Please enter a flavor name');
         return;
       }
-      if (!currentHookahConfig.flavors) currentHookahConfig.flavors = [];
-      const id = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
-      currentHookahConfig.flavors.push({ id, name, category, price: 0, available: true });
-      nameInput.value = '';
-      if (catInput) catInput.value = '';
-      renderHookahConfigTabs();
-    }
-
-    function deleteHookahFlavor(index) {
-      if (currentHookahConfig.flavors) {
-        currentHookahConfig.flavors.splice(index, 1);
-        renderHookahConfigTabs();
+      const fullName = brand ? `${brand} - ${name}` : name;
+      try {
+        const headers = getAuthHeaders();
+        const res = await fetch(`${API_URL}/api/orders/inventory/create`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            name: fullName,
+            category: 'INVCAT_1862EED65A2E',
+            unit: 'g',
+            stock,
+            reorder_threshold: 100
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          nameInput.value = '';
+          if (brandInput) brandInput.value = '';
+          if (stockInput) stockInput.value = '500';
+          await loadData();
+          await openHookahConfigModal();
+        } else {
+          alert('Could not add flavor: ' + (data.message || 'Error'));
+        }
+      } catch (err) {
+        alert('Error adding flavor: ' + err.message);
       }
     }
 
-    function updateHookahFlavor(index, field, value) {
-      if (currentHookahConfig.flavors && currentHookahConfig.flavors[index]) {
-        currentHookahConfig.flavors[index][field] = value.trim();
-        // optionally update ID if name changes
-        if (field === 'name') {
-           currentHookahConfig.flavors[index].id = value.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+    async function deleteHookahFlavor(flavorId) {
+      if (!confirm('Are you sure you want to delete this flavor from inventory?')) return;
+      try {
+        const headers = getAuthHeaders();
+        const res = await fetch(`${API_URL}/api/orders/inventory/delete`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ ingredientId: flavorId })
+        });
+        const data = await res.json();
+        if (data.success) {
+          await loadData();
+          await openHookahConfigModal();
+        } else {
+          alert('Could not delete flavor: ' + (data.message || 'Error'));
         }
+      } catch (err) {
+        alert('Error deleting flavor: ' + err.message);
       }
     }
 
@@ -5141,6 +5278,13 @@
 
     async function saveHookahConfig() {
       try {
+        const weightVal = parseFloat(document.getElementById('hkTotalFlavorWeight')?.value || '20') || 20;
+        if (weightVal <= 0) {
+          alert('Total Hookah Flavor Weight must be a positive number of grams.');
+          return;
+        }
+        currentHookahConfig.total_flavor_weight = weightVal;
+
         const name = document.getElementById('hkDakuName')?.value.trim() || 'Daku';
         const price = parseFloat(document.getElementById('hkDakuPrice')?.value || '65') || 65;
         const description = document.getElementById('hkDakuDesc')?.value.trim() || 'Unlimited head refill';
@@ -5898,7 +6042,12 @@
       const keys = Array.from(catMap.keys());
       if (keys.length > 0) {
         if (!activeInventorySubTab || activeInventorySubTab === 'all' || !catMap.has(activeInventorySubTab)) {
-          activeInventorySubTab = keys[0];
+          const hookahCat = keys.find(k => {
+            const c = catMap.get(k);
+            const t = (c?.title || '').toLowerCase();
+            return k.toLowerCase().includes('hookah') || t.includes('hookah') || t.includes('shisha');
+          });
+          activeInventorySubTab = hookahCat || keys[0];
         }
       }
 
@@ -6466,38 +6615,7 @@
     }
 
 
-    function renderInventoryCategoryTabs() {
-      const container = document.getElementById('inventoryCategoryTabs');
-      if (!container) return;
 
-      const catMap = new Map();
-      catMap.set('all', { id: 'all', title: 'All Stock', icon: '📦' });
-
-      (inventoryCategories || []).forEach(cat => {
-        const id = cat._id || cat.id;
-        if (id && cat.active !== false) {
-          catMap.set(id, { id, title: cat.title || 'Category', icon: cat.icon || '📦' });
-        }
-      });
-
-      if (!activeInventorySubTab || !catMap.has(activeInventorySubTab)) {
-        activeInventorySubTab = 'all';
-      }
-
-      let html = '';
-      catMap.forEach((catObj, key) => {
-        const isActive = activeInventorySubTab === key || activeInventorySubTab === catObj.id;
-        const activeBg = 'linear-gradient(135deg, #E5B13A 0%, #c4952b 100%)';
-
-        html += `
-          <button class="sub-tab ${isActive ? 'active' : ''}" onclick="switchInventorySubTab('${catObj.id}')" style="margin-right: 8px; padding: 8px 16px; border-radius: 14px; font-weight: 800; border: 1.5px solid ${isActive ? 'transparent' : 'var(--line)'}; ${isActive ? `background: ${activeBg}; color: #000; box-shadow: 0 4px 16px rgba(229,177,58,0.35);` : 'background: var(--card); color: var(--cream);'} transition: all 0.2s ease;">
-            ${catObj.icon} ${catObj.title}
-          </button>
-        `;
-      });
-
-      container.innerHTML = html;
-    }
 
     function getAllInventoryCategoriesList() {
       const list = [];
@@ -6553,15 +6671,25 @@
       }).join('');
     }
 
-    function populateInventoryCategoryDropdowns(selectedVal = 'shisha') {
+    function populateInventoryCategoryDropdowns(selectedVal = '') {
       const newSel = document.getElementById('invNewCategory');
       const editSel = document.getElementById('invEditCategory');
 
       const allCats = getAllInventoryCategoriesList();
       let optionsHtml = '';
+      const sLower = (selectedVal || '').toLowerCase();
+
       allCats.forEach(cat => {
         const val = cat.id || cat._id;
-        const isSel = (selectedVal.toLowerCase() === val.toLowerCase() || selectedVal.toLowerCase() === (cat.title || '').toLowerCase()) ? 'selected' : '';
+        const vLower = (val || '').toLowerCase();
+        const tLower = (cat.title || '').toLowerCase();
+
+        const isExact = sLower && (sLower === vLower || sLower === tLower);
+        const isHkMatch = (sLower.includes('hookah') || sLower.includes('shisha')) && (vLower.includes('hookah') || vLower.includes('shisha') || tLower.includes('hookah') || tLower.includes('shisha'));
+        const isFoodMatch = (sLower.includes('food') || sLower.includes('raw')) && (vLower.includes('food') || vLower.includes('raw') || tLower.includes('food') || tLower.includes('raw'));
+        const isDrinkMatch = (sLower.includes('drink') || sLower.includes('beverage')) && (vLower.includes('drink') || vLower.includes('beverage') || tLower.includes('drink') || tLower.includes('beverage'));
+
+        const isSel = (isExact || isHkMatch || isFoodMatch || isDrinkMatch) ? 'selected' : '';
         optionsHtml += `<option value="${val}" ${isSel}>${cat.icon || '📦'} ${cat.title}</option>`;
       });
 

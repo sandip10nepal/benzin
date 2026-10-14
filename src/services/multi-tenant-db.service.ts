@@ -684,7 +684,7 @@ export class MultiTenantDbService {
     const categories = await this.listMenuCategories(restaurant._id);
     const menuItems = await this.listMenuItems(restaurant._id);
     const tables = await this.listTables(restaurant._id);
-    const hookahConfig = this.normalizeHookahConfig(restaurant.settings.hookah_config || DEFAULT_HOOKAH_CONFIG);
+    const hookahConfig = await this.getHookahConfig(restaurant._id);
     // Mix Lab flavors live only in settings.hookah_config — never in the regular menu.
     const isMixLabFlavorItem = (i: any) =>
       String(i.category_id || '').includes('cat_hk_flavors') ||
@@ -888,24 +888,36 @@ export class MultiTenantDbService {
    * `active` and `available` flag (admin UI uses `available`, older data uses `active`).
    * Empty arrays are preserved so that deletions made in the admin panel persist.
    */
+  /**
+   * Normalizes a hookah config so every entry carries a consistent `id`,
+   * `active` and `available` flag (admin UI uses `available`, older data uses `active`).
+   * Empty arrays are preserved so that deletions made in the admin panel persist.
+   */
   static normalizeHookahConfig(raw: any): HookahConfig {
     const slug = (s: string) => String(s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
     const isOn = (x: any) => x?.active !== false && x?.available !== false;
     const list = (arr: any, fallback: any[]) => (Array.isArray(arr) ? arr : fallback);
 
+    const totalFlavorWeight = Math.max(1, Number(raw?.total_flavor_weight || raw?.total_weight || DEFAULT_HOOKAH_CONFIG.total_flavor_weight || 20));
+
     const flavors = list(raw?.flavors, DEFAULT_HOOKAH_CONFIG.flavors)
       .filter((f: any) => f && String(f.name || '').trim())
       .map((f: any) => {
         const brand = String(f.brand || f.category || '').trim();
+        const stock = f.stock !== undefined ? Number(f.stock) : undefined;
+        const available = isOn(f) && (stock === undefined || stock > 0);
         return {
           ...f,
           id: f.id || `flv_${slug(`${brand} ${f.name}`)}`,
+          inventory_id: f.inventory_id || f.id || undefined,
           name: String(f.name).trim(),
           brand,
           category: brand.toLowerCase(),
           price: Number(f.price) || 0,
           active: isOn(f),
-          available: isOn(f),
+          available,
+          stock,
+          unit: f.unit || 'g',
         };
       });
 
@@ -921,6 +933,7 @@ export class MultiTenantDbService {
       }));
 
     return {
+      total_flavor_weight: totalFlavorWeight,
       flavors,
       bases: priced(list(raw?.bases, DEFAULT_HOOKAH_CONFIG.bases), 'base'),
       addons: priced(list(raw?.addons, DEFAULT_HOOKAH_CONFIG.addons), 'addon'),
@@ -928,9 +941,106 @@ export class MultiTenantDbService {
     };
   }
 
+  /**
+   * Hookah Flavor Inventory synchronization:
+   * Dynamically loads hookah flavors from the restaurant's inventory_items
+   * ensuring inventory is the SINGLE SOURCE OF TRUTH for Custom Hookah Mix Lab.
+   */
+  static async getHookahInventoryFlavors(restaurantId: string): Promise<any[]> {
+    try {
+      const invItems = await this.listInventory(restaurantId);
+      const invCats = await this.listInventoryCategories(restaurantId);
+      const hookahCatIds = new Set(
+        invCats
+          .filter(c => {
+            const t = String(c.title || c.name || '').toLowerCase();
+            const id = String(c._id || c.id || '').toLowerCase();
+            return t.includes('hookah') || t.includes('shisha') || id.includes('hookah') || id.includes('shisha') || t.includes('flavor');
+          })
+          .map(c => String(c._id || c.id))
+      );
+
+      const hookahFlavors = invItems.filter(item => {
+        const c = String(item.category || (item as any).category_id || '');
+        const isCatMatch = hookahCatIds.has(c) || (c && (c.toLowerCase().includes('shisha') || c.toLowerCase().includes('hookah')));
+        const isGramUnit = String(item.unit || '').toLowerCase() === 'g';
+        const isNotFood = !c || (!c.toLowerCase().includes('raw') && !c.toLowerCase().includes('kitchen') && !c.toLowerCase().includes('food'));
+        return (isCatMatch || (isGramUnit && isNotFood)) && item.active !== false;
+      });
+
+      return hookahFlavors.map(item => {
+        const fullName = item.name.trim();
+        let brand = 'House';
+        let cleanName = fullName;
+
+        if (fullName.includes('-')) {
+          const parts = fullName.split('-');
+          brand = parts[0].trim();
+          cleanName = parts.slice(1).join('-').trim();
+        } else {
+          const words = fullName.split(' ');
+          const knownBrands = ['afzal', 'adalya', 'adaliya', 'al fakher', 'eternal', 'fumari', 'starbuzz', 'tangiers', 'trifecta'];
+          const firstWord = words[0]?.toLowerCase();
+          const firstTwoWords = `${words[0] || ''} ${words[1] || ''}`.toLowerCase();
+          if (knownBrands.includes(firstTwoWords)) {
+            brand = `${words[0]} ${words[1]}`;
+            cleanName = words.slice(2).join(' ').trim();
+          } else if (knownBrands.includes(firstWord)) {
+            brand = words[0];
+            cleanName = words.slice(1).join(' ').trim();
+          }
+        }
+
+        if (!cleanName) cleanName = fullName;
+
+        const stock = Number(item.stock) || 0;
+        const isAvailable = Boolean(item.active !== false && stock > 0);
+
+        return {
+          id: String(item._id || (item as any).id),
+          inventory_id: String(item._id || (item as any).id),
+          name: cleanName,
+          fullName: fullName,
+          brand: brand,
+          category: brand.toLowerCase(),
+          stock: stock,
+          unit: item.unit || 'g',
+          active: item.active !== false,
+          available: isAvailable,
+          price: 0,
+          description: `${brand} - ${cleanName} (${stock}g in stock)`,
+          emoji: '💨'
+        };
+      });
+    } catch (err) {
+      console.warn('[MultiTenantDbService] Error getting hookah inventory flavors:', err);
+      return [];
+    }
+  }
+
   static async getHookahConfig(restaurantId: string): Promise<HookahConfig> {
     const restaurant = await this.getRestaurant(restaurantId);
-    return this.normalizeHookahConfig(restaurant?.settings?.hookah_config || DEFAULT_HOOKAH_CONFIG);
+    const rawConfig = restaurant?.settings?.hookah_config || DEFAULT_HOOKAH_CONFIG;
+    const invFlavors = await this.getHookahInventoryFlavors(restaurantId);
+
+    const normalized = this.normalizeHookahConfig(rawConfig);
+    normalized.total_flavor_weight = Math.max(1, Number(rawConfig.total_flavor_weight || (rawConfig as any).total_weight || 20));
+
+    if (invFlavors.length > 0) {
+      // Inventory is the single source of truth!
+      // Preserve any custom colors or tags from saved settings if matching
+      const settingsMap = new Map((rawConfig.flavors || []).map((f: any) => [String(f.id || f.name).toLowerCase(), f]));
+      normalized.flavors = invFlavors.map(invF => {
+        const existing = settingsMap.get(String(invF.id).toLowerCase()) || settingsMap.get(String(invF.name).toLowerCase()) || settingsMap.get(String(invF.fullName).toLowerCase());
+        return {
+          ...invF,
+          color: existing?.color || (invF as any).color || '#8B5CF6',
+          tags: existing?.tags || [invF.brand.toLowerCase()],
+        };
+      });
+    }
+
+    return normalized;
   }
 
   /**
@@ -942,6 +1052,9 @@ export class MultiTenantDbService {
     const restaurant = await this.getRestaurant(restaurantId);
     if (!restaurant) return false;
     const normalized = this.normalizeHookahConfig(config);
+    if (config.total_flavor_weight !== undefined) {
+      normalized.total_flavor_weight = Math.max(1, Number(config.total_flavor_weight));
+    }
     const now = new Date().toISOString();
 
     if (env.isMongoMode) {
@@ -2208,13 +2321,24 @@ export class MultiTenantDbService {
           modifier_groups: mods,
           modifierGroups: mods,
           active: i.active !== false,
+          recipe: Array.isArray(i.recipe) ? i.recipe.map((r: any) => ({
+            ingredient_id: r.ingredient_id || r.ingredientId || '',
+            ingredientId: r.ingredientId || r.ingredient_id || '',
+            quantity: Number(r.quantity !== undefined ? r.quantity : (r.amount !== undefined ? r.amount : 0)),
+            amount: Number(r.amount !== undefined ? r.amount : (r.quantity !== undefined ? r.quantity : 0)),
+            percentage: r.percentage !== undefined ? Number(r.percentage) : undefined,
+            unit: r.unit || 'g',
+            name: r.name || '',
+          })) : [],
           available: (function() {
             if (i.available === false) return false;
             let isAvail = true;
             if (Array.isArray(i.recipe) && i.recipe.length > 0) {
               for (const r of i.recipe) {
-                const inv = inventoryMap.get(String(r.ingredient_id)) || (r.ingredient_id ? inventoryMap.get(String(r.ingredient_id).toLowerCase()) : null);
-                if (inv && (inv.stock || 0) < (r.quantity || 0)) {
+                const ingId = String(r.ingredient_id || r.ingredientId || '');
+                const inv = inventoryMap.get(ingId) || (ingId ? inventoryMap.get(ingId.toLowerCase()) : null);
+                const reqQty = Number(r.quantity !== undefined ? r.quantity : (r.amount !== undefined ? r.amount : 0));
+                if (inv && (inv.stock || 0) < reqQty) {
                   isAvail = false;
                   break;
                 }
@@ -2277,13 +2401,24 @@ export class MultiTenantDbService {
         modifier_groups: mods,
         modifierGroups: mods,
         active: i.active !== false,
+        recipe: Array.isArray((i as any).recipe) ? (i as any).recipe.map((r: any) => ({
+          ingredient_id: r.ingredient_id || r.ingredientId || '',
+          ingredientId: r.ingredientId || r.ingredient_id || '',
+          quantity: Number(r.quantity !== undefined ? r.quantity : (r.amount !== undefined ? r.amount : 0)),
+          amount: Number(r.amount !== undefined ? r.amount : (r.quantity !== undefined ? r.quantity : 0)),
+          percentage: r.percentage !== undefined ? Number(r.percentage) : undefined,
+          unit: r.unit || 'g',
+          name: r.name || '',
+        })) : [],
         available: (function() {
           if (i.available === false) return false;
           let isAvail = true;
           if (Array.isArray((i as any).recipe) && (i as any).recipe.length > 0) {
             for (const r of (i as any).recipe) {
-              const inv = inventoryMap.get(String(r.ingredient_id)) || (r.ingredient_id ? inventoryMap.get(String(r.ingredient_id).toLowerCase()) : null);
-              if (inv && (inv.stock || 0) < (r.quantity || 0)) {
+              const ingId = String(r.ingredient_id || r.ingredientId || '');
+              const inv = inventoryMap.get(ingId) || (ingId ? inventoryMap.get(ingId.toLowerCase()) : null);
+              const reqQty = Number(r.quantity !== undefined ? r.quantity : (r.amount !== undefined ? r.amount : 0));
+              if (inv && (inv.stock || 0) < reqQty) {
                 isAvail = false;
                 break;
               }
@@ -2313,6 +2448,16 @@ export class MultiTenantDbService {
       } as any);
       if (!item) return null;
       const itemCatIds = Array.isArray(item.category_ids) && item.category_ids.length > 0 ? item.category_ids : (item.category_id ? [item.category_id] : []);
+      const normalizedRecipe = Array.isArray(item.recipe) ? item.recipe.map((r: any) => ({
+        ingredient_id: r.ingredient_id || r.ingredientId || '',
+        ingredientId: r.ingredientId || r.ingredient_id || '',
+        quantity: Number(r.quantity !== undefined ? r.quantity : (r.amount !== undefined ? r.amount : 0)),
+        amount: Number(r.amount !== undefined ? r.amount : (r.quantity !== undefined ? r.quantity : 0)),
+        percentage: r.percentage !== undefined ? Number(r.percentage) : undefined,
+        unit: r.unit || 'g',
+        name: r.name || '',
+      })) : [];
+
       return {
         ...item,
         _id: (item._id as any).toString(),
@@ -2324,6 +2469,7 @@ export class MultiTenantDbService {
         image_url: item.image_url || (item as any).imageUrl || (item as any).image || null,
         desc: item.desc || item.description || '',
         description: item.description || item.desc || '',
+        recipe: normalizedRecipe,
         active: item.active !== false,
         available: item.available !== false,
       } as unknown as MenuItemModel;
@@ -2332,6 +2478,16 @@ export class MultiTenantDbService {
     const item = (this.getCollection('menu_items') as MenuItemModel[]).find(i => (i._id === id || (i as any).id === id) && i.restaurant_id === targetId && i.active !== false);
     if (!item) return null;
     const itemCatIds = Array.isArray(item.category_ids) && item.category_ids.length > 0 ? item.category_ids : (item.category_id ? [item.category_id] : []);
+    const normalizedRecipe = Array.isArray(item.recipe) ? item.recipe.map((r: any) => ({
+      ingredient_id: r.ingredient_id || r.ingredientId || '',
+      ingredientId: r.ingredientId || r.ingredient_id || '',
+      quantity: Number(r.quantity !== undefined ? r.quantity : (r.amount !== undefined ? r.amount : 0)),
+      amount: Number(r.amount !== undefined ? r.amount : (r.quantity !== undefined ? r.quantity : 0)),
+      percentage: r.percentage !== undefined ? Number(r.percentage) : undefined,
+      unit: r.unit || 'g',
+      name: r.name || '',
+    })) : [];
+
     return {
       ...item,
       category_id: item.category_id || item.category || '',
@@ -2340,6 +2496,7 @@ export class MultiTenantDbService {
       image_url: item.image_url || (item as any).imageUrl || (item as any).image || null,
       desc: item.desc || item.description || '',
       description: item.description || item.desc || '',
+      recipe: normalizedRecipe,
       active: item.active !== false,
       available: item.available !== false,
     };
@@ -2413,10 +2570,20 @@ export class MultiTenantDbService {
     if (Array.isArray(recipe)) {
       recipe = recipe.map((r: any) => {
         const ingId = String(r.ingredient_id || r.ingredientId || '').trim();
-        const qty = Number(r.quantity || r.amount || 0);
+        const qty = Number(r.quantity !== undefined ? r.quantity : (r.amount !== undefined ? r.amount : 0));
         const unit = r.unit || 'g';
-        return { ingredient_id: ingId, quantity: qty, unit };
-      }).filter((r: any) => r.ingredient_id && r.quantity > 0);
+        const pct = r.percentage !== undefined && r.percentage !== '' ? Number(r.percentage) : undefined;
+        const name = r.name || '';
+        return {
+          ingredient_id: ingId,
+          ingredientId: ingId,
+          quantity: qty,
+          amount: qty,
+          percentage: pct,
+          unit,
+          name
+        };
+      }).filter((r: any) => r.ingredient_id && (r.quantity > 0 || (r.percentage !== undefined && r.percentage > 0)));
     }
 
     const now = new Date().toISOString();
@@ -2627,10 +2794,20 @@ export class MultiTenantDbService {
     if (Array.isArray(recipe)) {
       recipe = recipe.map((r: any) => {
         const ingId = String(r.ingredient_id || r.ingredientId || '').trim();
-        const qty = Number(r.quantity || r.amount || 0);
+        const qty = Number(r.quantity !== undefined ? r.quantity : (r.amount !== undefined ? r.amount : 0));
         const unit = r.unit || 'g';
-        return { ingredient_id: ingId, quantity: qty, unit };
-      }).filter((r: any) => r.ingredient_id && r.quantity > 0);
+        const pct = r.percentage !== undefined && r.percentage !== '' ? Number(r.percentage) : undefined;
+        const name = r.name || '';
+        return {
+          ingredient_id: ingId,
+          ingredientId: ingId,
+          quantity: qty,
+          amount: qty,
+          percentage: pct,
+          unit,
+          name
+        };
+      }).filter((r: any) => r.ingredient_id && (r.quantity > 0 || (r.percentage !== undefined && r.percentage > 0)));
     }
 
     const mongoSet: any = {
@@ -2964,11 +3141,14 @@ export class MultiTenantDbService {
   }): Promise<InventoryItem> {
     const id = `inv_${item.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${Date.now()}`;
     const now = new Date().toISOString();
+    const cat = item.category || 'INVCAT_1862EED65A2E';
     const newItem: InventoryItem = {
       _id: id,
+      id: id,
       restaurant_id: item.restaurant_id,
       name: item.name,
-      category: item.category || 'shisha',
+      category: cat,
+      category_id: cat,
       stock: item.stock || 0,
       unit: item.unit || 'g',
       low_threshold: item.reorder_threshold || 100,
@@ -3039,24 +3219,46 @@ export class MultiTenantDbService {
 
     if (env.isMongoMode) {
       const db = this.assertDbReady();
-      const item = await db.collection<any>(COLLECTIONS.inventory).findOne({
-        _id: id,
-        restaurant_id: restaurantId
-      });
-      if (!item) return false;
 
-      const prevQty = item.stock || 0;
-      const newQty = Math.max(0, prevQty + adjustment);
-      const res = await db.collection<any>(COLLECTIONS.inventory).updateOne(
-        { _id: id, restaurant_id: restaurantId },
-        { $set: { stock: newQty, updated_at: now } }
+      const query: any = {
+        $or: [{ _id: id }, { id: id }],
+        restaurant_id: restaurantId,
+      };
+      if (adjustment < 0) {
+        // Enforce non-negative stock deduction
+        query.stock = { $gte: Math.abs(adjustment) };
+      }
+
+      const prevItem = await db.collection<any>(COLLECTIONS.inventory).findOne({
+        $or: [{ _id: id }, { id: id }],
+        restaurant_id: restaurantId,
+      });
+      if (!prevItem) return false;
+
+      if (adjustment < 0 && (Number(prevItem.stock) || 0) < Math.abs(adjustment)) {
+        return false;
+      }
+
+      const res = await db.collection<any>(COLLECTIONS.inventory).findOneAndUpdate(
+        query,
+        {
+          $inc: { stock: adjustment },
+          $set: { updated_at: now }
+        },
+        { returnDocument: 'after' }
       );
 
-      if (res.matchedCount > 0 && transactionMeta) {
+      if (!res) return false;
+
+      const updatedDoc = res;
+      const newQty = Number(updatedDoc.stock) || 0;
+      const prevQty = newQty - adjustment;
+
+      if (transactionMeta) {
         await this.recordInventoryTransaction({
           restaurant_id: restaurantId,
           inventory_item_id: id,
-          item_name: item.name,
+          item_name: updatedDoc.name || prevItem.name,
           type: transactionMeta.type,
           quantity_change: adjustment,
           previous_quantity: prevQty,
@@ -3067,14 +3269,18 @@ export class MultiTenantDbService {
         });
       }
 
-      return res.matchedCount > 0;
+      return true;
     }
 
     const list = this.getCollection('inventory_items');
-    const idx = list.findIndex(i => i._id === id && i.restaurant_id === restaurantId);
+    const idx = list.findIndex(i => (i._id === id || (i as any).id === id) && i.restaurant_id === restaurantId);
     if (idx === -1) return false;
 
-    const prevQty = list[idx].stock || 0;
+    const prevQty = Number(list[idx].stock) || 0;
+    if (adjustment < 0 && prevQty < Math.abs(adjustment)) {
+      return false;
+    }
+
     const newQty = Math.max(0, prevQty + adjustment);
     list[idx].stock = newQty;
     list[idx].updated_at = now;
@@ -3105,6 +3311,10 @@ export class MultiTenantDbService {
   ): Promise<boolean> {
     if (!id || !restaurantId) return false;
     const now = new Date().toISOString();
+
+    if (fields.category && !fields.category_id) {
+      fields.category_id = fields.category;
+    }
 
     if (env.isMongoMode) {
       const db = this.assertDbReady();

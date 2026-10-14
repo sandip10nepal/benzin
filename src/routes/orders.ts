@@ -753,7 +753,20 @@ router.post('/:orderId/status', async (req, res) => {
       if (statusServerName && !found.order.assigned_server_name && !found.order.assignedServerName) {
         updateFields.assigned_server_name = statusServerName;
         updateFields.assigned_server_id = statusServerId;
-        updateFields.assigned_at = new Date();
+      }
+    }
+
+    if (status === 'cancelled' || status === 'voided' || status === 'refunded') {
+      try {
+        await RecipeService.restoreOrderDeductions(found.order);
+      } catch (restoreErr) {
+        console.warn('[OrdersRoute] Error restoring order deductions:', restoreErr);
+      }
+    } else if (status === 'fulfilled' || status === 'served' || status === 'completed') {
+      try {
+        await RecipeService.processOrderDeductions(found.order);
+      } catch (deductErr) {
+        console.warn('[OrdersRoute] Error processing order deductions:', deductErr);
       }
     }
 
@@ -1911,14 +1924,18 @@ router.get('/inventory', async (req, res) => {
     const items = await InventoryRepository.list(restaurantId);
     const inventory: Record<string, any> = {};
     items.forEach((i: any) => {
-      inventory[i._id || i.id || i.name] = {
+      const itemId = i._id || i.id || i.name;
+      inventory[itemId] = {
+        _id: i._id || i.id,
         id: i._id || i.id,
         name: i.name,
-        stock: i.stock,
-        unit: i.unit,
+        stock: Number(i.stock) || 0,
+        unit: i.unit || 'g',
         category: i.category || (i.unit === 'g' ? 'shisha' : 'beverages'),
-        cost_per_unit: (i as any).cost_per_unit || 0,
-        reorder_threshold: (i as any).reorder_threshold || 0,
+        category_id: i.category_id || i.category,
+        cost_per_unit: Number((i as any).cost_per_unit) || 0,
+        reorder_threshold: Number((i as any).reorder_threshold) || 100,
+        active: i.active !== false,
       };
     });
 

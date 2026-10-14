@@ -364,137 +364,383 @@ const HOUSE_MIX_RECIPES: Record<string, { id: string; ratio: number }[]> = {
 
 import { InventoryRepository } from '../modules/inventory/inventory.repository';
 
+export interface RecordedDeduction {
+  inventory_item_id: string;
+  item_name: string;
+  quantity: number;
+  unit: string;
+  order_id: string;
+  restaurant_id: string;
+  timestamp: string;
+}
+
 export class RecipeService {
   /**
-   * Process order deductions for raw material inventory based on recipes
+   * Calculate all ingredient deductions required for an order.
+   * Dynamically uses configured total_flavor_weight and database recipes.
    */
-  static async processOrderDeductions(order: any): Promise<void> {
-    if (!order) return;
-    const restaurantId = order.restaurant_id || order.restaurantId;
-    if (!restaurantId) {
-      throw new Error('Order is missing restaurant_id required for inventory deduction');
-    }
+  static async calculateOrderDeductions(
+    order: any,
+    restaurantId: string
+  ): Promise<Map<string, { inventory_item_id: string; item_name: string; quantity: number; unit: string }>> {
+    const deductionsMap = new Map<string, { inventory_item_id: string; item_name: string; quantity: number; unit: string }>();
 
-    const deduct = async (ingredientId: string, amount: number) => {
-      if (!ingredientId || !Number.isFinite(amount) || amount <= 0) return;
-
-      // Verify ingredient belongs to the SAME restaurant before deduction
-      const invItems = await InventoryRepository.list(restaurantId);
-      const invItem = invItems.find(i => (i._id === ingredientId || (i as any).id === ingredientId || (i.name && i.name.toLowerCase() === ingredientId.toLowerCase())) && i.active !== false);
-      if (!invItem) {
-        console.warn(`[RecipeService] Cross-tenant or missing ingredient protection: Ingredient "${ingredientId}" does not belong to restaurant "${restaurantId}"`);
-        return;
+    const addDeduction = (itemId: string, itemName: string, grams: number, unit = 'g') => {
+      if (!itemId || !Number.isFinite(grams) || grams <= 0) return;
+      const key = String(itemId).trim();
+      const existing = deductionsMap.get(key);
+      if (existing) {
+        existing.quantity = parseFloat((existing.quantity + grams).toFixed(2));
+      } else {
+        deductionsMap.set(key, {
+          inventory_item_id: key,
+          item_name: itemName || key,
+          quantity: parseFloat(grams.toFixed(2)),
+          unit
+        });
       }
-
-      InventoryRepository.updateStock(ingredientId, restaurantId, -amount, {
-        type: 'SALE_DEDUCTION',
-        reason: `Auto deduction for Order #${order.id || order._id}`,
-        orderId: String(order.id || order._id),
-      }).catch(err => console.warn('[RecipeService] Deduct note:', err.message));
     };
 
-    // 1. Process Hookahs
+    const hookahConfig = await MultiTenantDbService.getHookahConfig(restaurantId);
+    const totalFlavorWeight = Number(hookahConfig?.total_flavor_weight) || 20;
+
+    const [dbMenuItems, invItems] = await Promise.all([
+      MultiTenantDbService.listMenuItems(restaurantId),
+      MultiTenantDbService.listInventory(restaurantId)
+    ]);
+
+    const resolveInvItem = (idOrName: string) => {
+      if (!idOrName) return null;
+      const lower = String(idOrName).toLowerCase().trim();
+      return invItems.find(i => 
+        i._id === idOrName || 
+        (i as any).id === idOrName || 
+        (i.name && i.name.toLowerCase() === lower) ||
+        (i._id && i._id.toLowerCase() === lower)
+      );
+    };
+
+    // 1. Process Hookahs (order.hookahs)
     if (Array.isArray(order.hookahs)) {
       for (const hookah of order.hookahs) {
+        const hookahQty = Math.max(1, Number(hookah.quantity || hookah.qty) || 1);
         const flavor = hookah.flavor;
         if (!flavor) continue;
 
-        const mixComponents = HOUSE_MIX_RECIPES[flavor.id];
-        if (mixComponents) {
-          for (const component of mixComponents) {
-            const shishaAmount = 20 * (component.ratio / 100);
-            await deduct(component.id, shishaAmount);
-          }
-        } else if (flavor.isMix && Array.isArray(flavor.mixDetails)) {
+        // Custom Mix Lab order
+        if (flavor.isMix && Array.isArray(flavor.mixDetails) && flavor.mixDetails.length > 0) {
           for (const component of flavor.mixDetails) {
-            const ratio = Number(component.ratio) || 0;
-            const shishaAmount = 20 * (ratio / 100);
-            await deduct(component.id, shishaAmount);
+            const rawId = component.inventory_item_id || component.ingredient_id || component.id || component._id;
+            const inv = resolveInvItem(rawId) || resolveInvItem(component.name);
+            const targetId = inv ? (inv._id || (inv as any).id) : rawId;
+            const targetName = inv ? inv.name : (component.name || 'Flavor');
+            const pct = Number(component.percentage !== undefined ? component.percentage : (component.ratio || 0));
+            const gramsPerHookah = component.grams !== undefined && component.grams !== null
+              ? Number(component.grams)
+              : (pct / 100) * totalFlavorWeight;
+            addDeduction(targetId, targetName, gramsPerHookah * hookahQty, inv?.unit || 'g');
           }
         } else {
-          await deduct(flavor.id, 20);
+          // House Mix Hookah or Single Flavor
+          const dbMatch = dbMenuItems.find((m: any) => 
+            (flavor.id && (m._id === flavor.id || (m as any).id === flavor.id)) || 
+            (flavor.name && m.name.toLowerCase() === flavor.name.toLowerCase())
+          );
+
+          if (dbMatch && Array.isArray(dbMatch.recipe) && dbMatch.recipe.length > 0) {
+            for (const ing of dbMatch.recipe) {
+              const rawId = ing.ingredient_id || ing.ingredientId;
+              const inv = resolveInvItem(rawId) || resolveInvItem(ing.name);
+              const targetId = inv ? (inv._id || (inv as any).id) : rawId;
+              const targetName = inv ? inv.name : (ing.name || 'House Mix Ingredient');
+              let grams = 0;
+              if (ing.percentage !== undefined && Number(ing.percentage) > 0) {
+                grams = (Number(ing.percentage) / 100) * totalFlavorWeight;
+              } else {
+                grams = Number(ing.quantity !== undefined ? ing.quantity : (ing.amount || 0));
+              }
+              addDeduction(targetId, targetName, grams * hookahQty, ing.unit || inv?.unit || 'g');
+            }
+          } else {
+            // Check direct inventory item
+            const inv = resolveInvItem(flavor.id) || resolveInvItem(flavor.name);
+            if (inv) {
+              addDeduction(inv._id || (inv as any).id, inv.name, totalFlavorWeight * hookahQty, inv.unit || 'g');
+            } else {
+              // Legacy static recipe fallback
+              const legacyMix = HOUSE_MIX_RECIPES[flavor.id] || (flavor.name ? HOUSE_MIX_RECIPES[flavor.name.toLowerCase().replace(/[^a-z0-9]/g, '_')] : null);
+              if (legacyMix) {
+                for (const comp of legacyMix) {
+                  const compInv = resolveInvItem(comp.id);
+                  const targetId = compInv ? (compInv._id || (compInv as any).id) : comp.id;
+                  const targetName = compInv ? compInv.name : comp.id;
+                  const grams = (comp.ratio / 100) * totalFlavorWeight;
+                  addDeduction(targetId, targetName, grams * hookahQty, 'g');
+                }
+              }
+            }
+          }
         }
       }
     }
 
-    // 2. Process Food Items & Custom Recipes
+    // 2. Process Unified Items (order.items)
+    const itemsList = Array.isArray(order.items) ? order.items : [];
+    for (const lineItem of itemsList) {
+      const itemQty = Math.max(1, Number(lineItem.qty || lineItem.quantity) || 1);
+      const isHookahItem = (lineItem.category === 'hookah' || String(lineItem.category_id || '').toLowerCase().includes('hookah') || lineItem.subcategory === 'House Mixes' || lineItem.subcategory === 'Mix Lab Creation');
+
+      if (Array.isArray(lineItem.recipe) && lineItem.recipe.length > 0) {
+        for (const ing of lineItem.recipe) {
+          const rawId = ing.ingredient_id || ing.ingredientId;
+          const inv = resolveInvItem(rawId) || resolveInvItem(ing.name);
+          const targetId = inv ? (inv._id || (inv as any).id) : rawId;
+          const targetName = inv ? inv.name : (ing.name || 'Recipe Ingredient');
+          let grams = 0;
+          if (ing.percentage !== undefined && Number(ing.percentage) > 0) {
+            grams = (Number(ing.percentage) / 100) * totalFlavorWeight;
+          } else {
+            grams = Number(ing.quantity !== undefined ? ing.quantity : (ing.amount || 0));
+          }
+          addDeduction(targetId, targetName, grams * itemQty, ing.unit || inv?.unit || 'g');
+        }
+      } else {
+        const itemId = lineItem.id || lineItem._id || lineItem.menu_item_id;
+        const itemName = lineItem.name || lineItem.item?.name;
+        const dbMatch = dbMenuItems.find((m: any) => 
+          (itemId && (m._id === itemId || (m as any).id === itemId)) || 
+          (itemName && m.name.toLowerCase() === String(itemName).toLowerCase())
+        );
+
+        if (dbMatch && Array.isArray(dbMatch.recipe) && dbMatch.recipe.length > 0) {
+          for (const ing of dbMatch.recipe) {
+            const rawId = ing.ingredient_id || ing.ingredientId;
+            const inv = resolveInvItem(rawId) || resolveInvItem(ing.name);
+            const targetId = inv ? (inv._id || (inv as any).id) : rawId;
+            const targetName = inv ? inv.name : (ing.name || 'Recipe Ingredient');
+            let grams = 0;
+            if (ing.percentage !== undefined && Number(ing.percentage) > 0) {
+              grams = (Number(ing.percentage) / 100) * totalFlavorWeight;
+            } else {
+              grams = Number(ing.quantity !== undefined ? ing.quantity : (ing.amount || 0));
+            }
+            addDeduction(targetId, targetName, grams * itemQty, ing.unit || inv?.unit || 'g');
+          }
+        } else if (isHookahItem) {
+          const inv = resolveInvItem(itemId) || resolveInvItem(itemName);
+          if (inv) {
+            addDeduction(inv._id || (inv as any).id, inv.name, totalFlavorWeight * itemQty, inv.unit || 'g');
+          }
+        } else if (lineItem.ingredient_id && lineItem.ingredient_amount) {
+          const inv = resolveInvItem(lineItem.ingredient_id);
+          addDeduction(inv ? (inv._id || (inv as any).id) : lineItem.ingredient_id, inv ? inv.name : lineItem.ingredient_id, Number(lineItem.ingredient_amount) * itemQty, inv?.unit || 'g');
+        } else if (itemId || itemName) {
+          const staticIngredients = RECIPES[itemId] || (itemName ? RECIPES[String(itemName).toLowerCase()] : null);
+          if (staticIngredients) {
+            for (const ing of staticIngredients) {
+              const inv = resolveInvItem(ing.ingredientId);
+              addDeduction(inv ? (inv._id || (inv as any).id) : ing.ingredientId, inv ? inv.name : ing.ingredientId, ing.amount * itemQty, inv?.unit || 'g');
+            }
+          }
+        }
+      }
+    }
+
+    // 3. Process Food items (order.food)
     if (Array.isArray(order.food)) {
       for (const cartLine of order.food) {
         const item = cartLine.item;
-        const qty = Number(cartLine.qty) || 0;
+        const qty = Number(cartLine.qty) || 1;
         if (!item || qty <= 0) continue;
 
         if (Array.isArray(item.recipe) && item.recipe.length > 0) {
           for (const ing of item.recipe) {
-            const ingId = ing.ingredient_id || ing.ingredientId;
-            const amountPerItem = Number(ing.quantity || ing.amount || 0);
-            if (ingId && amountPerItem > 0) {
-              await deduct(ingId, amountPerItem * qty);
+            const rawId = ing.ingredient_id || ing.ingredientId;
+            const inv = resolveInvItem(rawId) || resolveInvItem(ing.name);
+            const targetId = inv ? (inv._id || (inv as any).id) : rawId;
+            const amount = Number(ing.quantity !== undefined ? ing.quantity : (ing.amount || 0));
+            if (targetId && amount > 0) {
+              addDeduction(targetId, inv ? inv.name : (ing.name || targetId), amount * qty, ing.unit || inv?.unit || 'g');
             }
           }
         } else {
-          const ingredients = RECIPES[item.id];
-          if (ingredients) {
-            for (const ing of ingredients) {
-              await deduct(ing.ingredientId, ing.amount * qty);
+          const staticIngredients = RECIPES[item.id] || (item.name ? RECIPES[String(item.name).toLowerCase()] : null);
+          if (staticIngredients) {
+            for (const ing of staticIngredients) {
+              const inv = resolveInvItem(ing.ingredientId);
+              addDeduction(inv ? (inv._id || (inv as any).id) : ing.ingredientId, inv ? inv.name : ing.ingredientId, ing.amount * qty, inv?.unit || 'g');
             }
           }
         }
       }
     }
 
-    // 3. Process Drinks
+    // 4. Process Drinks (order.drinks)
     if (Array.isArray(order.drinks)) {
       for (const cartLine of order.drinks) {
         const item = cartLine.item;
-        const qty = Number(cartLine.qty) || 0;
+        const qty = Number(cartLine.qty) || 1;
         if (!item || qty <= 0) continue;
 
-        const ingredients = RECIPES[item.id];
-        if (ingredients) {
-          for (const ing of ingredients) {
-            deduct(ing.ingredientId, ing.amount * qty);
+        const staticIngredients = RECIPES[item.id] || (item.name ? RECIPES[String(item.name).toLowerCase()] : null);
+        if (staticIngredients) {
+          for (const ing of staticIngredients) {
+            const inv = resolveInvItem(ing.ingredientId);
+            addDeduction(inv ? (inv._id || (inv as any).id) : ing.ingredientId, inv ? inv.name : ing.ingredientId, ing.amount * qty, inv?.unit || 'bottle');
           }
         }
       }
     }
 
-    // 4. Process Unified Items Array & Custom Menu Ingredient Recipes (Lookup from database menu catalog)
-    const itemsList = Array.isArray(order.items) ? order.items : [];
-    if (itemsList.length > 0) {
-      try {
-        const dbMenuItems = await MultiTenantDbService.listMenuItems(restaurantId);
-        for (const lineItem of itemsList) {
-          const itemQty = Number(lineItem.qty || lineItem.quantity) || 1;
-          const itemId = lineItem.id || lineItem._id || lineItem.menu_item_id;
-          const itemName = lineItem.name || lineItem.item?.name;
+    return deductionsMap;
+  }
 
-          const dbMatch = dbMenuItems.find((m: any) => (itemId && (m._id === itemId || (m as any).id === itemId)) || (itemName && m.name.toLowerCase() === String(itemName).toLowerCase()));
-          
-          const recipeToProcess = lineItem.recipe || dbMatch?.recipe;
-          const ingId = lineItem.ingredient_id || dbMatch?.ingredient_id;
-          const ingAmount = lineItem.ingredient_amount || dbMatch?.ingredient_amount;
+  /**
+   * Validate that all ingredients in the order have sufficient stock before creation.
+   * Throws an error if any ingredient is missing, inactive, or has insufficient stock.
+   */
+  static async validateOrderStock(orderData: any, restaurantId: string): Promise<void> {
+    if (!orderData || !restaurantId) return;
 
-          if (Array.isArray(recipeToProcess) && recipeToProcess.length > 0) {
-            for (const ing of recipeToProcess) {
-              if (ing.ingredientId && ing.amount) {
-                deduct(ing.ingredientId, Number(ing.amount) * itemQty);
-              }
-            }
-          } else if (ingId && ingAmount) {
-            deduct(ingId, Number(ingAmount) * itemQty);
-          } else if (itemId || itemName) {
-            const staticIngredients = RECIPES[itemId] || (itemName ? RECIPES[String(itemName).toLowerCase()] : null);
-            if (staticIngredients) {
-              for (const ing of staticIngredients) {
-                deduct(ing.ingredientId, ing.amount * itemQty);
-              }
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('[RecipeService] Error looking up db menu recipes:', err);
+    const deductionsMap = await this.calculateOrderDeductions(orderData, restaurantId);
+    if (deductionsMap.size === 0) return;
+
+    const invItems = await MultiTenantDbService.listInventory(restaurantId);
+
+    for (const required of deductionsMap.values()) {
+      const inv = invItems.find(i => 
+        i._id === required.inventory_item_id || 
+        (i as any).id === required.inventory_item_id ||
+        (i.name && i.name.toLowerCase() === required.item_name.toLowerCase())
+      );
+
+      if (!inv) {
+        throw new Error(`Referenced inventory stock item "${required.item_name}" (${required.inventory_item_id}) does not exist for restaurant "${restaurantId}".`);
+      }
+
+      if (inv.active === false) {
+        throw new Error(`Flavor/ingredient "${inv.name}" is currently marked inactive in inventory.`);
+      }
+
+      const availableStock = Number(inv.stock) || 0;
+      if (availableStock < required.quantity) {
+        throw new Error(`Insufficient stock for "${inv.name}": required ${required.quantity}${inv.unit || 'g'}, only ${availableStock}${inv.unit || 'g'} available.`);
       }
     }
+  }
+
+  /**
+   * Process order deductions for raw material inventory based on recipes.
+   * Idempotent: Deducts exactly once per order.
+   * Atomic: Decrements stock safely and records each transaction.
+   */
+  static async processOrderDeductions(order: any): Promise<void> {
+    if (!order) return;
+    const restaurantId = order.restaurant_id || order.restaurantId;
+    const orderId = String(order.id || order._id);
+    if (!restaurantId || !orderId) {
+      throw new Error('Order is missing restaurant_id or id required for inventory deduction');
+    }
+
+    // Idempotency check 1: in-memory flag
+    if (order.inventory_deducted === true || (order as any).inventoryDeducted === true) {
+      console.log(`[RecipeService] Order #${orderId} already marked as inventory_deducted. Skipping duplicate deduction.`);
+      return;
+    }
+
+    // Idempotency check 2: check persistent database record
+    const existingOrder = await MultiTenantDbService.getOrderById(orderId, restaurantId);
+    if (existingOrder && (existingOrder.inventory_deducted || (existingOrder as any).inventoryDeducted)) {
+      console.log(`[RecipeService] Order #${orderId} already has persistent inventory deduction in database. Skipping duplicate.`);
+      order.inventory_deducted = true;
+      order.inventory_deductions = existingOrder.inventory_deductions;
+      return;
+    }
+
+    const deductionsMap = await this.calculateOrderDeductions(order, restaurantId);
+    if (deductionsMap.size === 0) return;
+
+    const recordedDeductions: RecordedDeduction[] = [];
+
+    for (const deduction of deductionsMap.values()) {
+      const success = await MultiTenantDbService.updateInventoryStock(
+        deduction.inventory_item_id,
+        restaurantId,
+        -deduction.quantity,
+        {
+          type: 'SALE_DEDUCTION',
+          reason: `Auto deduction for Order #${orderId}`,
+          orderId,
+        }
+      );
+
+      if (success) {
+        recordedDeductions.push({
+          inventory_item_id: deduction.inventory_item_id,
+          item_name: deduction.item_name,
+          quantity: deduction.quantity,
+          unit: deduction.unit || 'g',
+          order_id: orderId,
+          restaurant_id: restaurantId,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        console.warn(`[RecipeService] Failed to deduct ${deduction.quantity}${deduction.unit} of "${deduction.item_name}" for Order #${orderId} (insufficient stock or item missing).`);
+      }
+    }
+
+    // Persist actual deduction details on the order document
+    await MultiTenantDbService.updateOrderStatus(orderId, restaurantId, order.status || 'pending', {
+      inventory_deducted: true,
+      inventory_deductions: recordedDeductions,
+      inventory_restored: false,
+    } as any);
+
+    order.inventory_deducted = true;
+    order.inventory_deductions = recordedDeductions;
+    order.inventory_restored = false;
+  }
+
+  /**
+   * Restore deducted stock when an order is cancelled, voided, or refunded.
+   * Ensures inventory restoration is idempotent and exact.
+   */
+  static async restoreOrderDeductions(order: any): Promise<void> {
+    if (!order) return;
+    const restaurantId = order.restaurant_id || order.restaurantId;
+    const orderId = String(order.id || order._id);
+    if (!restaurantId || !orderId) return;
+
+    const existingOrder = await MultiTenantDbService.getOrderById(orderId, restaurantId);
+    const targetOrder = existingOrder || order;
+
+    if (!targetOrder.inventory_deducted || targetOrder.inventory_restored) {
+      return;
+    }
+
+    const deductions = targetOrder.inventory_deductions;
+    if (Array.isArray(deductions) && deductions.length > 0) {
+      for (const d of deductions) {
+        if (!d.inventory_item_id || !d.quantity || d.quantity <= 0) continue;
+        await MultiTenantDbService.updateInventoryStock(
+          d.inventory_item_id,
+          restaurantId,
+          d.quantity,
+          {
+            type: 'RETURN',
+            reason: `Stock restored - Order #${orderId} cancelled/voided`,
+            orderId,
+          }
+        );
+      }
+    }
+
+    await MultiTenantDbService.updateOrderStatus(orderId, restaurantId, targetOrder.status || 'cancelled', {
+      inventory_deducted: false,
+      inventory_restored: true,
+    } as any);
+
+    order.inventory_deducted = false;
+    order.inventory_restored = true;
   }
 }
