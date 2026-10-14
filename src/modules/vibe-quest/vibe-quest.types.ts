@@ -56,6 +56,8 @@ export interface VibeQuestAnswer {
   emoji?: string;
   description?: string;
   subtext?: string;
+  host_reply?: string;
+  reaction_message?: string;
   active: boolean;
   sort_order: number;
   signals?: string[];
@@ -88,7 +90,9 @@ export interface VibeQuestQuestion {
   navigation_trigger?: 'start_order' | 'next_food' | 'next_drinks' | string;
   title: string;
   question_text: string;
+  subtitle?: string;
   helper_text?: string;
+  description?: string;
   emoji?: string;
   type: VibeQuestQuestionType;
   active: boolean;
@@ -111,10 +115,12 @@ export interface VibeQuestConfigSettings {
   hookah_selection_screen_enabled?: boolean;
   dessert_reminder_enabled?: boolean;
   dessert_reminder_text?: string;
+  dessert_reminder_subtitle?: string;
   dessert_destination_category?: string;
   dessert_featured_product_ids?: string[];
   drink_reminder_enabled?: boolean;
   drink_reminder_text?: string;
+  drink_reminder_subtitle?: string;
   drink_destination_category?: string;
   drink_featured_product_ids?: string[];
   dessert_category_ids: string[];
