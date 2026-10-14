@@ -547,11 +547,7 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                               <View style={{ backgroundColor: 'rgba(239,68,68,0.2)', borderWidth: 1, borderColor: '#EF4444', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 }}>
                                 <Text style={{ color: '#EF4444', fontSize: 9, fontWeight: '800' }}>OUT OF STOCK</Text>
                               </View>
-                            ) : (
-                              <Text style={{ fontSize: 9.5, color: '#10B981', fontWeight: '700' }}>
-                                {flavor.stock !== undefined ? `${flavor.stock}g in stock` : 'In Stock'}
-                              </Text>
-                            )}
+                            ) : null}
                           </View>
                           <Text style={[styles.flavorDesc, { color: theme.mutedTextColor, fontSize: 10 }]} numberOfLines={1}>
                             {flavor.description}
@@ -758,12 +754,7 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                         </View>
 
                         <Text style={[styles.flavorName, { color: theme.textColor, marginTop: 4 }]}>{flavor.name}</Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginVertical: 2 }}>
-                          <Text style={{ fontSize: 10, color: isOutOfStock ? '#EF4444' : '#10B981', fontWeight: '700' }}>
-                            {isOutOfStock ? '0g in stock (Disabled)' : `${flavor.stock !== undefined ? flavor.stock : 0}g in stock`}
-                          </Text>
-                        </View>
-                        <Text style={[styles.flavorDesc, { color: theme.mutedTextColor }]} numberOfLines={2}>
+                        <Text style={[styles.flavorDesc, { color: theme.mutedTextColor, marginTop: 4 }]} numberOfLines={2}>
                           {flavor.description}
                         </Text>
 
