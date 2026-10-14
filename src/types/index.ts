@@ -143,6 +143,7 @@ export type HookahFlavorCategory =
 
 export type HookahFlavor = {
   id: string;
+  inventory_id?: string;
   name: string;
   brand?: string;
   category: HookahFlavorCategory | string;
@@ -150,6 +151,10 @@ export type HookahFlavor = {
   color: string;
   emoji: string;
   tags: string[];
+  stock?: number;
+  unit?: string;
+  available?: boolean;
+  active?: boolean;
   sweetness?: number; // 1 to 5
   freshness?: number; // 1 to 5
   fruitiness?: number; // 1 to 5

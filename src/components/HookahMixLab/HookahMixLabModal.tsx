@@ -67,20 +67,34 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
     return DAKU_PACKAGE;
   }, [hookahConfig]);
 
-  const flavorsDatabase = useMemo(() => {
+  const totalFlavorWeight = useMemo(() => {
+    return Math.max(1, Number(hookahConfig?.total_flavor_weight || hookahConfig?.total_weight || 20));
+  }, [hookahConfig]);
+
+  const flavorsDatabase = useMemo<HookahFlavor[]>(() => {
     if (hookahConfig?.flavors && Array.isArray(hookahConfig.flavors) && hookahConfig.flavors.length > 0) {
-      const activeFlavors = hookahConfig.flavors.filter((f: any) => f.active !== false && f.available !== false);
+      // Inactive flavors are hidden; active flavors (including out-of-stock) are shown
+      const activeFlavors = hookahConfig.flavors.filter((f: any) => f.active !== false);
       if (activeFlavors.length > 0) {
-        return activeFlavors.map((item: any) => ({
-          id: item.id || `flv_${item.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
-          name: item.name,
-          brand: item.brand || item.category || 'House',
-          category: (item.brand || item.category || 'house').toLowerCase(),
-          description: item.description || '',
-          color: item.color || '#8B5CF6',
-          emoji: item.emoji || '💨',
-          tags: item.tags || []
-        })) as HookahFlavor[];
+        return activeFlavors.map((item: any) => {
+          const stock = typeof item.stock === 'number' ? item.stock : 999;
+          const isAvailable = Boolean(item.active !== false && item.available !== false && stock > 0);
+          return {
+            id: String(item.id || item._id || item.inventory_id),
+            inventory_id: String(item.inventory_id || item.id || item._id),
+            name: item.name,
+            brand: item.brand || item.category || 'House',
+            category: (item.brand || item.category || 'house').toLowerCase(),
+            description: item.description || '',
+            color: item.color || '#8B5CF6',
+            emoji: item.emoji || '💨',
+            tags: item.tags || [],
+            stock: stock,
+            unit: item.unit || 'g',
+            available: isAvailable,
+            active: item.active !== false
+          } as HookahFlavor;
+        });
       }
     }
 
@@ -95,13 +109,18 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
       if (dbFlavors.length > 0) {
         return dbFlavors.map(item => ({
           id: item.id,
+          inventory_id: item.id,
           name: item.name,
           brand: item.brand || 'House',
           category: (item.brand || 'house').toLowerCase(),
-          description: item.description,
+          description: item.description || '',
           color: item.color || item.imageUrl || '#8B5CF6',
           emoji: item.emoji || '💨',
-          tags: item.tags || []
+          tags: item.tags || [],
+          stock: 999,
+          unit: 'g',
+          available: item.active !== false,
+          active: item.active !== false
         })) as HookahFlavor[];
       }
     }
@@ -189,6 +208,10 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
   // Add flavor to chamber
   const handleAddFlavor = (flavor: HookahFlavor) => {
     if (selectedFlavors.some(f => f.id === flavor.id)) return;
+    if (flavor.available === false || (flavor.stock !== undefined && flavor.stock <= 0)) {
+      alert(`${flavor.name} is currently out of stock.`);
+      return;
+    }
     if (selectedFlavors.length >= 5) {
       alert("Maximum 5 flavors allowed in a custom bowl.");
       return;
@@ -230,9 +253,13 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
 
   // Surprise Me Randomizer
   const handleSurpriseMe = () => {
-    const pool = flavorsDatabase;
+    const pool = flavorsDatabase.filter((f: HookahFlavor) => f.available !== false && (f.stock === undefined || f.stock > 0));
+    if (pool.length === 0) {
+      alert("No in-stock hookah flavors available.");
+      return;
+    }
     const shuffled = [...pool].sort(() => 0.5 - Math.random());
-    const count = Math.floor(Math.random() * 2) + 2;
+    const count = Math.min(pool.length, Math.floor(Math.random() * 2) + 2);
     const randomMix = shuffled.slice(0, count);
     setSelectedFlavors(randomMix);
 
@@ -257,15 +284,15 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
   };
 
   // Filtered Flavors by Search Query and Brand
-  const filteredFlavors = useMemo(() => {
-    return flavorsDatabase.filter(f => {
+  const filteredFlavors = useMemo<HookahFlavor[]>(() => {
+    return flavorsDatabase.filter((f: HookahFlavor) => {
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase().trim();
       return (
         f.name.toLowerCase().includes(q) ||
         (f.brand && f.brand.toLowerCase().includes(q)) ||
         (f.description && f.description.toLowerCase().includes(q)) ||
-        (f.tags && f.tags.some(t => t.toLowerCase().includes(q)))
+        (f.tags && f.tags.some((t: string) => t.toLowerCase().includes(q)))
       );
     });
   }, [searchQuery, flavorsDatabase]);
@@ -289,7 +316,7 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
   const processAddToCart = (isDaku: boolean) => {
     setShowDakuModal(false);
     const compositionDesc = flavorsInMix
-      .map(f => `${f.flavor.brand ? f.flavor.brand + ' ' : ''}${f.flavor.name} (${f.percentage}%)`)
+      .map(f => `${f.flavor.brand ? f.flavor.brand + ' ' : ''}${f.flavor.name} (${f.percentage}% · ${((f.percentage / 100) * totalFlavorWeight).toFixed(1).replace(/\.0$/, '')}g)`)
       .join(' • ');
 
     const selectedOptions: SelectedModifier[] = [];
@@ -314,11 +341,18 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
     if (iceBase) selectedOptions.push({ id: 'OPT_ICE_BASE', optionId: 'OPT_ICE_BASE', optionName: isDaku ? 'Ice Base (Included)' : 'Ice Base', name: 'Ice Base', price: isDaku ? 0 : 2 });
     if (iceHose) selectedOptions.push({ id: 'OPT_ICE_HOSE', optionId: 'OPT_ICE_HOSE', optionName: isDaku ? 'Ice Hose (Included)' : 'Ice Hose', name: 'Ice Hose', price: isDaku ? 0 : 6 });
 
-    const recipe = flavorsInMix.map(f => ({
-      ingredient_id: f.flavor.id,
-      quantity: 20 * (f.percentage / 100), // 20g standard bowl
-      unit: 'g'
-    }));
+    const recipe = flavorsInMix.map(f => {
+      const grams = parseFloat(((f.percentage / 100) * totalFlavorWeight).toFixed(2));
+      return {
+        ingredient_id: f.flavor.inventory_id || f.flavor.id,
+        ingredientId: f.flavor.inventory_id || f.flavor.id,
+        quantity: grams,
+        amount: grams,
+        percentage: f.percentage,
+        unit: 'g',
+        name: f.flavor.name
+      };
+    });
 
     const notesParts: string[] = [`Composition: ${compositionDesc}`];
     if (isDaku) notesParts.push(`🔥 ${dakuPkg.name.toUpperCase()}: $${dakuPkg.price} ${dakuPkg.description}`);
@@ -408,7 +442,7 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
 
                 <View style={[styles.visualBowlContainer, { borderColor: '#E5B13A', minHeight: 100, marginBottom: 8 }]}>
                   <View style={styles.bowlTopRim}>
-                    <Text style={styles.rimText}>BOWL COMPOSITION ({selectedFlavors.length}/5)</Text>
+                    <Text style={styles.rimText}>BOWL COMPOSITION ({selectedFlavors.length}/5) · {totalFlavorWeight}g TOTAL</Text>
                   </View>
 
                   {selectedFlavors.length === 0 ? (
@@ -434,7 +468,9 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                               >
                                 <Text style={{ color: '#FFFFFF', fontWeight: '900', fontSize: 11 }}>-</Text>
                               </TouchableOpacity>
-                              <Text style={[styles.layerPct, { fontSize: 11, minWidth: 30, textAlign: 'center' }]}>{item.percentage}%</Text>
+                              <Text style={[styles.layerPct, { fontSize: 10, minWidth: 48, textAlign: 'center' }]}>
+                                {item.percentage}% ({((item.percentage / 100) * totalFlavorWeight).toFixed(1).replace(/\.0$/, '')}g)
+                              </Text>
                               <TouchableOpacity
                                 onPress={() => handleAdjustPercentage(item.flavor.id, 5)}
                                 style={{ paddingHorizontal: 5, paddingVertical: 2, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 4 }}
@@ -484,26 +520,38 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                 <View style={styles.flavorCardsGridMobile}>
                   {filteredFlavors.map((flavor, idx) => {
                     const isAdded = selectedFlavors.some(f => f.id === flavor.id);
+                    const isOutOfStock = Boolean(flavor.available === false || (flavor.stock !== undefined && flavor.stock <= 0));
                     return (
                       <TouchableOpacity
                         key={flavor.id || `flv_m_${idx}`}
                         activeOpacity={0.88}
+                        disabled={isOutOfStock && !isAdded}
                         onPress={() => isAdded ? handleRemoveFlavor(flavor.id) : handleAddFlavor(flavor)}
                         style={[
                           styles.mobileFlavorRowCard,
                           { backgroundColor: theme.cardColor, borderColor: theme.borderColor },
-                          isAdded && { borderColor: '#10B981', backgroundColor: 'rgba(16,185,129,0.12)', borderWidth: 2 }
+                          isAdded && { borderColor: '#10B981', backgroundColor: 'rgba(16,185,129,0.12)', borderWidth: 2 },
+                          isOutOfStock && !isAdded && { opacity: 0.55 }
                         ]}
                       >
                         <Text style={{ fontSize: 22 }}>{flavor.emoji}</Text>
                         <View style={{ flex: 1, marginHorizontal: 8 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                             <Text style={[styles.flavorName, { color: theme.textColor, fontSize: 13 }]}>{flavor.name}</Text>
                             {flavor.brand ? (
                               <View style={[styles.brandMiniBadge, { backgroundColor: flavor.color || '#E5B13A' }]}>
                                 <Text style={styles.brandMiniBadgeText}>{flavor.brand}</Text>
                               </View>
                             ) : null}
+                            {isOutOfStock ? (
+                              <View style={{ backgroundColor: 'rgba(239,68,68,0.2)', borderWidth: 1, borderColor: '#EF4444', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 }}>
+                                <Text style={{ color: '#EF4444', fontSize: 9, fontWeight: '800' }}>OUT OF STOCK</Text>
+                              </View>
+                            ) : (
+                              <Text style={{ fontSize: 9.5, color: '#10B981', fontWeight: '700' }}>
+                                {flavor.stock !== undefined ? `${flavor.stock}g in stock` : 'In Stock'}
+                              </Text>
+                            )}
                           </View>
                           <Text style={[styles.flavorDesc, { color: theme.mutedTextColor, fontSize: 10 }]} numberOfLines={1}>
                             {flavor.description}
@@ -511,10 +559,11 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                         </View>
 
                         <TouchableOpacity
+                          disabled={isOutOfStock && !isAdded}
                           onPress={() => isAdded ? handleRemoveFlavor(flavor.id) : handleAddFlavor(flavor)}
                           style={[
                             styles.mobileAddBtn,
-                            { backgroundColor: isAdded ? '#EF4444' : '#22C55E' }
+                            { backgroundColor: isAdded ? '#EF4444' : (isOutOfStock ? '#475569' : '#22C55E') }
                           ]}
                         >
                           {isAdded ? (
@@ -678,38 +727,54 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                 <ScrollView contentContainerStyle={styles.flavorCardsGrid} showsVerticalScrollIndicator={false}>
                   {filteredFlavors.map((flavor, idx) => {
                     const isAdded = selectedFlavors.some(f => f.id === flavor.id);
+                    const isOutOfStock = Boolean(flavor.available === false || (flavor.stock !== undefined && flavor.stock <= 0));
                     return (
                       <TouchableOpacity
                         key={flavor.id || `flavor_${idx}`}
                         activeOpacity={0.85}
+                        disabled={isOutOfStock && !isAdded}
                         onPress={() => isAdded ? handleRemoveFlavor(flavor.id) : handleAddFlavor(flavor)}
                         style={[
                           styles.flavorCard,
                           { backgroundColor: theme.cardColor, borderColor: theme.borderColor },
-                          isAdded && { borderColor: '#10B981', backgroundColor: 'rgba(16,185,129,0.12)', borderWidth: 2 }
+                          isAdded && { borderColor: '#10B981', backgroundColor: 'rgba(16,185,129,0.12)', borderWidth: 2 },
+                          isOutOfStock && !isAdded && { opacity: 0.55 }
                         ]}
                       >
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                           <Text style={{ fontSize: 26 }}>{flavor.emoji}</Text>
-                          {flavor.brand ? (
-                            <View style={[styles.brandMiniBadge, { backgroundColor: flavor.color || '#E5B13A' }]}>
-                              <Text style={styles.brandMiniBadgeText}>{flavor.brand}</Text>
-                            </View>
-                          ) : null}
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            {isOutOfStock ? (
+                              <View style={{ backgroundColor: 'rgba(239,68,68,0.2)', borderWidth: 1, borderColor: '#EF4444', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 }}>
+                                <Text style={{ color: '#EF4444', fontSize: 9, fontWeight: '800' }}>OUT OF STOCK</Text>
+                              </View>
+                            ) : null}
+                            {flavor.brand ? (
+                              <View style={[styles.brandMiniBadge, { backgroundColor: flavor.color || '#E5B13A' }]}>
+                                <Text style={styles.brandMiniBadgeText}>{flavor.brand}</Text>
+                              </View>
+                            ) : null}
+                          </View>
                         </View>
 
                         <Text style={[styles.flavorName, { color: theme.textColor, marginTop: 4 }]}>{flavor.name}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginVertical: 2 }}>
+                          <Text style={{ fontSize: 10, color: isOutOfStock ? '#EF4444' : '#10B981', fontWeight: '700' }}>
+                            {isOutOfStock ? '0g in stock (Disabled)' : `${flavor.stock !== undefined ? flavor.stock : 0}g in stock`}
+                          </Text>
+                        </View>
                         <Text style={[styles.flavorDesc, { color: theme.mutedTextColor }]} numberOfLines={2}>
                           {flavor.description}
                         </Text>
 
                         <TouchableOpacity
+                          disabled={isOutOfStock && !isAdded}
                           onPress={() => isAdded ? handleRemoveFlavor(flavor.id) : handleAddFlavor(flavor)}
                           style={[
                             styles.cardAddBtn,
                             { 
-                              backgroundColor: isAdded ? 'rgba(239,68,68,0.12)' : 'transparent',
-                              borderColor: isAdded ? '#EF4444' : '#22C55E',
+                              backgroundColor: isAdded ? 'rgba(239,68,68,0.12)' : (isOutOfStock ? 'rgba(100,116,139,0.1)' : 'transparent'),
+                              borderColor: isAdded ? '#EF4444' : (isOutOfStock ? '#475569' : '#22C55E'),
                               borderWidth: 1.5,
                               marginTop: 8
                             }
@@ -722,8 +787,10 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                             </>
                           ) : (
                             <>
-                              <Plus size={13} color="#22C55E" />
-                              <Text style={[styles.cardAddBtnText, { color: '#22C55E' }]}>ADD TO BOWL</Text>
+                              <Plus size={13} color={isOutOfStock ? '#64748B' : '#22C55E'} />
+                              <Text style={[styles.cardAddBtnText, { color: isOutOfStock ? '#64748B' : '#22C55E' }]}>
+                                {isOutOfStock ? 'OUT OF STOCK' : 'ADD TO BOWL'}
+                              </Text>
                             </>
                           )}
                         </TouchableOpacity>
@@ -754,7 +821,7 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
 
                 <View style={[styles.visualBowlContainer, { borderColor: '#E5B13A', flex: 1, marginBottom: 12 }]}>
                   <View style={styles.bowlTopRim}>
-                    <Text style={styles.rimText}>CUSTOM HEAT MANAGEMENT BOWL ({selectedFlavors.length}/5)</Text>
+                    <Text style={styles.rimText}>CUSTOM HEAT MANAGEMENT BOWL ({selectedFlavors.length}/5) · {totalFlavorWeight}g TOTAL</Text>
                   </View>
 
                   {selectedFlavors.length === 0 ? (
@@ -781,7 +848,9 @@ export const HookahMixLabModal: React.FC<HookahMixLabModalProps> = ({
                               >
                                 <Text style={{ color: '#FFFFFF', fontWeight: '900', fontSize: 12 }}>-</Text>
                               </TouchableOpacity>
-                              <Text style={[styles.layerPct, { minWidth: 36, textAlign: 'center' }]}>{item.percentage}%</Text>
+                              <Text style={[styles.layerPct, { minWidth: 50, textAlign: 'center' }]}>
+                                {item.percentage}% ({((item.percentage / 100) * totalFlavorWeight).toFixed(1).replace(/\.0$/, '')}g)
+                              </Text>
                               <TouchableOpacity
                                 onPress={() => handleAdjustPercentage(item.flavor.id, 5)}
                                 style={{ paddingHorizontal: 6, paddingVertical: 2, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 4 }}
