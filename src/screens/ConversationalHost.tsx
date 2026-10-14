@@ -29,6 +29,7 @@ import { itemRequiresModifierSelection } from '../utils/modifierUtils';
 import { DEFAULT_HOOKAH_BASES, DAKU_PACKAGE } from '../data/hookahMixData';
 import { useVibeQuest } from '../vibe-quest/useVibeQuest';
 import { VibeQuestCard } from '../components/VibeQuest/VibeQuestCard';
+import { HostReplyTransitionModal } from '../components/VibeQuest/HostReplyTransitionModal';
 import { VibeQuestStage } from '../vibe-quest/vibe-quest.types';
 import { OrderReminderModal } from '../components/OrderReminder/OrderReminderModal';
 import {
@@ -614,6 +615,9 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
     showRecsInline,
     reactionMessage,
     sessionState: vibeQuestSession,
+    hostTransition,
+    dismissHostTransition,
+    setHostTransition,
     handleSelectAnswer,
     handleSkipQuestion,
     handleDismissDiscovery,
@@ -698,7 +702,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
     return (allMenuItems || []).filter(item => {
       const iId = String(item.id || item._id || '').toLowerCase();
       return rawIds.some(rid => String(rid).toLowerCase() === iId);
-    }).slice(0, 4);
+    });
   }, [allMenuItems, dessertReminderQuestion, dessertBrowseAnswer, vibeQuestConfig?.settings]);
 
   const drinkQuickAddItems = useMemo(() => {
@@ -712,7 +716,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
     return (allMenuItems || []).filter(item => {
       const iId = String(item.id || item._id || '').toLowerCase();
       return rawIds.some(rid => String(rid).toLowerCase() === iId);
-    }).slice(0, 4);
+    });
   }, [allMenuItems, drinkReminderQuestion, drinkBrowseAnswer, vibeQuestConfig?.settings]);
 
   // Bypass selection screen if disabled by admin
@@ -1302,11 +1306,30 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
                           key={ans.id || `opt_${idx}`}
                           activeOpacity={0.88}
                           onPress={() => {
-                            setHookahExperienceSelected('house_mixes');
-                            if (ans.destination === 'flow:mix_lab' || ans.destination === 'custom_mix_lab') {
-                              if (onOpenMixLab) onOpenMixLab();
-                            } else if (ans.destination) {
-                              handleNavigateCategory(ans.destination);
+                            const reply = (ans.host_reply || ans.reaction_message || '').trim();
+                            const doAction = () => {
+                              setHookahExperienceSelected('house_mixes');
+                              if (ans.destination === 'flow:mix_lab' || ans.destination === 'custom_mix_lab') {
+                                if (onOpenMixLab) onOpenMixLab();
+                              } else if (ans.destination) {
+                                handleNavigateCategory(ans.destination);
+                              }
+                            };
+
+                            if (reply && setHostTransition) {
+                              setHostTransition({
+                                questionTitle: hookahExperienceQuestion?.question_text || 'Hookah Experience',
+                                selectedOptionLabel: ans.label,
+                                selectedOptionEmoji: icon,
+                                replyMessage: reply,
+                                targetDestinationLabel: ans.destination === 'flow:mix_lab' || ans.destination === 'custom_mix_lab' ? 'Custom Mix Lab' : 'House Mixes',
+                                onComplete: () => {
+                                  setHostTransition(null);
+                                  doAction();
+                                },
+                              });
+                            } else {
+                              doAction();
                             }
                           }}
                           style={[
@@ -1977,7 +2000,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
         visible={activeReminder === 'dessert'}
         type="dessert"
         title={dessertReminderQuestion?.question_text || dessertReminderQuestion?.title || vibeQuestConfig?.settings?.dessert_reminder_text || "Should we save room for something sweet? 🍰"}
-        helperText={dessertReminderQuestion?.helper_text}
+        helperText={dessertReminderQuestion?.subtitle ?? dessertReminderQuestion?.helper_text ?? dessertReminderQuestion?.description ?? vibeQuestConfig?.settings?.dessert_reminder_subtitle}
         browseBtnText={dessertBrowseAnswer?.label || "Browse Desserts 🍰"}
         skipBtnText={dessertSkipAnswer?.label || "Skip Dessert & Continue →"}
         theme={theme}
@@ -1996,7 +2019,7 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
         visible={activeReminder === 'drinks'}
         type="drinks"
         title={drinkReminderQuestion?.question_text || drinkReminderQuestion?.title || vibeQuestConfig?.settings?.drink_reminder_text || "Would you like something to drink? 🥤"}
-        helperText={drinkReminderQuestion?.helper_text}
+        helperText={drinkReminderQuestion?.subtitle ?? drinkReminderQuestion?.helper_text ?? drinkReminderQuestion?.description ?? vibeQuestConfig?.settings?.drink_reminder_subtitle}
         browseBtnText={drinkBrowseAnswer?.label || "Browse Drinks 🥤"}
         skipBtnText={drinkSkipAnswer?.label || "Skip Drinks & Review Order →"}
         theme={theme}
@@ -2009,6 +2032,15 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
           setHandledReminders((prev) => new Set(prev).add('drinks'));
           setActiveReminder(null);
         }}
+      />
+
+      {/* Conversational Host Reply Transition Modal */}
+      <HostReplyTransitionModal
+        visible={!!hostTransition}
+        transition={hostTransition}
+        theme={theme}
+        isMobile={isMobile}
+        onDismiss={dismissHostTransition}
       />
     </View>
   );

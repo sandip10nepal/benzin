@@ -11,8 +11,8 @@ import { MenuItem, CartItem } from '../types';
 import { TenantApiService } from '../services/api';
 
 import { DEFAULT_VIBE_QUEST_CONFIG } from './vibe-quest.default';
-
 import { parseDestination } from '../utils/orderFlowUtils';
+import { HostTransitionPayload } from '../components/VibeQuest/HostReplyTransitionModal';
 
 interface UseVibeQuestProps {
   restaurantId?: string;
@@ -50,6 +50,14 @@ export function useVibeQuest({
   const [reactionMessage, setReactionMessage] = useState<string | null>(null);
   const [recommendations, setRecommendations] = useState<MenuItem[]>([]);
   const [showRecsInline, setShowRecsInline] = useState<boolean>(true);
+  const [hostTransition, setHostTransition] = useState<HostTransitionPayload | null>(null);
+
+  const dismissHostTransition = useCallback(() => {
+    if (hostTransition?.onComplete) {
+      hostTransition.onComplete();
+    }
+    setHostTransition(null);
+  }, [hostTransition]);
 
   const [sessionState, setSessionState] = useState<VibeQuestSessionState>({
     answers: {},
@@ -332,69 +340,116 @@ export function useVibeQuest({
         });
       }
 
-      // Resolve destination
-      const nextDest = VibeQuestEngine.resolveNextDestination(
-        question,
-        [answerId],
-        sessionState,
-        cart
-      );
+      // Resolve destination & execute navigation
+      const executeNavigation = () => {
+        const nextDest = VibeQuestEngine.resolveNextDestination(
+          question,
+          [answerId],
+          sessionState,
+          cart
+        );
 
-      const parsed = parseDestination(nextDest);
+        const parsed = parseDestination(nextDest);
 
-      if (parsed.type === 'category' && parsed.target) {
-        if (onNavigateCategory) onNavigateCategory(parsed.target);
-      } else if (parsed.type === 'menu' && parsed.target) {
-        if (parsed.target === 'hookah' && onNavigateStage) {
-          onNavigateStage('hookah');
-        } else if (parsed.target === 'food' && onNavigateStage) {
-          onNavigateStage('food');
-        } else if (parsed.target === 'drinks' && onNavigateStage) {
-          onNavigateStage('drinks');
+        if (parsed.type === 'category' && parsed.target) {
+          if (onNavigateCategory) onNavigateCategory(parsed.target);
+        } else if (parsed.type === 'menu' && parsed.target) {
+          if (parsed.target === 'hookah' && onNavigateStage) {
+            onNavigateStage('hookah');
+          } else if (parsed.target === 'food' && onNavigateStage) {
+            onNavigateStage('food');
+          } else if (parsed.target === 'drinks' && onNavigateStage) {
+            onNavigateStage('drinks');
+          }
+        } else if (parsed.type === 'flow') {
+          if (parsed.target === 'mix_lab' && onOpenMixLab) {
+            onOpenMixLab();
+          } else if (onNavigateFlow) {
+            onNavigateFlow(parsed.target || '');
+          }
+        } else if (parsed.type === 'stage' && parsed.target) {
+          if (onNavigateStage) onNavigateStage(parsed.target as VibeQuestStage);
+        } else if (parsed.type === 'skip') {
+          if (onSkip) onSkip();
+        } else if (parsed.type === 'product' && parsed.target && onSelectItem) {
+          const prod = allMenuItems.find((p) => (p._id || p.id) === parsed.target);
+          if (prod) onSelectItem(prod);
+        } else if (parsed.type === 'question' && parsed.target) {
+          setActiveQuestionId(parsed.target);
+        } else if (typeof nextDest === 'object' && nextDest !== null) {
+          switch (nextDest.type) {
+            case 'question':
+              if (nextDest.ref_id) {
+                setActiveQuestionId(nextDest.ref_id);
+              }
+              break;
+            case 'recommendations':
+              break;
+            case 'custom_mix_lab':
+              if (onOpenMixLab) onOpenMixLab();
+              break;
+            case 'product':
+            case 'product_customization':
+              if (nextDest.ref_id && onSelectItem) {
+                const prod = allMenuItems.find((p) => (p._id || p.id) === nextDest.ref_id);
+                if (prod) onSelectItem(prod);
+              }
+              break;
+            case 'next_stage':
+              if (nextDest.ref_id && onNavigateStage) {
+                onNavigateStage(nextDest.ref_id as VibeQuestStage);
+              }
+              break;
+            case 'end_discovery':
+              setIsDismissed(true);
+              break;
+          }
         }
-      } else if (parsed.type === 'flow') {
-        if (parsed.target === 'mix_lab' && onOpenMixLab) {
-          onOpenMixLab();
-        } else if (onNavigateFlow) {
-          onNavigateFlow(parsed.target || '');
+      };
+
+      // Check if this answer has a configured host reply
+      let reply = (answer.host_reply || answer.reaction_message || '').trim();
+      if (!reply && config.settings?.reactions && answer.signals) {
+        for (const sig of answer.signals) {
+          if (config.settings.reactions[sig]) {
+            reply = config.settings.reactions[sig];
+            break;
+          }
         }
-      } else if (parsed.type === 'stage' && parsed.target) {
-        if (onNavigateStage) onNavigateStage(parsed.target as VibeQuestStage);
-      } else if (parsed.type === 'skip') {
-        if (onSkip) onSkip();
-      } else if (parsed.type === 'product' && parsed.target && onSelectItem) {
-        const prod = allMenuItems.find((p) => (p._id || p.id) === parsed.target);
-        if (prod) onSelectItem(prod);
-      } else if (parsed.type === 'question' && parsed.target) {
-        setActiveQuestionId(parsed.target);
-      } else if (typeof nextDest === 'object' && nextDest !== null) {
-        switch (nextDest.type) {
-          case 'question':
-            if (nextDest.ref_id) {
-              setActiveQuestionId(nextDest.ref_id);
-            }
-            break;
-          case 'recommendations':
-            break;
-          case 'custom_mix_lab':
-            if (onOpenMixLab) onOpenMixLab();
-            break;
-          case 'product':
-          case 'product_customization':
-            if (nextDest.ref_id && onSelectItem) {
-              const prod = allMenuItems.find((p) => (p._id || p.id) === nextDest.ref_id);
-              if (prod) onSelectItem(prod);
-            }
-            break;
-          case 'next_stage':
-            if (nextDest.ref_id && onNavigateStage) {
-              onNavigateStage(nextDest.ref_id as VibeQuestStage);
-            }
-            break;
-          case 'end_discovery':
-            setIsDismissed(true);
-            break;
+      }
+
+      if (reply) {
+        const nextDest = VibeQuestEngine.resolveNextDestination(
+          question,
+          [answerId],
+          sessionState,
+          cart
+        );
+        const parsed = parseDestination(nextDest);
+        let destLabel: string | undefined;
+        if (parsed.type === 'category' && parsed.target) {
+          destLabel = parsed.target.replace(/^CAT_/i, '').replace(/_/g, ' ');
+        } else if (parsed.type === 'menu' && parsed.target) {
+          destLabel = parsed.target.toUpperCase();
+        } else if (parsed.type === 'stage' && parsed.target) {
+          destLabel = parsed.target.toUpperCase();
+        } else if (parsed.type === 'flow' && parsed.target === 'mix_lab') {
+          destLabel = 'Custom Mix Lab';
         }
+
+        setHostTransition({
+          questionTitle: question.title || question.question_text,
+          selectedOptionLabel: answer.label,
+          selectedOptionEmoji: answer.emoji,
+          replyMessage: reply,
+          targetDestinationLabel: destLabel,
+          onComplete: () => {
+            setHostTransition(null);
+            executeNavigation();
+          },
+        });
+      } else {
+        executeNavigation();
       }
     },
     [
@@ -472,6 +527,9 @@ export function useVibeQuest({
     showRecsInline,
     reactionMessage,
     sessionState,
+    hostTransition,
+    dismissHostTransition,
+    setHostTransition,
     handleSelectAnswer,
     handleSkipQuestion,
     handleDismissDiscovery,

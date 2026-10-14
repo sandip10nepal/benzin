@@ -8,6 +8,7 @@ import {
   Image,
   Dimensions,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { X, ArrowRight, Plus, Check } from 'lucide-react-native';
 import { MenuItem, SelectedModifier } from '../../types';
@@ -56,9 +57,11 @@ export const OrderReminderModal: React.FC<OrderReminderModalProps> = ({
     ? 'Should we save room for something sweet? 🍰'
     : 'Would you like something to drink? 🥤');
 
-  const displayHelper = helperText || (isDessert
-    ? 'Complete your session with warm Kunafa, Biscoff cake, or traditional sweets.'
-    : 'Pair your dishes with crisp mojitos, fresh juices, Karak chai, or ice-cold sodas.');
+  const displayHelper = typeof helperText === 'string'
+    ? helperText
+    : (isDessert
+        ? 'Complete your session with warm Kunafa, Biscoff cake, or traditional sweets.'
+        : 'Pair your dishes with crisp mojitos, fresh juices, Karak chai, or ice-cold sodas.');
 
   const finalBrowseBtnText = browseBtnText || (isDessert ? 'Browse Desserts 🍰' : 'Browse Drinks 🥤');
   const finalSkipBtnText = skipBtnText || (isDessert ? 'Skip Dessert & Continue →' : 'Skip Drinks & Review Order →');
@@ -106,9 +109,11 @@ export const OrderReminderModal: React.FC<OrderReminderModalProps> = ({
           <Text style={[styles.titleText, { color: theme.textColor }]}>
             {displayTitle}
           </Text>
-          <Text style={[styles.helperText, { color: theme.mutedTextColor }]}>
-            {displayHelper}
-          </Text>
+          {!!displayHelper.trim() && (
+            <Text style={[styles.helperText, { color: theme.mutedTextColor }]}>
+              {displayHelper}
+            </Text>
+          )}
 
           {/* Quick Add Curated Items (if available) */}
           {quickAddItems && quickAddItems.length > 0 && onQuickAdd && (
@@ -116,50 +121,56 @@ export const OrderReminderModal: React.FC<OrderReminderModalProps> = ({
               <Text style={[styles.quickAddHeader, { color: theme.mutedTextColor }]}>
                 POPULAR TABLE PAIRINGS:
               </Text>
-              <View style={styles.quickAddRow}>
-                {quickAddItems.slice(0, 2).map((item, idx) => {
-                  const img = getItemImageSource(item);
-                  return (
-                    <View
-                      key={item.id || `quick_${idx}`}
-                      style={[
-                        styles.quickItemCard,
-                        {
-                          backgroundColor: 'rgba(255,255,255,0.04)',
-                          borderColor: theme.borderColor,
-                        },
-                      ]}
-                    >
-                      <View style={styles.quickItemThumb}>
-                        {img ? (
-                          <Image source={img} style={styles.thumbImage} resizeMode="cover" />
-                        ) : (
-                          <Text style={{ fontSize: 20 }}>{isDessert ? '🍰' : '🍹'}</Text>
-                        )}
-                      </View>
-                      <View style={{ flex: 1, marginHorizontal: 8 }}>
-                        <Text
-                          style={[styles.quickItemName, { color: theme.textColor }]}
-                          numberOfLines={1}
-                        >
-                          {item.name}
-                        </Text>
-                        <Text style={[styles.quickItemPrice, { color: theme.secondaryColor }]}>
-                          ${item.price.toFixed(2)}
-                        </Text>
-                      </View>
-                      <TouchableOpacity
-                        onPress={() => onQuickAdd(item)}
-                        activeOpacity={0.8}
-                        style={[styles.quickAddBtn, { backgroundColor: badgeColor }]}
+              <ScrollView
+                style={{ maxHeight: 220 }}
+                showsVerticalScrollIndicator={quickAddItems.length > 2}
+                nestedScrollEnabled={true}
+              >
+                <View style={styles.quickAddRow}>
+                  {quickAddItems.map((item, idx) => {
+                    const img = getItemImageSource(item);
+                    return (
+                      <View
+                        key={item.id || `quick_${idx}`}
+                        style={[
+                          styles.quickItemCard,
+                          {
+                            backgroundColor: 'rgba(255,255,255,0.04)',
+                            borderColor: theme.borderColor,
+                          },
+                        ]}
                       >
-                        <Plus size={14} color="#FFFFFF" />
-                        <Text style={styles.quickAddBtnText}>Add</Text>
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
-              </View>
+                        <View style={styles.quickItemThumb}>
+                          {img ? (
+                            <Image source={img} style={styles.thumbImage} resizeMode="cover" />
+                          ) : (
+                            <Text style={{ fontSize: 20 }}>{isDessert ? '🍰' : '🍹'}</Text>
+                          )}
+                        </View>
+                        <View style={{ flex: 1, marginHorizontal: 8 }}>
+                          <Text
+                            style={[styles.quickItemName, { color: theme.textColor }]}
+                            numberOfLines={1}
+                          >
+                            {item.name}
+                          </Text>
+                          <Text style={[styles.quickItemPrice, { color: theme.secondaryColor }]}>
+                            ${item.price.toFixed(2)}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => onQuickAdd(item)}
+                          activeOpacity={0.8}
+                          style={[styles.quickAddBtn, { backgroundColor: badgeColor }]}
+                        >
+                          <Plus size={14} color="#FFFFFF" />
+                          <Text style={styles.quickAddBtnText}>Add</Text>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </View>
+              </ScrollView>
             </View>
           )}
 

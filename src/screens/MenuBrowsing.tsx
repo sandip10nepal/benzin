@@ -21,6 +21,8 @@ import { VibeQuestConfig, VibeQuestStage } from '../vibe-quest/vibe-quest.types'
 import { DEFAULT_VIBE_QUEST_CONFIG } from '../vibe-quest/vibe-quest.default';
 import { TenantApiService } from '../services/api';
 import { OrderReminderModal } from '../components/OrderReminder/OrderReminderModal';
+import { HostReplyTransitionModal, HostTransitionPayload } from '../components/VibeQuest/HostReplyTransitionModal';
+import { parseDestination } from '../utils/orderFlowUtils';
 import {
   isDessertInCart,
   isDrinkInCart,
@@ -466,7 +468,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
     return (allMenuItems || []).filter(item => {
       const iId = String(item.id || item._id || '').toLowerCase();
       return rawIds.some(rid => String(rid).toLowerCase() === iId);
-    }).slice(0, 4);
+    });
   }, [allMenuItems, dessertReminderQuestion, dessertBrowseAnswer, vibeQuestConfig?.settings]);
 
   const drinkQuickAddItems = useMemo(() => {
@@ -480,7 +482,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
     return (allMenuItems || []).filter(item => {
       const iId = String(item.id || item._id || '').toLowerCase();
       return rawIds.some(rid => String(rid).toLowerCase() === iId);
-    }).slice(0, 4);
+    });
   }, [allMenuItems, drinkReminderQuestion, drinkBrowseAnswer, vibeQuestConfig?.settings]);
 
   const effectiveRestaurantId = restaurantId || 'RES_EED4E9D266DF';
@@ -644,6 +646,14 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
   }, [allCategories]);
 
   const [activeSuperCatId, setActiveSuperCatId] = useState<string>('ALL');
+  const [inlineHostTransition, setInlineHostTransition] = useState<HostTransitionPayload | null>(null);
+
+  const handleSuperCategoryChange = useCallback((targetCatId: string) => {
+    if (targetCatId === activeSuperCatId) return;
+
+    setActiveSuperCatId(targetCatId);
+    setActiveSubCatId('ALL');
+  }, [activeSuperCatId]);
 
   const currentStage = useMemo<VibeQuestStage>(() => {
     return getStageForCategory(activeSuperCatId);
@@ -681,20 +691,67 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
     const ans = q.answers.find((a) => a.id === answerId);
     if (!ans) return;
 
-    if (vibeQuestConfig.settings?.reactions && ans.signals) {
+    let reply = (ans.host_reply || ans.reaction_message || '').trim();
+    if (!reply && vibeQuestConfig.settings?.reactions && ans.signals) {
       for (const sig of ans.signals) {
         if (vibeQuestConfig.settings.reactions[sig]) {
-          setVibeReactionMessage(vibeQuestConfig.settings.reactions[sig]);
-          return;
+          reply = vibeQuestConfig.settings.reactions[sig];
+          break;
         }
       }
     }
-    if (ans.description) {
-      setVibeReactionMessage(ans.description);
-    } else {
-      setVibeReactionMessage(null);
+    if (!reply && ans.description) {
+      reply = ans.description;
     }
-  }, [vibeQuestConfig]);
+
+    setVibeReactionMessage(reply || null);
+
+    const executeNav = () => {
+      if (!ans.destination || ans.destination === 'skip' || ans.destination === 'stay') return;
+      const parsed = parseDestination(ans.destination);
+      if (parsed.type === 'category' && parsed.target) {
+        const catTarget = parsed.target.toLowerCase();
+        const foundSuper = superCategories.find(sc => (sc._id || '').toLowerCase() === catTarget || (sc.name || '').toLowerCase() === catTarget);
+        if (foundSuper) {
+          handleSuperCategoryChange(foundSuper._id);
+        } else {
+          const foundSub = (allCategories || []).find(c => 
+            (c._id || c.id || '').toLowerCase() === catTarget || (c.name || '').toLowerCase() === catTarget
+          );
+          if (foundSub) {
+            if (activeSuperCatId !== 'cat_super_food' && activeSuperCatId !== 'cat_super_drinks' && activeSuperCatId !== 'cat_super_hookah') {
+              handleSuperCategoryChange('cat_super_food');
+            }
+            setActiveSubCatId(foundSub._id || foundSub.id || foundSub.name);
+          }
+        }
+      } else if (parsed.type === 'stage' && parsed.target) {
+        if (parsed.target === 'food') handleSuperCategoryChange('cat_super_food');
+        else if (parsed.target === 'drinks') handleSuperCategoryChange('cat_super_drinks');
+        else if (parsed.target === 'hookah') handleSuperCategoryChange('cat_super_hookah');
+      } else if (parsed.type === 'flow' && parsed.target === 'mix_lab' && onOpenMixLab) {
+        onOpenMixLab();
+      }
+    };
+
+    if (reply && ans.destination && ans.destination !== 'skip' && ans.destination !== 'stay') {
+      const parsed = parseDestination(ans.destination);
+      let targetLabel: string | undefined = parsed.target ? parsed.target.replace(/^CAT_/i, '').replace(/_/g, ' ') : undefined;
+      setInlineHostTransition({
+        questionTitle: q.title || q.question_text,
+        selectedOptionLabel: ans.label,
+        selectedOptionEmoji: ans.emoji,
+        replyMessage: reply,
+        targetDestinationLabel: targetLabel,
+        onComplete: () => {
+          setInlineHostTransition(null);
+          executeNav();
+        },
+      });
+    } else {
+      executeNav();
+    }
+  }, [vibeQuestConfig, superCategories, allCategories, activeSuperCatId, handleSuperCategoryChange, onOpenMixLab]);
 
   const handleNextInlineQuestion = useCallback(() => {
     if (!currentVibeQuestion || currentStageQuestions.length <= 1) return;
@@ -768,13 +825,6 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
   const [activeSubCatId, setActiveSubCatId] = useState<string>('ALL');
 
   React.useEffect(() => {
-    setActiveSubCatId('ALL');
-  }, [activeSuperCatId]);
-
-  const handleSuperCategoryChange = useCallback((targetCatId: string) => {
-    if (targetCatId === activeSuperCatId) return;
-
-    setActiveSuperCatId(targetCatId);
     setActiveSubCatId('ALL');
   }, [activeSuperCatId]);
 
@@ -1636,7 +1686,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
         visible={activeReminder === 'dessert'}
         type="dessert"
         title={dessertReminderQuestion?.question_text || dessertReminderQuestion?.title || vibeQuestConfig?.settings?.dessert_reminder_text || "Should we save room for something sweet? 🍰"}
-        helperText={dessertReminderQuestion?.helper_text}
+        helperText={dessertReminderQuestion?.subtitle ?? dessertReminderQuestion?.helper_text ?? dessertReminderQuestion?.description ?? vibeQuestConfig?.settings?.dessert_reminder_subtitle}
         browseBtnText={dessertBrowseAnswer?.label || "Browse Desserts 🍰"}
         skipBtnText={dessertSkipAnswer?.label || "Skip Dessert & Continue →"}
         theme={theme}
@@ -1655,7 +1705,7 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
         visible={activeReminder === 'drinks'}
         type="drinks"
         title={drinkReminderQuestion?.question_text || drinkReminderQuestion?.title || vibeQuestConfig?.settings?.drink_reminder_text || "Would you like something to drink? 🥤"}
-        helperText={drinkReminderQuestion?.helper_text}
+        helperText={drinkReminderQuestion?.subtitle ?? drinkReminderQuestion?.helper_text ?? drinkReminderQuestion?.description ?? vibeQuestConfig?.settings?.drink_reminder_subtitle}
         browseBtnText={drinkBrowseAnswer?.label || "Browse Drinks 🥤"}
         skipBtnText={drinkSkipAnswer?.label || "Skip Drinks & Review Order →"}
         theme={theme}
@@ -1667,6 +1717,20 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
         onClose={() => {
           setHandledReminders((prev) => new Set(prev).add('drinks'));
           setActiveReminder(null);
+        }}
+      />
+
+      {/* Conversational Host Reply Transition Modal */}
+      <HostReplyTransitionModal
+        visible={!!inlineHostTransition}
+        transition={inlineHostTransition}
+        theme={theme}
+        isMobile={isMobile}
+        onDismiss={() => {
+          if (inlineHostTransition?.onComplete) {
+            inlineHostTransition.onComplete();
+          }
+          setInlineHostTransition(null);
         }}
       />
     </View>
