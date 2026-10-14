@@ -2101,7 +2101,7 @@ router.post('/inventory/adjust', async (req, res) => {
 // POST /api/orders/inventory/create
 // Creates a new raw material inventory stock item for target tenant
 router.post('/inventory/create', async (req, res) => {
-  const { name, category, stock, unit, reorder_threshold, cost_per_unit, pin, authPin } = req.body;
+  const { name, brand, category, stock, unit, reorder_threshold, cost_per_unit, pin, authPin } = req.body;
 
   const isAuth = await isManagerOrOwner(req, authPin || pin);
   if (!isAuth) {
@@ -2120,7 +2120,8 @@ router.post('/inventory/create', async (req, res) => {
   try {
     const newItem = await InventoryRepository.createItem({
       restaurant_id: restaurantId,
-      name,
+      name: String(name).trim(),
+      brand: brand ? String(brand).trim() : '',
       category: category || 'shisha',
       stock: Number(stock) || 0,
       unit: unit || 'g',
@@ -2139,7 +2140,7 @@ router.post('/inventory/create', async (req, res) => {
 // POST /api/orders/inventory/update
 // Updates an existing raw material inventory stock item for target tenant
 router.post('/inventory/update', async (req, res) => {
-  const { ingredientId, id, name, category, stock, unit, reorder_threshold, pin, authPin } = req.body;
+  const { ingredientId, id, name, brand, category, stock, unit, reorder_threshold, pin, authPin } = req.body;
   const targetId = ingredientId || id;
 
   const isAuth = await isManagerOrOwner(req, authPin || pin);
@@ -2158,7 +2159,8 @@ router.post('/inventory/update', async (req, res) => {
 
   try {
     const updateData: any = {};
-    if (name) updateData.name = name;
+    if (name) updateData.name = String(name).trim();
+    if (brand !== undefined) updateData.brand = String(brand).trim();
     if (category) updateData.category = category;
     if (unit) updateData.unit = unit;
     if (stock !== undefined && !isNaN(Number(stock))) updateData.stock = Number(stock);

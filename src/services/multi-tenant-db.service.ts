@@ -968,29 +968,56 @@ export class MultiTenantDbService {
         return (isCatMatch || (isGramUnit && isNotFood)) && item.active !== false;
       });
 
+      const BRAND_COLORS: Record<string, string> = {
+        'afzal': '#10B981',
+        'adalya': '#EC4899',
+        'adaliya': '#EC4899',
+        'al fakher': '#F59E0B',
+        'eternal smoke': '#8B5CF6',
+        'eternal': '#8B5CF6',
+        'starbuzz': '#3B82F6',
+        'starbuzz exotic': '#06B6D4',
+        'exotic': '#06B6D4',
+        'fumari': '#14B8A6',
+        'tangiers': '#6366F1',
+        'trifecta': '#84CC16',
+        'overdozz': '#F97316',
+        'house': '#E5B13A'
+      };
+
       return hookahFlavors.map(item => {
         const fullName = item.name.trim();
-        let brand = 'House';
+        let brand = (item.brand || '').trim();
         let cleanName = fullName;
 
-        if (fullName.includes('-')) {
-          const parts = fullName.split('-');
-          brand = parts[0].trim();
-          cleanName = parts.slice(1).join('-').trim();
+        if (brand) {
+          // If explicit brand exists, strip redundant brand prefix from cleanName if present
+          if (cleanName.toLowerCase().startsWith(brand.toLowerCase())) {
+            const remainder = cleanName.slice(brand.length).replace(/^[\s\-:]+/, '').trim();
+            if (remainder) cleanName = remainder;
+          }
         } else {
-          const words = fullName.split(' ');
-          const knownBrands = ['afzal', 'adalya', 'adaliya', 'al fakher', 'eternal', 'fumari', 'starbuzz', 'tangiers', 'trifecta'];
-          const firstWord = words[0]?.toLowerCase();
-          const firstTwoWords = `${words[0] || ''} ${words[1] || ''}`.toLowerCase();
-          if (knownBrands.includes(firstTwoWords)) {
-            brand = `${words[0]} ${words[1]}`;
-            cleanName = words.slice(2).join(' ').trim();
-          } else if (knownBrands.includes(firstWord)) {
-            brand = words[0];
-            cleanName = words.slice(1).join(' ').trim();
+          // Fallback heuristic brand detection
+          if (fullName.includes('-')) {
+            const parts = fullName.split('-');
+            brand = parts[0].trim();
+            cleanName = parts.slice(1).join('-').trim();
+          } else {
+            const words = fullName.split(' ');
+            const knownBrands = ['afzal', 'adalya', 'adaliya', 'al fakher', 'eternal', 'fumari', 'starbuzz', 'tangiers', 'trifecta'];
+            const firstWord = words[0]?.toLowerCase();
+            const firstTwoWords = `${words[0] || ''} ${words[1] || ''}`.toLowerCase();
+            if (knownBrands.includes(firstTwoWords)) {
+              brand = `${words[0]} ${words[1]}`;
+              cleanName = words.slice(2).join(' ').trim();
+            } else if (knownBrands.includes(firstWord)) {
+              brand = words[0];
+              cleanName = words.slice(1).join(' ').trim();
+            }
           }
         }
 
+        if (!brand) brand = 'House';
         if (!cleanName) cleanName = fullName;
 
         const stock = Number(item.stock) || 0;
@@ -1008,7 +1035,7 @@ export class MultiTenantDbService {
           active: item.active !== false,
           available: isAvailable,
           price: 0,
-          description: `${brand} - ${cleanName} (${stock}g in stock)`,
+          description: (item as any).description || (brand && brand.toLowerCase() !== 'house' ? `${brand} • ${cleanName}` : cleanName),
           emoji: '💨'
         };
       });
@@ -1023,6 +1050,23 @@ export class MultiTenantDbService {
     const rawConfig = restaurant?.settings?.hookah_config || DEFAULT_HOOKAH_CONFIG;
     const invFlavors = await this.getHookahInventoryFlavors(restaurantId);
 
+    const BRAND_COLORS: Record<string, string> = {
+      'afzal': '#10B981',
+      'adalya': '#EC4899',
+      'adaliya': '#EC4899',
+      'al fakher': '#F59E0B',
+      'eternal smoke': '#8B5CF6',
+      'eternal': '#8B5CF6',
+      'starbuzz': '#3B82F6',
+      'starbuzz exotic': '#06B6D4',
+      'exotic': '#06B6D4',
+      'fumari': '#14B8A6',
+      'tangiers': '#6366F1',
+      'trifecta': '#84CC16',
+      'overdozz': '#F97316',
+      'house': '#E5B13A'
+    };
+
     const normalized = this.normalizeHookahConfig(rawConfig);
     normalized.total_flavor_weight = Math.max(1, Number(rawConfig.total_flavor_weight || (rawConfig as any).total_weight || 20));
 
@@ -1032,9 +1076,11 @@ export class MultiTenantDbService {
       const settingsMap = new Map((rawConfig.flavors || []).map((f: any) => [String(f.id || f.name).toLowerCase(), f]));
       normalized.flavors = invFlavors.map(invF => {
         const existing = settingsMap.get(String(invF.id).toLowerCase()) || settingsMap.get(String(invF.name).toLowerCase()) || settingsMap.get(String(invF.fullName).toLowerCase());
+        const brandKey = (invF.brand || '').toLowerCase().trim();
+        const brandColor = BRAND_COLORS[brandKey] || existing?.color || (invF as any).color || '#8B5CF6';
         return {
           ...invF,
-          color: existing?.color || (invF as any).color || '#8B5CF6',
+          color: brandColor,
           tags: existing?.tags || [invF.brand.toLowerCase()],
         };
       });
@@ -3133,6 +3179,7 @@ export class MultiTenantDbService {
   static async addInventoryItem(item: {
     restaurant_id: string;
     name: string;
+    brand?: string;
     category?: string;
     stock: number;
     unit: string;
@@ -3147,6 +3194,7 @@ export class MultiTenantDbService {
       id: id,
       restaurant_id: item.restaurant_id,
       name: item.name,
+      brand: item.brand ? String(item.brand).trim() : '',
       category: cat,
       category_id: cat,
       stock: item.stock || 0,

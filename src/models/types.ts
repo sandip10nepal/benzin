@@ -460,6 +460,7 @@ export interface InventoryItem {
   id?: string;
   restaurant_id: string;
   name: string;
+  brand?: string;
   category: string;
   category_id?: string;
   stock: number;

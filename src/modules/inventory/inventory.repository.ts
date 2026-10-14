@@ -13,6 +13,7 @@ export class InventoryRepository {
   static async createItem(item: {
     restaurant_id: string;
     name: string;
+    brand?: string;
     category?: string;
     stock: number;
     unit: string;

@@ -1398,10 +1398,21 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
           <div style="font-size: 12px; font-weight: 800; color: var(--gold); text-transform: uppercase;">📦 Multi-Item Recipe (Auto Inventory Deduction)</div>
           <button type="button" class="btn" style="padding: 4px 10px; font-size: 11px; font-weight: 800; background: rgba(229,177,58,0.15); border-color: var(--gold); color: var(--gold);" onclick="addRecipeIngredientRow()">
-            + Add Ingredient
+            + Add Blank Row
           </button>
         </div>
         <p style="font-size: 11px; color: var(--muted); margin: 0 0 10px 0;">Combine multiple raw stock materials to make a single menu item (e.g. House Mixes or Cocktail Recipes).</p>
+
+        <!-- Quick Inventory Search & Add Bar -->
+        <div style="position: relative; margin-bottom: 12px;">
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="recipeInventorySearchInput" placeholder="🔍 Search inventory item by name or brand (e.g. Al Fakher, Pan Ras)..." 
+                   style="flex: 1; padding: 9px 12px; background: var(--card2); border: 1.5px solid var(--gold); border-radius: 8px; color: var(--cream); font-size: 13px;"
+                   oninput="searchRecipeInventoryItems(this.value)"
+                   onfocus="searchRecipeInventoryItems(this.value)">
+          </div>
+          <div id="recipeInventorySearchResults" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; max-height: 220px; overflow-y: auto; background: var(--card); border: 1.5px solid var(--gold); border-radius: 10px; z-index: 10000; box-shadow: 0 10px 30px rgba(0,0,0,0.9); padding: 4px;"></div>
+        </div>
 
         <!-- Dynamic Recipe Rows Container -->
         <div id="recipeRowsContainer" style="display: flex; flex-direction: column; gap: 8px;"></div>
@@ -1419,9 +1430,15 @@
     <div style="width: 100%; max-width: 440px; background: var(--card); border: 1.5px solid var(--gold); border-radius: 20px; padding: 24px; text-align: left; box-shadow: 0 20px 60px rgba(0,0,0,0.9);">
       <h3 style="color: var(--gold); font-size: 18px; font-weight: 800; margin-bottom: 16px;">Add New Inventory Stock Item</h3>
 
-      <div style="margin-bottom: 12px;">
-        <label style="display: block; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 4px;">Ingredient / Item Name *</label>
-        <input type="text" id="invNewName" required placeholder="e.g. Pan Ras Premium or Oat Milk" style="width: 100%; padding: 10px; background: var(--card2); border: 1px solid var(--line); border-radius: 8px; color: var(--cream); font-size: 14px;">
+      <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px; margin-bottom: 12px;">
+        <div>
+          <label style="display: block; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 4px;">Ingredient / Item Name *</label>
+          <input type="text" id="invNewName" required placeholder="e.g. Pan Ras or Love 66" style="width: 100%; padding: 10px; background: var(--card2); border: 1px solid var(--line); border-radius: 8px; color: var(--cream); font-size: 14px;">
+        </div>
+        <div>
+          <label style="display: block; font-size: 11px; font-weight: 700; color: var(--gold); text-transform: uppercase; margin-bottom: 4px;">Brand</label>
+          <input type="text" id="invNewBrand" placeholder="e.g. Al Fakher, Adalya, Afzal, Starbuzz" style="width: 100%; padding: 10px; background: var(--card2); border: 1px solid var(--gold); border-radius: 8px; color: var(--cream); font-size: 14px;">
+        </div>
       </div>
 
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
@@ -1470,9 +1487,15 @@
       <h3 style="color: var(--gold); font-size: 18px; font-weight: 800; margin-bottom: 16px;">✏️ Edit Inventory Stock Item</h3>
       <input type="hidden" id="invEditId">
 
-      <div style="margin-bottom: 12px;">
-        <label style="display: block; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 4px;">Ingredient / Item Name *</label>
-        <input type="text" id="invEditName" required style="width: 100%; padding: 10px; background: var(--card2); border: 1px solid var(--line); border-radius: 8px; color: var(--cream); font-size: 14px;">
+      <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px; margin-bottom: 12px;">
+        <div>
+          <label style="display: block; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 4px;">Ingredient / Item Name *</label>
+          <input type="text" id="invEditName" required style="width: 100%; padding: 10px; background: var(--card2); border: 1px solid var(--line); border-radius: 8px; color: var(--cream); font-size: 14px;">
+        </div>
+        <div>
+          <label style="display: block; font-size: 11px; font-weight: 700; color: var(--gold); text-transform: uppercase; margin-bottom: 4px;">Brand</label>
+          <input type="text" id="invEditBrand" placeholder="e.g. Al Fakher, Adalya, Afzal, Starbuzz" style="width: 100%; padding: 10px; background: var(--card2); border: 1px solid var(--gold); border-radius: 8px; color: var(--cream); font-size: 14px;">
+        </div>
       </div>
 
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
@@ -3873,6 +3896,7 @@
       if (query) {
         filtered = filtered.filter(item => {
           return (item.name || '').toLowerCase().includes(query) ||
+                 (item.brand || '').toLowerCase().includes(query) ||
                  (item.category || '').toLowerCase().includes(query) ||
                  (item.unit || '').toLowerCase().includes(query);
         });
@@ -3902,6 +3926,7 @@
                 </span>
               </div>
               <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap;">
+                ${item.brand ? `<span style="background: rgba(139,92,246,0.18); color: #C4B5FD; border: 1px solid #8B5CF6; border-radius: 20px; padding: 2px 8px; font-size: 10px; font-weight: 800; text-transform: uppercase;">🏷️ ${escapeHtml(item.brand)}</span>` : ''}
                 <span style="background: rgba(229,177,58,0.1); color: var(--gold); border: 1px solid var(--gold); border-radius: 20px; padding: 2px 8px; font-size: 10px; font-weight: 700; text-transform: uppercase;">${(item.category || 'general').toUpperCase()}</span>
                 <span style="font-size: 11px; color: var(--muted); font-weight: 600;">Threshold: ${minAlert}${unit}</span>
               </div>
@@ -3958,6 +3983,7 @@
 
     function openAddInventoryModal() {
       document.getElementById('invNewName').value = '';
+      document.getElementById('invNewBrand').value = '';
       document.getElementById('invNewStock').value = '';
       document.getElementById('invNewMinAlert').value = '200';
       populateInventoryCategoryDropdowns(activeInventorySubTab || 'INVCAT_1862EED65A2E');
@@ -3974,6 +4000,7 @@
         const item = JSON.parse(decodeURIComponent(escapedObjStr));
         document.getElementById('invEditId').value = item.id || item._id || '';
         document.getElementById('invEditName').value = item.name || '';
+        document.getElementById('invEditBrand').value = item.brand || '';
         populateInventoryCategoryDropdowns(item.category_id || item.category || activeInventorySubTab || 'INVCAT_1862EED65A2E');
         document.getElementById('invEditUnit').value = item.unit || 'g';
         document.getElementById('invEditStock').value = item.stock !== undefined ? item.stock : 0;
@@ -3991,6 +4018,7 @@
     async function saveEditInventoryItem() {
       const ingredientId = document.getElementById('invEditId').value;
       const name = document.getElementById('invEditName').value.trim();
+      const brand = document.getElementById('invEditBrand').value.trim();
       const category = document.getElementById('invEditCategory').value.trim();
       const unit = document.getElementById('invEditUnit').value.trim();
       const stock = parseFloat(document.getElementById('invEditStock').value);
@@ -4006,7 +4034,7 @@
         const res = await fetch(`${API_URL}/api/orders/inventory/update`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ ingredientId, name, category, unit, stock, reorder_threshold })
+          body: JSON.stringify({ ingredientId, name, brand, category, unit, stock, reorder_threshold })
         });
 
         const data = await res.json();
@@ -4045,6 +4073,7 @@
 
     async function saveNewInventoryItem() {
       const name = document.getElementById('invNewName').value.trim();
+      const brand = document.getElementById('invNewBrand').value.trim();
       const category = document.getElementById('invNewCategory').value;
       const unit = document.getElementById('invNewUnit').value;
       const stock = parseFloat(document.getElementById('invNewStock').value);
@@ -4060,7 +4089,7 @@
         const res = await fetch(`${API_URL}/api/orders/inventory/create`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ name, category, unit, stock, reorder_threshold })
+          body: JSON.stringify({ name, brand, category, unit, stock, reorder_threshold })
         });
 
         const data = await res.json();
@@ -4122,7 +4151,8 @@
         const isSel = (itemKey === ingredientId || (matchedItem && (item.id || item._id) === (matchedItem.id || matchedItem._id))) ? 'selected' : '';
         const isHk = (item.unit === 'g' || String(item.category || '').toLowerCase().includes('hookah') || String(item.category || '').toLowerCase().includes('shisha') || String(item.category_id || '').toLowerCase().includes('hookah'));
         const stockStr = `${item.stock !== undefined ? item.stock : 0}${item.unit || 'g'}`;
-        const optHtml = `<option value="${itemKey}" data-unit="${item.unit || 'g'}" data-stock="${item.stock || 0}" ${isSel}>${isHk ? '💨' : '📦'} ${escapeHtml(item.name)} (${stockStr} in stock)</option>`;
+        const brandPrefix = item.brand ? `[${escapeHtml(item.brand)}] ` : '';
+        const optHtml = `<option value="${itemKey}" data-unit="${item.unit || 'g'}" data-stock="${item.stock || 0}" ${isSel}>${isHk ? '💨' : '📦'} ${brandPrefix}${escapeHtml(item.name)} (${stockStr} in stock)</option>`;
         if (isHk) {
           hookahOptions += optHtml;
         } else {
@@ -4227,6 +4257,90 @@
       });
       return recipe;
     }
+
+    function searchRecipeInventoryItems(query) {
+      const resultsEl = document.getElementById('recipeInventorySearchResults');
+      if (!resultsEl) return;
+      const q = (query || '').toLowerCase().trim();
+      const dbItems = Object.values(inventory || {}).filter(item => item.active !== false);
+
+      if (!q) {
+        // Show initial 15 items
+        const initialItems = dbItems.slice(0, 15);
+        renderRecipeSearchResults(initialItems, resultsEl);
+        return;
+      }
+
+      const matches = dbItems.filter(item => {
+        const name = (item.name || '').toLowerCase();
+        const brand = (item.brand || '').toLowerCase();
+        const cat = (item.category || '').toLowerCase();
+        return name.includes(q) || brand.includes(q) || cat.includes(q);
+      });
+
+      renderRecipeSearchResults(matches, resultsEl);
+    }
+
+    function renderRecipeSearchResults(items, resultsEl) {
+      if (items.length === 0) {
+        resultsEl.innerHTML = `<div style="padding: 12px; text-align: center; color: var(--muted); font-size: 12px;">No matching inventory stock items found</div>`;
+        resultsEl.style.display = 'block';
+        return;
+      }
+
+      resultsEl.innerHTML = items.map(item => {
+        const itemKey = item.id || item._id || item.name;
+        const isHk = (item.unit === 'g' || String(item.category || '').toLowerCase().includes('hookah') || String(item.category || '').toLowerCase().includes('shisha') || String(item.category_id || '').toLowerCase().includes('hookah'));
+        const stockStr = `${item.stock !== undefined ? item.stock : 0}${item.unit || 'g'}`;
+        const brandBadge = item.brand ? `<span style="background: rgba(139,92,246,0.22); color: #C4B5FD; border: 1px solid #8B5CF6; border-radius: 4px; padding: 1px 6px; font-size: 10px; font-weight: 800; text-transform: uppercase;">${escapeHtml(item.brand)}</span>` : '';
+        const itemEscaped = encodeURIComponent(itemKey);
+
+        return `
+          <div class="recipe-search-item" onclick="selectRecipeSearchItem('${itemEscaped}')" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; cursor: pointer; transition: background 0.15s; border-bottom: 1px solid rgba(255,255,255,0.05);" onmouseover="this.style.background='var(--card2)'" onmouseout="this.style.background='transparent'">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 16px;">${isHk ? '💨' : '📦'}</span>
+              <div>
+                <div style="font-size: 13px; font-weight: 800; color: var(--cream);">${escapeHtml(item.name)}</div>
+                <div style="display: flex; gap: 6px; align-items: center; margin-top: 2px;">
+                  ${brandBadge}
+                  <span style="font-size: 11px; color: var(--muted);">${escapeHtml(item.category || 'Stock')}</span>
+                </div>
+              </div>
+            </div>
+            <div style="text-align: right;">
+              <span style="font-size: 12px; font-weight: 800; color: ${(item.stock || 0) <= (item.reorder_threshold || 100) ? 'var(--danger)' : 'var(--success)'};">${stockStr} in stock</span>
+              <div style="font-size: 10px; color: var(--gold); font-weight: 700;">+ Click to add</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      resultsEl.style.display = 'block';
+    }
+
+    function selectRecipeSearchItem(escapedItemKey) {
+      const itemKey = decodeURIComponent(escapedItemKey);
+      addRecipeIngredientRow(itemKey, '', 'g', '');
+      const searchInput = document.getElementById('recipeInventorySearchInput');
+      const resultsEl = document.getElementById('recipeInventorySearchResults');
+      if (searchInput) searchInput.value = '';
+      if (resultsEl) resultsEl.style.display = 'none';
+
+      // Focus the newly added row's quantity input
+      const rows = document.querySelectorAll('#recipeRowsContainer .recipe-row');
+      if (rows.length > 0) {
+        const lastRow = rows[rows.length - 1];
+        const valInput = lastRow.querySelector('.recipe-ing-val');
+        if (valInput) valInput.focus();
+      }
+    }
+
+    document.addEventListener('click', function(e) {
+      const resultsEl = document.getElementById('recipeInventorySearchResults');
+      const searchInput = document.getElementById('recipeInventorySearchInput');
+      if (resultsEl && searchInput && !resultsEl.contains(e.target) && e.target !== searchInput) {
+        resultsEl.style.display = 'none';
+      }
+    });
 
     // ── MODIFIERS & CHOICE GROUPS (e.g. Wing Sauces, Soft Drinks, Add-ons) ──
     function addModifierGroupBlock(groupData = null) {
@@ -4766,6 +4880,11 @@
       if (container) container.innerHTML = '';
       addRecipeIngredientRow();
 
+      const searchInput = document.getElementById('recipeInventorySearchInput');
+      if (searchInput) searchInput.value = '';
+      const searchRes = document.getElementById('recipeInventorySearchResults');
+      if (searchRes) searchRes.style.display = 'none';
+
       const modal = document.getElementById('menuItemModal');
       if (modal) modal.style.display = 'flex';
     }
@@ -4838,6 +4957,11 @@
           addRecipeIngredientRow();
         }
 
+        const searchInput = document.getElementById('recipeInventorySearchInput');
+        if (searchInput) searchInput.value = '';
+        const searchRes = document.getElementById('recipeInventorySearchResults');
+        if (searchRes) searchRes.style.display = 'none';
+
         const modal = document.getElementById('menuItemModal');
         if (modal) modal.style.display = 'flex';
       } catch (err) {
@@ -4846,6 +4970,10 @@
     }
 
     function closeMenuItemModal() {
+      const searchInput = document.getElementById('recipeInventorySearchInput');
+      if (searchInput) searchInput.value = '';
+      const searchRes = document.getElementById('recipeInventorySearchResults');
+      if (searchRes) searchRes.style.display = 'none';
       const modal = document.getElementById('menuItemModal');
       if (modal) modal.style.display = 'none';
     }
