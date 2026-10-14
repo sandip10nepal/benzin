@@ -427,13 +427,61 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
   const [handledReminders, setHandledReminders] = useState<Set<'dessert' | 'drinks'>>(new Set());
   const [pendingTargetCatId, setPendingTargetCatId] = useState<string | null>(null);
 
+  const dessertReminderQuestion = useMemo(() => {
+    return (vibeQuestConfig?.questions || []).find(q =>
+      q.navigation_trigger === 'cart_dessert' || q.id === 'q_dessert_reminder' || (q.stage === 'dessert' && q.repeat_policy === 'cart_conditional')
+    );
+  }, [vibeQuestConfig?.questions]);
+
+  const dessertBrowseAnswer = useMemo(() => {
+    return dessertReminderQuestion?.answers?.find(a => a.destination && a.destination !== 'skip') || dessertReminderQuestion?.answers?.[0];
+  }, [dessertReminderQuestion]);
+
+  const dessertSkipAnswer = useMemo(() => {
+    return dessertReminderQuestion?.answers?.find(a => a.destination === 'skip') || dessertReminderQuestion?.answers?.[1];
+  }, [dessertReminderQuestion]);
+
+  const drinkReminderQuestion = useMemo(() => {
+    return (vibeQuestConfig?.questions || []).find(q =>
+      q.navigation_trigger === 'cart_drinks' || (q.repeat_policy === 'cart_conditional' && q.stage === 'drinks') || q.id === 'q_drink_cart_reminder'
+    );
+  }, [vibeQuestConfig?.questions]);
+
+  const drinkBrowseAnswer = useMemo(() => {
+    return drinkReminderQuestion?.answers?.find(a => a.destination && a.destination !== 'skip') || drinkReminderQuestion?.answers?.[0];
+  }, [drinkReminderQuestion]);
+
+  const drinkSkipAnswer = useMemo(() => {
+    return drinkReminderQuestion?.answers?.find(a => a.destination === 'skip') || drinkReminderQuestion?.answers?.[1];
+  }, [drinkReminderQuestion]);
+
   const dessertQuickAddItems = useMemo(() => {
-    return (allMenuItems || []).filter(isDessertItem).slice(0, 2);
-  }, [allMenuItems]);
+    const rawIds = dessertReminderQuestion?.curated_product_ids 
+      || dessertReminderQuestion?.pinned_product_ids 
+      || dessertBrowseAnswer?.curated_product_ids
+      || dessertBrowseAnswer?.pinned_product_ids
+      || vibeQuestConfig?.settings?.dessert_featured_product_ids
+      || [];
+    if (!rawIds || rawIds.length === 0) return [];
+    return (allMenuItems || []).filter(item => {
+      const iId = String(item.id || item._id || '').toLowerCase();
+      return rawIds.some(rid => String(rid).toLowerCase() === iId);
+    }).slice(0, 4);
+  }, [allMenuItems, dessertReminderQuestion, dessertBrowseAnswer, vibeQuestConfig?.settings]);
 
   const drinkQuickAddItems = useMemo(() => {
-    return (allMenuItems || []).filter(isDrinkItem).slice(0, 2);
-  }, [allMenuItems]);
+    const rawIds = drinkReminderQuestion?.curated_product_ids 
+      || drinkReminderQuestion?.pinned_product_ids 
+      || drinkBrowseAnswer?.curated_product_ids
+      || drinkBrowseAnswer?.pinned_product_ids
+      || vibeQuestConfig?.settings?.drink_featured_product_ids
+      || [];
+    if (!rawIds || rawIds.length === 0) return [];
+    return (allMenuItems || []).filter(item => {
+      const iId = String(item.id || item._id || '').toLowerCase();
+      return rawIds.some(rid => String(rid).toLowerCase() === iId);
+    }).slice(0, 4);
+  }, [allMenuItems, drinkReminderQuestion, drinkBrowseAnswer, vibeQuestConfig?.settings]);
 
   const effectiveRestaurantId = restaurantId || 'RES_EED4E9D266DF';
   const effectiveTableNumber = tableNumber || theme.tableNumber || '1';
@@ -1587,7 +1635,10 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
       <OrderReminderModal
         visible={activeReminder === 'dessert'}
         type="dessert"
-        title={vibeQuestConfig?.settings?.dessert_reminder_text || "Should we save room for something sweet? 🍰"}
+        title={dessertReminderQuestion?.question_text || dessertReminderQuestion?.title || vibeQuestConfig?.settings?.dessert_reminder_text || "Should we save room for something sweet? 🍰"}
+        helperText={dessertReminderQuestion?.helper_text}
+        browseBtnText={dessertBrowseAnswer?.label || "Browse Desserts 🍰"}
+        skipBtnText={dessertSkipAnswer?.label || "Skip Dessert & Continue →"}
         theme={theme}
         isMobile={isMobile}
         quickAddItems={dessertQuickAddItems}
@@ -1603,7 +1654,10 @@ export const MenuBrowsing: React.FC<MenuBrowsingProps> = ({
       <OrderReminderModal
         visible={activeReminder === 'drinks'}
         type="drinks"
-        title={vibeQuestConfig?.settings?.drink_reminder_text || "Would you like something to drink? 🥤"}
+        title={drinkReminderQuestion?.question_text || drinkReminderQuestion?.title || vibeQuestConfig?.settings?.drink_reminder_text || "Would you like something to drink? 🥤"}
+        helperText={drinkReminderQuestion?.helper_text}
+        browseBtnText={drinkBrowseAnswer?.label || "Browse Drinks 🥤"}
+        skipBtnText={drinkSkipAnswer?.label || "Skip Drinks & Review Order →"}
         theme={theme}
         isMobile={isMobile}
         quickAddItems={drinkQuickAddItems}

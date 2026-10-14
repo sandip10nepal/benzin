@@ -455,14 +455,6 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
   const [activeReminder, setActiveReminder] = useState<'dessert' | 'drinks' | null>(null);
   const [handledReminders, setHandledReminders] = useState<Set<'dessert' | 'drinks'>>(new Set());
 
-  const dessertQuickAddItems = useMemo(() => {
-    return (allMenuItems || []).filter(isDessertItem).slice(0, 2);
-  }, [allMenuItems]);
-
-  const drinkQuickAddItems = useMemo(() => {
-    return (allMenuItems || []).filter(isDrinkItem).slice(0, 2);
-  }, [allMenuItems]);
-
   // Subcategory filter states
   const [foodSubcategory, setFoodSubcategory] = useState<string>('ALL');
   const [drinkSubcategory, setDrinkSubcategory] = useState<string>('ALL');
@@ -666,6 +658,62 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
       q.navigation_trigger === 'start_order' || q.id === 'q_hookah_experience' || q.stage === 'hookah'
     );
   }, [vibeQuestConfig?.questions]);
+
+  const dessertReminderQuestion = useMemo(() => {
+    return (vibeQuestConfig?.questions || []).find(q =>
+      q.navigation_trigger === 'cart_dessert' || q.id === 'q_dessert_reminder' || (q.stage === 'dessert' && q.repeat_policy === 'cart_conditional')
+    );
+  }, [vibeQuestConfig?.questions]);
+
+  const dessertBrowseAnswer = useMemo(() => {
+    return dessertReminderQuestion?.answers?.find(a => a.destination && a.destination !== 'skip') || dessertReminderQuestion?.answers?.[0];
+  }, [dessertReminderQuestion]);
+
+  const dessertSkipAnswer = useMemo(() => {
+    return dessertReminderQuestion?.answers?.find(a => a.destination === 'skip') || dessertReminderQuestion?.answers?.[1];
+  }, [dessertReminderQuestion]);
+
+  const drinkReminderQuestion = useMemo(() => {
+    return (vibeQuestConfig?.questions || []).find(q =>
+      q.navigation_trigger === 'cart_drinks' || (q.repeat_policy === 'cart_conditional' && q.stage === 'drinks') || q.id === 'q_drink_cart_reminder'
+    );
+  }, [vibeQuestConfig?.questions]);
+
+  const drinkBrowseAnswer = useMemo(() => {
+    return drinkReminderQuestion?.answers?.find(a => a.destination && a.destination !== 'skip') || drinkReminderQuestion?.answers?.[0];
+  }, [drinkReminderQuestion]);
+
+  const drinkSkipAnswer = useMemo(() => {
+    return drinkReminderQuestion?.answers?.find(a => a.destination === 'skip') || drinkReminderQuestion?.answers?.[1];
+  }, [drinkReminderQuestion]);
+
+  const dessertQuickAddItems = useMemo(() => {
+    const rawIds = dessertReminderQuestion?.curated_product_ids 
+      || dessertReminderQuestion?.pinned_product_ids 
+      || dessertBrowseAnswer?.curated_product_ids
+      || dessertBrowseAnswer?.pinned_product_ids
+      || vibeQuestConfig?.settings?.dessert_featured_product_ids
+      || [];
+    if (!rawIds || rawIds.length === 0) return [];
+    return (allMenuItems || []).filter(item => {
+      const iId = String(item.id || item._id || '').toLowerCase();
+      return rawIds.some(rid => String(rid).toLowerCase() === iId);
+    }).slice(0, 4);
+  }, [allMenuItems, dessertReminderQuestion, dessertBrowseAnswer, vibeQuestConfig?.settings]);
+
+  const drinkQuickAddItems = useMemo(() => {
+    const rawIds = drinkReminderQuestion?.curated_product_ids 
+      || drinkReminderQuestion?.pinned_product_ids 
+      || drinkBrowseAnswer?.curated_product_ids
+      || drinkBrowseAnswer?.pinned_product_ids
+      || vibeQuestConfig?.settings?.drink_featured_product_ids
+      || [];
+    if (!rawIds || rawIds.length === 0) return [];
+    return (allMenuItems || []).filter(item => {
+      const iId = String(item.id || item._id || '').toLowerCase();
+      return rawIds.some(rid => String(rid).toLowerCase() === iId);
+    }).slice(0, 4);
+  }, [allMenuItems, drinkReminderQuestion, drinkBrowseAnswer, vibeQuestConfig?.settings]);
 
   // Bypass selection screen if disabled by admin
   React.useEffect(() => {
@@ -1007,34 +1055,6 @@ export const ConversationalHost: React.FC<ConversationalHostProps> = ({
     }
     return null;
   }, [step, hasFood, hasDrinks, hasHookahs, handleProceedFromFood, handleProceedFromDrinks]);
-
-  const dessertReminderQuestion = useMemo(() => {
-    return (vibeQuestConfig?.questions || []).find(q =>
-      q.navigation_trigger === 'cart_dessert' || q.id === 'q_dessert_reminder' || (q.stage === 'dessert' && q.repeat_policy === 'cart_conditional')
-    );
-  }, [vibeQuestConfig?.questions]);
-
-  const dessertBrowseAnswer = useMemo(() => {
-    return dessertReminderQuestion?.answers?.find(a => a.destination && a.destination !== 'skip') || dessertReminderQuestion?.answers?.[0];
-  }, [dessertReminderQuestion]);
-
-  const dessertSkipAnswer = useMemo(() => {
-    return dessertReminderQuestion?.answers?.find(a => a.destination === 'skip') || dessertReminderQuestion?.answers?.[1];
-  }, [dessertReminderQuestion]);
-
-  const drinkReminderQuestion = useMemo(() => {
-    return (vibeQuestConfig?.questions || []).find(q =>
-      q.navigation_trigger === 'cart_drinks' || (q.id === 'q_drink_reminder' && q.repeat_policy === 'cart_conditional')
-    );
-  }, [vibeQuestConfig?.questions]);
-
-  const drinkBrowseAnswer = useMemo(() => {
-    return drinkReminderQuestion?.answers?.find(a => a.destination && a.destination !== 'skip') || drinkReminderQuestion?.answers?.[0];
-  }, [drinkReminderQuestion]);
-
-  const drinkSkipAnswer = useMemo(() => {
-    return drinkReminderQuestion?.answers?.find(a => a.destination === 'skip') || drinkReminderQuestion?.answers?.[1];
-  }, [drinkReminderQuestion]);
 
   const handleDessertBrowse = useCallback(() => {
     setHandledReminders((prev) => new Set(prev).add('dessert'));
