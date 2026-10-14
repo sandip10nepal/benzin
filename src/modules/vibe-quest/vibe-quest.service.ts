@@ -157,6 +157,8 @@ export class VibeQuestService {
         required: q.required ?? false,
         skippable: q.skippable ?? true,
         repeat_policy: repeatPolicy,
+        curated_product_ids: Array.isArray(q.curated_product_ids) ? q.curated_product_ids : (q.pinned_product_ids || []),
+        pinned_product_ids: Array.isArray(q.pinned_product_ids) ? q.pinned_product_ids : (q.curated_product_ids || []),
         answers: (q.answers || []).map((ans, aIdx) => ({
           id: ans.id || `ans_${idx}_${aIdx}`,
           label: ans.label || '',
@@ -164,6 +166,8 @@ export class VibeQuestService {
           destination: ans.destination || '',
           active: ans.active !== false,
           sort_order: typeof ans.sort_order === 'number' ? ans.sort_order : aIdx,
+          curated_product_ids: Array.isArray(ans.curated_product_ids) ? ans.curated_product_ids : (q.curated_product_ids || []),
+          pinned_product_ids: Array.isArray(ans.pinned_product_ids) ? ans.pinned_product_ids : (q.pinned_product_ids || []),
         })),
       };
     });
@@ -179,7 +183,7 @@ export class VibeQuestService {
     const dessertDest = (dessertBrowseAns?.destination || customSettings?.dessert_destination_category || 'CAT_DESSERTS').replace(/^category:/, '');
 
     const drinkCartQ = sanitizedQuestions.find(
-      (q) => q.navigation_trigger === 'cart_drinks' || (q.repeat_policy === 'cart_conditional' && q.stage === 'drinks')
+      (q) => q.navigation_trigger === 'cart_drinks' || (q.repeat_policy === 'cart_conditional' && q.stage === 'drinks') || q.id === 'q_drink_cart_reminder'
     );
     const drinkBrowseAns = drinkCartQ?.answers?.find((a) => a.destination && a.destination !== 'skip');
     const drinkDest = (drinkBrowseAns?.destination || customSettings?.drink_destination_category || 'cat_super_drinks').replace(/^category:/, '');
@@ -193,9 +197,11 @@ export class VibeQuestService {
       dessert_reminder_enabled: dessertQ ? dessertQ.active !== false : (customSettings?.dessert_reminder_enabled ?? true),
       dessert_reminder_text: dessertQ?.question_text || customSettings?.dessert_reminder_text || 'Should we save room for something sweet? 🍰',
       dessert_destination_category: dessertDest,
+      dessert_featured_product_ids: dessertQ?.curated_product_ids || customSettings?.dessert_featured_product_ids || [],
       drink_reminder_enabled: drinkCartQ ? drinkCartQ.active !== false : (customSettings?.drink_reminder_enabled ?? true),
       drink_reminder_text: drinkCartQ?.question_text || customSettings?.drink_reminder_text || 'Would you like something to drink? 🥤',
       drink_destination_category: drinkDest,
+      drink_featured_product_ids: drinkCartQ?.curated_product_ids || customSettings?.drink_featured_product_ids || [],
     };
 
     const newConfig: VibeQuestConfig = {

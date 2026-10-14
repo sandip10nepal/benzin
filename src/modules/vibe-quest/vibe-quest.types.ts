@@ -99,6 +99,8 @@ export interface VibeQuestQuestion {
   skippable: boolean;
   repeat_policy: VibeQuestRepeatPolicy;
   display_conditions?: VibeQuestCondition[];
+  curated_product_ids?: string[];
+  pinned_product_ids?: string[];
   answers: VibeQuestAnswer[];
   default_destination?: VibeQuestDestination | string;
   branches?: VibeQuestBranchRule[];
@@ -110,9 +112,11 @@ export interface VibeQuestConfigSettings {
   dessert_reminder_enabled?: boolean;
   dessert_reminder_text?: string;
   dessert_destination_category?: string;
+  dessert_featured_product_ids?: string[];
   drink_reminder_enabled?: boolean;
   drink_reminder_text?: string;
   drink_destination_category?: string;
+  drink_featured_product_ids?: string[];
   dessert_category_ids: string[];
   drink_category_ids?: string[];
   dessert_trigger_stage?: VibeQuestStage;

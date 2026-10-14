@@ -7452,23 +7452,41 @@
                 trigger = 'next_food';
               } else if (q.stage === 'dessert' || q.id === 'q_dessert_reminder' || (q.repeat_policy === 'cart_conditional' && q.stage === 'dessert')) {
                 trigger = 'cart_dessert';
-              } else if (q.repeat_policy === 'cart_conditional' && q.stage === 'drinks') {
+              } else if (q.stage === 'drinks' && (q.repeat_policy === 'cart_conditional' || q.id === 'q_drink_cart_reminder')) {
                 trigger = 'cart_drinks';
               } else if (q.stage === 'drinks' || q.id === 'q_drink_reminder') {
                 trigger = 'next_drinks';
               } else {
                 trigger = 'start_order';
               }
+            } else if (q.id === 'q_drink_cart_reminder' || (q.repeat_policy === 'cart_conditional' && q.stage === 'drinks')) {
+              trigger = 'cart_drinks';
+            } else if (q.id === 'q_dessert_reminder' || (q.repeat_policy === 'cart_conditional' && q.stage === 'dessert')) {
+              trigger = 'cart_dessert';
             }
+
+            let curated = Array.isArray(q.curated_product_ids) ? [...q.curated_product_ids] : (Array.isArray(q.pinned_product_ids) ? [...q.pinned_product_ids] : []);
+            if (curated.length === 0) {
+              if (trigger === 'cart_dessert') {
+                const sCurated = data.draft?.settings?.dessert_featured_product_ids || data.published?.settings?.dessert_featured_product_ids || data.settings?.dessert_featured_product_ids;
+                if (Array.isArray(sCurated)) curated = [...sCurated];
+              } else if (trigger === 'cart_drinks') {
+                const sCurated = data.draft?.settings?.drink_featured_product_ids || data.published?.settings?.drink_featured_product_ids || data.settings?.drink_featured_product_ids;
+                if (Array.isArray(sCurated)) curated = [...sCurated];
+              }
+            }
+
             return {
               id: q.id || `q_${trigger}_${idx + 1}`,
               navigation_trigger: trigger,
               question_text: q.question_text || q.title || '',
               active: q.active !== false,
+              curated_product_ids: curated,
               answers: Array.isArray(q.answers) ? q.answers.map((a, aIdx) => ({
                 id: a.id || `ans_${idx + 1}_${aIdx + 1}`,
                 label: a.label || '',
-                destination: a.destination || 'skip'
+                destination: a.destination || 'skip',
+                curated_product_ids: Array.isArray(a.curated_product_ids) ? [...a.curated_product_ids] : []
               })) : []
             };
           });
@@ -7479,14 +7497,36 @@
             const dessertActive = (data.draft?.settings?.dessert_reminder_enabled ?? data.published?.settings?.dessert_reminder_enabled ?? data.settings?.dessert_reminder_enabled) !== false;
             const rawDessertDest = data.draft?.settings?.dessert_destination_category || data.published?.settings?.dessert_destination_category || data.settings?.dessert_destination_category || 'CAT_DESSERTS';
             const dessertDest = String(rawDessertDest).replace(/^category:/, '');
+            const dessertCurated = Array.isArray(data.draft?.settings?.dessert_featured_product_ids) ? data.draft.settings.dessert_featured_product_ids : (Array.isArray(data.settings?.dessert_featured_product_ids) ? data.settings.dessert_featured_product_ids : []);
             configuredQuestions.push({
               id: 'q_dessert_reminder',
               navigation_trigger: 'cart_dessert',
               question_text: dessertText,
               active: dessertActive,
+              curated_product_ids: [...dessertCurated],
               answers: [
                 { id: 'ans_d_browse', label: 'Browse Desserts 🍰', destination: `category:${dessertDest}` },
                 { id: 'ans_d_skip', label: 'Skip Dessert & Continue →', destination: 'skip' }
+              ]
+            });
+          }
+
+          // Ensure cart_drinks question is present in configuredQuestions
+          if (!configuredQuestions.some(q => q.navigation_trigger === 'cart_drinks')) {
+            const drinkText = data.draft?.settings?.drink_reminder_text || data.published?.settings?.drink_reminder_text || data.settings?.drink_reminder_text || 'Would you like something to drink? 🥤';
+            const drinkActive = (data.draft?.settings?.drink_reminder_enabled ?? data.published?.settings?.drink_reminder_enabled ?? data.settings?.drink_reminder_enabled) !== false;
+            const rawDrinkDest = data.draft?.settings?.drink_destination_category || data.published?.settings?.drink_destination_category || data.settings?.drink_destination_category || 'cat_super_drinks';
+            const drinkDest = String(rawDrinkDest).replace(/^category:/, '');
+            const drinkCurated = Array.isArray(data.draft?.settings?.drink_featured_product_ids) ? data.draft.settings.drink_featured_product_ids : (Array.isArray(data.settings?.drink_featured_product_ids) ? data.settings.drink_featured_product_ids : []);
+            configuredQuestions.push({
+              id: 'q_drink_cart_reminder',
+              navigation_trigger: 'cart_drinks',
+              question_text: drinkText,
+              active: drinkActive,
+              curated_product_ids: [...drinkCurated],
+              answers: [
+                { id: 'ans_dr_browse', label: 'Browse Drinks 🥤', destination: `category:${drinkDest}` },
+                { id: 'ans_dr_skip', label: 'Skip Drinks & Review Order →', destination: 'stage:checkout' }
               ]
             });
           }
@@ -7498,6 +7538,7 @@
               navigation_trigger: 'start_order',
               question_text: 'What kind of hookah experience would you like?',
               active: true,
+              curated_product_ids: [],
               answers: [
                 { id: 'ans_1', label: 'House Mix Hookahs', destination: 'menu:hookah' },
                 { id: 'ans_2', label: 'Create Your Own Hookah', destination: 'flow:mix_lab' }
@@ -7508,6 +7549,7 @@
               navigation_trigger: 'next_food',
               question_text: 'What are we craving?',
               active: true,
+              curated_product_ids: [],
               answers: [
                 { id: 'ans_1', label: 'Browse Food Menu', destination: 'menu:food' },
                 { id: 'ans_2', label: 'Skip', destination: 'skip' }
@@ -7518,6 +7560,7 @@
               navigation_trigger: 'next_drinks',
               question_text: 'Would you like something to drink?',
               active: true,
+              curated_product_ids: [],
               answers: [
                 { id: 'ans_1', label: 'Browse Drinks Menu', destination: 'menu:drinks' },
                 { id: 'ans_2', label: 'Skip', destination: 'skip' }
@@ -7528,9 +7571,21 @@
               navigation_trigger: 'cart_dessert',
               question_text: 'Should we save room for something sweet? 🍰',
               active: true,
+              curated_product_ids: [],
               answers: [
                 { id: 'ans_1', label: 'Browse Desserts 🍰', destination: 'category:CAT_DESSERTS' },
                 { id: 'ans_2', label: 'Skip Dessert & Continue →', destination: 'skip' }
+              ]
+            },
+            {
+              id: 'q_drink_cart_reminder',
+              navigation_trigger: 'cart_drinks',
+              question_text: 'Would you like something to drink? 🥤',
+              active: true,
+              curated_product_ids: [],
+              answers: [
+                { id: 'ans_1', label: 'Browse Drinks 🥤', destination: 'menu:drinks' },
+                { id: 'ans_2', label: 'Skip Drinks & Review Order →', destination: 'stage:checkout' }
               ]
             }
           ];
@@ -7547,6 +7602,45 @@
           </div>
         `;
       }
+    }
+
+    function buildCategorizedMenuItemsOptions(selectedIds = []) {
+      const selectedSet = new Set((selectedIds || []).map(id => String(id)));
+      const items = Array.isArray(menuItems) ? menuItems : [];
+      const cats = typeof getAllMenuCategoriesList === 'function' ? getAllMenuCategoriesList() : (Array.isArray(window.menuCategories) ? window.menuCategories : []);
+      const catMap = {};
+      cats.forEach(c => {
+        catMap[c.id || c._id] = c.name || c.id || c._id;
+      });
+
+      // Group items by category
+      const grouped = {};
+      items.forEach(item => {
+        const iId = String(item.id || item._id);
+        if (selectedSet.has(iId)) return;
+        const cId = item.category || (Array.isArray(item.category_ids) ? item.category_ids[0] : 'other');
+        const cName = catMap[cId] || cId || 'Other Menu Items';
+        if (!grouped[cName]) grouped[cName] = [];
+        grouped[cName].push(item);
+      });
+
+      let html = '<option value="">-- Select a Menu Item to Add --</option>';
+      const groupNames = Object.keys(grouped).sort();
+      if (groupNames.length === 0) {
+        html = '<option value="">-- All Available Items Already Added --</option>';
+        return html;
+      }
+      groupNames.forEach(gName => {
+        html += `<optgroup label="${escapeHtml(gName)}">`;
+        grouped[gName].forEach(it => {
+          const id = it.id || it._id;
+          const price = it.price ? ` ($${Number(it.price).toFixed(2)})` : '';
+          html += `<option value="${escapeHtml(id)}">${escapeHtml(it.name)}${price}</option>`;
+        });
+        html += `</optgroup>`;
+      });
+
+      return html;
     }
 
     function buildDestinationOptionsHtml(selectedVal) {
@@ -7616,6 +7710,7 @@
       let html = '';
       configuredQuestions.forEach((q, qIdx) => {
         const answers = Array.isArray(q.answers) ? q.answers : [];
+        const curatedIds = Array.isArray(q.curated_product_ids) ? q.curated_product_ids : [];
 
         html += `
           <div style="background: var(--card); border: 1.5px solid var(--line); border-radius: 16px; padding: 22px 24px; box-shadow: 0 4px 18px rgba(0,0,0,0.3); transition: border-color 0.2s;">
@@ -7660,11 +7755,60 @@
             </div>
 
             <!-- Question Text Field -->
-            <div style="margin-bottom: 20px;">
+            <div style="margin-bottom: 18px;">
               <label style="display: block; font-size: 11px; font-weight: 800; color: var(--cream); text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.4px;">
                 Question Text <span style="color: var(--gold);">(Customer Prompt)</span>
               </label>
               <input type="text" value="${escapeHtml(q.question_text)}" onchange="updateQuestionText(${qIdx}, this.value)" oninput="updateQuestionText(${qIdx}, this.value)" placeholder="e.g. What kind of hookah experience would you like?" style="width: 100%; padding: 12px 14px; font-size: 15px; font-weight: 700; border-radius: 10px; background: var(--card2); border: 1.5px solid var(--line); color: var(--cream); box-sizing: border-box;">
+            </div>
+
+            <!-- Featured Menu Items / Table Pairings (Optional) -->
+            <div style="background: rgba(0,0,0,0.22); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 18px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span style="font-size: 12px; font-weight: 800; color: var(--gold); text-transform: uppercase; letter-spacing: 0.4px;">
+                    ⭐ Featured Menu Items (Popular Table Pairings)
+                  </span>
+                  <span style="font-size: 11px; font-weight: 700; color: var(--muted);">
+                    (${curatedIds.length} added)
+                  </span>
+                </div>
+                <div style="font-size: 11px; color: var(--muted);">
+                  Quick-add cards shown in customer popup. If none added, table pairings won't be displayed.
+                </div>
+              </div>
+
+              <!-- Selected Items Badges -->
+              <div id="curatedList_${qIdx}" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: ${curatedIds.length > 0 ? '12px' : '8px'};">
+                ${curatedIds.length === 0 ? `
+                  <div style="font-size: 12px; color: var(--muted); font-style: italic; padding: 4px 0;">
+                    No menu items added. Customers will only see the prompt without table pairings.
+                  </div>
+                ` : curatedIds.map(itemId => {
+                  const mItem = (menuItems || []).find(m => String(m.id || m._id) === String(itemId));
+                  const itemName = mItem ? mItem.name : itemId;
+                  const itemPrice = mItem && mItem.price ? `$${Number(mItem.price).toFixed(2)}` : '';
+                  const itemImg = mItem && mItem.image_url ? `<img src="${escapeHtml(mItem.image_url)}" style="width: 22px; height: 22px; border-radius: 4px; object-fit: cover;" />` : '';
+                  return `
+                    <div style="display: inline-flex; align-items: center; gap: 8px; background: var(--card2); border: 1.5px solid var(--gold); border-radius: 8px; padding: 5px 10px; font-size: 12px; font-weight: 700; color: var(--cream);">
+                      ${itemImg}
+                      <span>${escapeHtml(itemName)}</span>
+                      ${itemPrice ? `<span style="color: var(--gold); font-size: 11px;">${itemPrice}</span>` : ''}
+                      <button type="button" onclick="removeFeaturedItemFromQuestion(${qIdx}, '${escapeHtml(itemId)}')" title="Remove" style="background: none; border: none; color: var(--danger); font-size: 15px; font-weight: 900; cursor: pointer; padding: 0 0 0 4px; line-height: 1;">✕</button>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+
+              <!-- Add Item Selector Dropdown & Button -->
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <select id="curatedSelect_${qIdx}" style="padding: 7px 12px; font-size: 12px; font-weight: 700; border-radius: 8px; background: var(--card2); border: 1px solid var(--line); color: var(--cream); cursor: pointer; max-width: 340px; flex: 1; min-width: 220px;">
+                  ${buildCategorizedMenuItemsOptions(curatedIds)}
+                </select>
+                <button type="button" class="btn" onclick="addFeaturedItemToQuestion(${qIdx})" style="padding: 7px 14px; font-size: 12px; font-weight: 800; background: var(--gold); color: #000; border-radius: 8px; white-space: nowrap;">
+                  + Add Item
+                </button>
+              </div>
             </div>
 
             <!-- Answer Options List -->
@@ -7723,6 +7867,28 @@
 
       container.innerHTML = html;
       if (window.lucide) lucide.createIcons();
+    }
+
+    function addFeaturedItemToQuestion(qIdx) {
+      if (!configuredQuestions[qIdx]) return;
+      const select = document.getElementById(`curatedSelect_${qIdx}`);
+      if (!select || !select.value) {
+        alert('Please select a menu item from the dropdown.');
+        return;
+      }
+      if (!Array.isArray(configuredQuestions[qIdx].curated_product_ids)) {
+        configuredQuestions[qIdx].curated_product_ids = [];
+      }
+      if (!configuredQuestions[qIdx].curated_product_ids.includes(select.value)) {
+        configuredQuestions[qIdx].curated_product_ids.push(select.value);
+      }
+      renderQuestionCards();
+    }
+
+    function removeFeaturedItemFromQuestion(qIdx, itemId) {
+      if (!configuredQuestions[qIdx] || !Array.isArray(configuredQuestions[qIdx].curated_product_ids)) return;
+      configuredQuestions[qIdx].curated_product_ids = configuredQuestions[qIdx].curated_product_ids.filter(id => String(id) !== String(itemId));
+      renderQuestionCards();
     }
 
     function updateQuestionTrigger(qIdx, trigger) {
@@ -7787,6 +7953,7 @@
         navigation_trigger: 'start_order',
         question_text: '',
         active: true,
+        curated_product_ids: [],
         answers: [
           { id: `ans_1_${Date.now()}`, label: '', destination: 'skip' }
         ]
@@ -7831,15 +7998,18 @@
       let dessertReminderText = 'Should we save room for something sweet? 🍰';
       let dessertReminderEnabled = true;
       let dessertDestCat = 'CAT_DESSERTS';
+      let dessertFeaturedProductIds = [];
       let drinkReminderText = 'Would you like something to drink? 🥤';
       let drinkReminderEnabled = true;
       let drinkDestCat = 'cat_super_drinks';
+      let drinkFeaturedProductIds = [];
 
       const formattedQuestions = configuredQuestions.map((q, idx) => {
         const trigger = q.navigation_trigger || 'start_order';
         let stage = 'hookah';
         let repeatPolicy = 'always';
         let qId = q.id || `q_${trigger}_${idx + 1}`;
+        const curated = Array.isArray(q.curated_product_ids) ? [...q.curated_product_ids] : [];
 
         if (trigger === 'start_order') {
           stage = 'hookah';
@@ -7856,6 +8026,7 @@
           qId = 'q_dessert_reminder';
           dessertReminderText = q.question_text.trim();
           dessertReminderEnabled = q.active !== false;
+          dessertFeaturedProductIds = curated;
           const browseAns = (q.answers || []).find(a => a.destination && a.destination !== 'skip');
           if (browseAns && browseAns.destination) {
             dessertDestCat = browseAns.destination.replace(/^category:/, '');
@@ -7866,6 +8037,7 @@
           qId = 'q_drink_cart_reminder';
           drinkReminderText = q.question_text.trim();
           drinkReminderEnabled = q.active !== false;
+          drinkFeaturedProductIds = curated;
           const browseAns = (q.answers || []).find(a => a.destination && a.destination !== 'skip');
           if (browseAns && browseAns.destination) {
             drinkDestCat = browseAns.destination.replace(/^category:/, '');
@@ -7883,12 +8055,15 @@
           active: q.active !== false,
           skippable: true,
           repeat_policy: repeatPolicy,
+          curated_product_ids: curated,
+          pinned_product_ids: curated,
           answers: (q.answers || []).map((ans, aIdx) => ({
             id: ans.id || `ans_${idx + 1}_${aIdx + 1}`,
             label: ans.label.trim(),
             destination: ans.destination || 'skip',
             preference_signals: [],
-            curated_product_ids: []
+            curated_product_ids: curated,
+            pinned_product_ids: curated
           }))
         };
       });
@@ -7911,9 +8086,11 @@
               dessert_reminder_enabled: dessertReminderEnabled,
               dessert_reminder_text: dessertReminderText,
               dessert_destination_category: dessertDestCat,
+              dessert_featured_product_ids: dessertFeaturedProductIds,
               drink_reminder_enabled: drinkReminderEnabled,
               drink_reminder_text: drinkReminderText,
-              drink_destination_category: drinkDestCat
+              drink_destination_category: drinkDestCat,
+              drink_featured_product_ids: drinkFeaturedProductIds
             }
           })
         });
@@ -7951,6 +8128,9 @@
     window.deleteQuestionCard = deleteQuestionCard;
     window.moveQuestionCard = moveQuestionCard;
     window.saveAllConfiguredQuestions = saveAllConfiguredQuestions;
+    window.addFeaturedItemToQuestion = addFeaturedItemToQuestion;
+    window.removeFeaturedItemFromQuestion = removeFeaturedItemFromQuestion;
+    window.buildCategorizedMenuItemsOptions = buildCategorizedMenuItemsOptions;
   </script>
 </body>
 </html>
