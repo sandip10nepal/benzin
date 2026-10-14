@@ -4001,13 +4001,31 @@
     function openEditInventoryModalFromObj(escapedObjStr) {
       try {
         const item = JSON.parse(decodeURIComponent(escapedObjStr));
-        document.getElementById('invEditId').value = item.id || item._id || '';
-        document.getElementById('invEditName').value = item.name || '';
-        document.getElementById('invEditBrand').value = item.brand || '';
-        populateInventoryCategoryDropdowns(item.category_id || item.category || activeInventorySubTab || 'INVCAT_1862EED65A2E');
-        document.getElementById('invEditUnit').value = item.unit || 'g';
-        document.getElementById('invEditStock').value = item.stock !== undefined ? item.stock : 0;
-        document.getElementById('invEditMinAlert').value = item.reorder_threshold !== undefined ? item.reorder_threshold : 100;
+        const id = item.id || item._id || '';
+        // If the live in-memory inventory has a newer brand, use it!
+        const liveItem = (inventory && (inventory[id] || Object.values(inventory).find(i => (i.id || i._id) === id))) || item;
+        
+        let brandVal = (liveItem.brand || item.brand || '').trim();
+        if (!brandVal) {
+          const n = (item.name || '').toLowerCase();
+          if (n.includes('al fakher') || n.includes('alfakher')) brandVal = 'Al Fakher';
+          else if (n.includes('adalya') || n.includes('adaliya') || n.includes('bagdadi') || n.includes('lady killer') || n.includes('love 66') || n.includes('mi amor') || n.includes('berlin night')) brandVal = 'Adalya';
+          else if (n.includes('afzal') || n.includes('pan raas') || n.includes('paan raas') || n.includes('pan ras')) brandVal = 'Afzal';
+          else if (n.includes('starbuzz') || n.includes('blue mist')) brandVal = 'Starbuzz';
+          else if (n.includes('serbetli') || n.includes('sarbeti')) brandVal = 'Serbetli';
+          else if (n.includes('fumari')) brandVal = 'Fumari';
+          else if (n.includes('savacco')) brandVal = 'Savacco';
+          else if (n.includes('overdozz')) brandVal = 'Overdozz';
+          else if (n.includes('eternal smoke')) brandVal = 'Eternal Smoke';
+        }
+
+        document.getElementById('invEditId').value = id;
+        document.getElementById('invEditName').value = liveItem.name || item.name || '';
+        document.getElementById('invEditBrand').value = brandVal;
+        populateInventoryCategoryDropdowns(liveItem.category_id || liveItem.category || item.category_id || item.category || activeInventorySubTab || 'INVCAT_1862EED65A2E');
+        document.getElementById('invEditUnit').value = liveItem.unit || item.unit || 'g';
+        document.getElementById('invEditStock').value = liveItem.stock !== undefined ? liveItem.stock : (item.stock !== undefined ? item.stock : 0);
+        document.getElementById('invEditMinAlert').value = liveItem.reorder_threshold !== undefined ? liveItem.reorder_threshold : (item.reorder_threshold !== undefined ? item.reorder_threshold : 100);
         document.getElementById('editInventoryModal').style.display = 'flex';
       } catch (err) {
         console.error('Error opening edit inventory modal:', err);
@@ -4043,7 +4061,31 @@
 
         const data = await res.json();
         if (data.success) {
+          // Immediately sync in-memory inventory dictionary
+          if (inventory) {
+            if (inventory[ingredientId]) {
+              inventory[ingredientId].brand = brand;
+              inventory[ingredientId].name = name;
+              inventory[ingredientId].category = category;
+              inventory[ingredientId].category_id = category;
+              inventory[ingredientId].unit = unit;
+              inventory[ingredientId].stock = stock;
+              inventory[ingredientId].reorder_threshold = reorder_threshold;
+            } else {
+              const matched = Object.values(inventory).find(i => (i.id || i._id) === ingredientId);
+              if (matched) {
+                matched.brand = brand;
+                matched.name = name;
+                matched.category = category;
+                matched.category_id = category;
+                matched.unit = unit;
+                matched.stock = stock;
+                matched.reorder_threshold = reorder_threshold;
+              }
+            }
+          }
           closeEditInventoryModal();
+          renderInventoryPage();
           await loadData();
         } else {
           alert('Could not update inventory item: ' + (data.message || 'Error'));
@@ -4135,7 +4177,41 @@
       renderMenuPage();
     }
 
-    function addRecipeIngredientRow(ingredientId = '', amount = '', unit = 'g', percentage = '') {
+    function onRecipeIngredientSelected(selectEl) {
+      if (!selectEl) return;
+      const row = selectEl.closest('.recipe-row');
+      if (!row) return;
+
+      const opt = selectEl.options[selectEl.selectedIndex];
+      const unit = opt?.dataset?.unit || 'g';
+      const modeSelect = row.querySelector('.recipe-ing-mode');
+      const valInput = row.querySelector('.recipe-ing-val');
+
+      if (modeSelect) {
+        if (unit === 'g') {
+          modeSelect.innerHTML = `
+            <option value="g" selected>Grams (g)</option>
+            <option value="pct">Ratio (%)</option>
+          `;
+        } else {
+          modeSelect.innerHTML = `
+            <option value="${unit}" selected>${unit.toUpperCase()}</option>
+          `;
+        }
+      }
+
+      if (valInput) {
+        const curVal = parseFloat(valInput.value || '0');
+        if (isNaN(curVal) || curVal <= 0) {
+          valInput.value = unit === 'g' ? 10 : 1;
+        }
+        valInput.placeholder = unit === 'g' ? '10g' : `1 ${unit}`;
+      }
+
+      updateRecipeRowPreview(valInput);
+    }
+
+    function addRecipeIngredientRow(ingredientId = '', amount = '', unit = '', percentage = '') {
       const container = document.getElementById('recipeRowsContainer');
       if (!container) return;
 
@@ -4147,46 +4223,85 @@
       const matchedItem = dbItems.find(i => (i.id || i._id) === ingredientId || (i.name && i.name.toLowerCase() === String(ingredientId).toLowerCase()));
       const isMissingOrInactive = ingredientId && (!matchedItem || matchedItem.active === false);
 
-      const totalWeight = (typeof currentHookahConfig !== 'undefined' && currentHookahConfig?.total_flavor_weight) ? Number(currentHookahConfig.total_flavor_weight) : 20;
+      const resolvedUnit = matchedItem?.unit || unit || 'g';
 
-      let hookahOptions = '';
-      let otherOptions = '';
+      // Build categorized options from inventoryCategories
+      const allCats = (typeof getAllInventoryCategoriesList === 'function') ? getAllInventoryCategoriesList() : [];
+      const catMap = new Map();
+      allCats.forEach(c => {
+        catMap.set(String(c.id || c._id).toLowerCase(), { cat: c, options: [] });
+      });
+
+      const unassignedOptions = [];
 
       dbItems.forEach(item => {
         const itemKey = item.id || item._id || item.name;
         const isSel = (itemKey === ingredientId || (matchedItem && (item.id || item._id) === (matchedItem.id || matchedItem._id))) ? 'selected' : '';
-        const isHk = (item.unit === 'g' || String(item.category || '').toLowerCase().includes('hookah') || String(item.category || '').toLowerCase().includes('shisha') || String(item.category_id || '').toLowerCase().includes('hookah'));
         const stockStr = `${item.stock !== undefined ? item.stock : 0}${item.unit || 'g'}`;
         const brandPrefix = item.brand ? `[${escapeHtml(item.brand)}] ` : '';
-        const optHtml = `<option value="${itemKey}" data-unit="${item.unit || 'g'}" data-stock="${item.stock || 0}" ${isSel}>${isHk ? '💨' : '📦'} ${brandPrefix}${escapeHtml(item.name)} (${stockStr} in stock)</option>`;
-        if (isHk) {
-          hookahOptions += optHtml;
+        
+        // Find category match
+        const itemCatKey = String(item.category_id || item.category || '').toLowerCase();
+        let targetGroup = catMap.get(itemCatKey);
+        if (!targetGroup) {
+          for (const [k, v] of catMap.entries()) {
+            if (itemCatKey.includes(k) || (v.cat.title && itemCatKey.includes(v.cat.title.toLowerCase()))) {
+              targetGroup = v;
+              break;
+            }
+          }
+        }
+
+        const icon = targetGroup ? (targetGroup.cat.icon || '📦') : (item.unit === 'g' ? '💨' : '📦');
+        const optHtml = `<option value="${itemKey}" data-unit="${item.unit || 'g'}" data-stock="${item.stock || 0}" ${isSel}>${icon} ${brandPrefix}${escapeHtml(item.name)} (${stockStr} in stock)</option>`;
+
+        if (targetGroup) {
+          targetGroup.options.push(optHtml);
         } else {
-          otherOptions += optHtml;
+          unassignedOptions.push(optHtml);
         }
       });
+
+      let categoryOptgroupsHtml = '';
+      allCats.forEach(c => {
+        const group = catMap.get(String(c.id || c._id).toLowerCase());
+        if (group && group.options.length > 0) {
+          categoryOptgroupsHtml += `<optgroup label="${group.cat.icon || '📦'} ${escapeHtml(group.cat.title)}">${group.options.join('')}</optgroup>`;
+        }
+      });
+      if (unassignedOptions.length > 0) {
+        categoryOptgroupsHtml += `<optgroup label="📦 General Supplies">${unassignedOptions.join('')}</optgroup>`;
+      }
 
       let missingOpt = '';
       if (isMissingOrInactive) {
         missingOpt = `<option value="${ingredientId}" selected>⚠️ [Unavailable/Inactive] ${escapeHtml(matchedItem ? matchedItem.name : ingredientId)}</option>`;
       }
 
-      const initialMode = (percentage !== '' && percentage !== undefined && Number(percentage) > 0) ? 'pct' : 'g';
-      const initialVal = initialMode === 'pct' ? percentage : (amount || '');
+      const initialMode = (percentage !== '' && percentage !== undefined && Number(percentage) > 0) ? 'pct' : (resolvedUnit || 'g');
+      const initialVal = initialMode === 'pct' ? percentage : (amount !== '' && amount !== undefined ? amount : (ingredientId ? (resolvedUnit === 'g' ? 10 : 1) : ''));
+
+      let modeOptionsHtml = '';
+      if (resolvedUnit === 'g') {
+        modeOptionsHtml = `
+          <option value="g" ${initialMode === 'g' ? 'selected' : ''}>Grams (g)</option>
+          <option value="pct" ${initialMode === 'pct' ? 'selected' : ''}>Ratio (%)</option>
+        `;
+      } else {
+        modeOptionsHtml = `<option value="${resolvedUnit}" selected>${resolvedUnit.toUpperCase()}</option>`;
+      }
 
       rowDiv.innerHTML = `
         <div style="display: flex; gap: 8px; align-items: center;">
-          <select class="recipe-ing-select" style="flex: 2; min-width: 160px; padding: 8px; background: var(--card2); border: 1px solid ${isMissingOrInactive ? 'var(--danger)' : 'var(--line)'}; border-radius: 6px; color: var(--cream); font-size: 12px;" onchange="updateRecipeRowPreview(this)">
-            <option value="">-- Select Hookah Flavor / Raw Stock --</option>
+          <select class="recipe-ing-select" style="flex: 2; min-width: 160px; padding: 8px; background: var(--card2); border: 1px solid ${isMissingOrInactive ? 'var(--danger)' : 'var(--line)'}; border-radius: 6px; color: var(--cream); font-size: 12px;" onchange="onRecipeIngredientSelected(this)">
+            <option value="">-- Select Raw Stock / Inventory Item --</option>
             ${missingOpt}
-            ${hookahOptions ? `<optgroup label="💨 Hookah Flavors">${hookahOptions}</optgroup>` : ''}
-            ${otherOptions ? `<optgroup label="📦 Raw Supplies & Ingredients">${otherOptions}</optgroup>` : ''}
+            ${categoryOptgroupsHtml}
           </select>
           <select class="recipe-ing-mode" style="width: 85px; padding: 8px; background: var(--card2); border: 1px solid var(--line); border-radius: 6px; color: var(--gold); font-size: 12px; font-weight: 800;" onchange="updateRecipeRowPreview(this)">
-            <option value="g" ${initialMode === 'g' ? 'selected' : ''}>Grams (g)</option>
-            <option value="pct" ${initialMode === 'pct' ? 'selected' : ''}>Ratio (%)</option>
+            ${modeOptionsHtml}
           </select>
-          <input type="number" step="0.5" min="0" class="recipe-ing-val" placeholder="${initialMode === 'pct' ? '50%' : '10g'}" value="${initialVal}" style="width: 90px; padding: 8px; background: var(--card2); border: 1px solid var(--line); border-radius: 6px; color: var(--cream); font-size: 12px; font-weight: 700;" oninput="updateRecipeRowPreview(this)">
+          <input type="number" step="0.5" min="0" class="recipe-ing-val" placeholder="${resolvedUnit === 'g' ? (initialMode === 'pct' ? '50%' : '10g') : `1 ${resolvedUnit}`}" value="${initialVal}" style="width: 90px; padding: 8px; background: var(--card2); border: 1px solid var(--line); border-radius: 6px; color: var(--cream); font-size: 12px; font-weight: 700;" oninput="updateRecipeRowPreview(this)">
           <button type="button" class="btn btn-danger" style="padding: 6px 10px; font-size: 12px;" onclick="this.closest('.recipe-row').remove()">✕</button>
         </div>
         <div class="recipe-row-feedback" style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 2px;">
@@ -4217,9 +4332,11 @@
       if (mode === 'pct') {
         const grams = ((val / 100) * totalWeight).toFixed(1).replace(/\.0$/, '');
         previewEl.innerHTML = `Calculated: <b>${grams}g</b> (${val}% of ${totalWeight}g bowl)`;
-      } else {
+      } else if (mode === 'g') {
         const pct = ((val / totalWeight) * 100).toFixed(0);
         previewEl.innerHTML = `Calculated: <b>${pct}%</b> of ${totalWeight}g bowl (${val}g)`;
+      } else {
+        previewEl.innerHTML = `Deduction: <b>${val} ${mode}</b> per menu item ordered`;
       }
     }
 
@@ -4230,36 +4347,46 @@
       const dbItems = Object.values(inventory || {});
 
       rows.forEach(row => {
-        const ingId = row.querySelector('.recipe-ing-select')?.value;
+        const selectEl = row.querySelector('.recipe-ing-select');
+        const ingId = selectEl?.value;
+        if (!ingId) return;
+
         const mode = row.querySelector('.recipe-ing-mode')?.value || 'g';
-        const rawVal = parseFloat(row.querySelector('.recipe-ing-val')?.value || '0');
+        const valInput = row.querySelector('.recipe-ing-val');
+        let rawVal = parseFloat(valInput?.value || '0');
 
-        if (ingId && !isNaN(rawVal) && rawVal > 0) {
-          const invMatch = dbItems.find(i => (i.id || i._id) === ingId || (i.name && i.name.toLowerCase() === ingId.toLowerCase()));
-          const itemName = invMatch ? invMatch.name : ingId;
-          const unit = invMatch?.unit || 'g';
+        const invMatch = dbItems.find(i => (i.id || i._id) === ingId || (i.name && i.name.toLowerCase() === ingId.toLowerCase()));
+        const itemName = invMatch ? invMatch.name : (selectEl.options[selectEl.selectedIndex]?.text || ingId);
+        const itemUnit = invMatch?.unit || selectEl.options[selectEl.selectedIndex]?.dataset?.unit || 'g';
 
-          let quantity = 0;
-          let percentage = undefined;
+        // If user selected an ingredient but left the value empty or <= 0, default to 1 (or 10 for grams)
+        if (isNaN(rawVal) || rawVal <= 0) {
+          rawVal = itemUnit === 'g' ? 10 : 1;
+          if (valInput) valInput.value = rawVal;
+        }
 
-          if (mode === 'pct') {
-            percentage = rawVal;
-            quantity = parseFloat(((rawVal / 100) * totalWeight).toFixed(2));
-          } else {
-            quantity = rawVal;
+        let quantity = 0;
+        let percentage = undefined;
+
+        if (mode === 'pct') {
+          percentage = rawVal;
+          quantity = parseFloat(((rawVal / 100) * totalWeight).toFixed(2));
+        } else {
+          quantity = rawVal;
+          if (itemUnit === 'g') {
             percentage = parseFloat(((rawVal / totalWeight) * 100).toFixed(1));
           }
-
-          recipe.push({
-            ingredient_id: ingId,
-            ingredientId: ingId,
-            quantity,
-            amount: quantity,
-            percentage,
-            unit,
-            name: itemName
-          });
         }
+
+        recipe.push({
+          ingredient_id: ingId,
+          ingredientId: ingId,
+          quantity,
+          amount: quantity,
+          percentage,
+          unit: mode === 'pct' ? 'g' : (mode || itemUnit || 'g'),
+          name: itemName
+        });
       });
       return recipe;
     }
@@ -4296,7 +4423,10 @@
 
       resultsEl.innerHTML = items.map(item => {
         const itemKey = item.id || item._id || item.name;
-        const isHk = (item.unit === 'g' || String(item.category || '').toLowerCase().includes('hookah') || String(item.category || '').toLowerCase().includes('shisha') || String(item.category_id || '').toLowerCase().includes('hookah'));
+        const allCats = (typeof getAllInventoryCategoriesList === 'function') ? getAllInventoryCategoriesList() : [];
+        const matchedCat = allCats.find(c => (c.id || c._id) === item.category_id || (c.id || c._id) === item.category);
+        const catTitle = matchedCat ? matchedCat.title : (item.category || 'Stock');
+        const catIcon = matchedCat ? (matchedCat.icon || '📦') : (item.unit === 'g' ? '💨' : '📦');
         const stockStr = `${item.stock !== undefined ? item.stock : 0}${item.unit || 'g'}`;
         const brandBadge = item.brand ? `<span style="background: rgba(139,92,246,0.22); color: #C4B5FD; border: 1px solid #8B5CF6; border-radius: 4px; padding: 1px 6px; font-size: 10px; font-weight: 800; text-transform: uppercase;">${escapeHtml(item.brand)}</span>` : '';
         const itemEscaped = encodeURIComponent(itemKey);
@@ -4304,12 +4434,12 @@
         return `
           <div class="recipe-search-item" onclick="selectRecipeSearchItem('${itemEscaped}')" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; cursor: pointer; transition: background 0.15s; border-bottom: 1px solid rgba(255,255,255,0.05);" onmouseover="this.style.background='var(--card2)'" onmouseout="this.style.background='transparent'">
             <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-size: 16px;">${isHk ? '💨' : '📦'}</span>
+              <span style="font-size: 16px;">${catIcon}</span>
               <div>
                 <div style="font-size: 13px; font-weight: 800; color: var(--cream);">${escapeHtml(item.name)}</div>
                 <div style="display: flex; gap: 6px; align-items: center; margin-top: 2px;">
                   ${brandBadge}
-                  <span style="font-size: 11px; color: var(--muted);">${escapeHtml(item.category || 'Stock')}</span>
+                  <span style="font-size: 11px; color: var(--muted);">${catIcon} ${escapeHtml(catTitle)}</span>
                 </div>
               </div>
             </div>
@@ -4325,7 +4455,12 @@
 
     function selectRecipeSearchItem(escapedItemKey) {
       const itemKey = decodeURIComponent(escapedItemKey);
-      addRecipeIngredientRow(itemKey, '', 'g', '');
+      const dbItems = Object.values(inventory || {});
+      const invMatch = dbItems.find(i => (i.id || i._id) === itemKey || (i.name && i.name.toLowerCase() === itemKey.toLowerCase()));
+      const defaultUnit = invMatch?.unit || 'g';
+      const defaultQty = defaultUnit === 'g' ? 10 : 1;
+
+      addRecipeIngredientRow(itemKey, defaultQty, defaultUnit, '');
       const searchInput = document.getElementById('recipeInventorySearchInput');
       const resultsEl = document.getElementById('recipeInventorySearchResults');
       if (searchInput) searchInput.value = '';
@@ -4336,7 +4471,10 @@
       if (rows.length > 0) {
         const lastRow = rows[rows.length - 1];
         const valInput = lastRow.querySelector('.recipe-ing-val');
-        if (valInput) valInput.focus();
+        if (valInput) {
+          valInput.focus();
+          valInput.select();
+        }
       }
     }
 
@@ -4626,18 +4764,6 @@
         });
       });
 
-      // Built-in recipes fallback dict for items with implicit recipes
-      const staticRecipesDict = {
-        'hummus': [{ ingredientId: 'chickpeas', amount: 80 }, { ingredientId: 'tahini', amount: 20 }, { ingredientId: 'pita_bread', amount: 1 }],
-        'falafel': [{ ingredientId: 'chickpea_flour', amount: 60 }, { ingredientId: 'tahini', amount: 15 }],
-        'dyn_chk': [{ ingredientId: 'chicken_breast', amount: 150 }],
-        'bun_kab': [{ ingredientId: 'beef_patty', amount: 120 }, { ingredientId: 'burger_buns', amount: 1 }],
-        'anarkali': [{ ingredientId: 'pan_ras', amount: 10 }, { ingredientId: 'lady_killer', amount: 5 }, { ingredientId: 'bagdadi', amount: 5 }],
-        'lady_killer': [{ ingredientId: 'lady_killer', amount: 20 }],
-        'love_66': [{ ingredientId: 'love_66', amount: 20 }],
-        'mango_mojito': [{ ingredientId: 'mint_leaves', amount: 10 }, { ingredientId: 'soda_water', amount: 150 }]
-      };
-
       let html = '';
       const sortedSubKeys = Object.keys(subCategoryMap).sort((a, b) => {
         return (subCategoryMap[a].sort_order ?? 999) - (subCategoryMap[b].sort_order ?? 999);
@@ -4664,17 +4790,16 @@
             let ingredientsList = [];
             const invArray = Array.isArray(inventory) ? inventory : Object.values(inventory || {});
             
-            const recipeData = (Array.isArray(item.recipe) && item.recipe.length > 0) ? item.recipe :
-                               (staticRecipesDict[String(item.id || item._id).toLowerCase()] || staticRecipesDict[String(item.name || '').toLowerCase().replace(/[^a-z0-9]/g, '_')]);
+            const recipeData = (Array.isArray(item.recipe) && item.recipe.length > 0) ? item.recipe : [];
 
             if (Array.isArray(recipeData) && recipeData.length > 0) {
               recipeData.forEach(r => {
                 const ingId = r.ingredientId || r.ingredient_id;
-                const amt = r.amount || r.ingredient_amount || 0;
+                const amt = r.amount || r.ingredient_amount || r.quantity || 0;
                 if (!ingId) return;
                 const invItem = invArray.find(i => i.id === ingId || i._id === ingId || (i.name && i.name.toLowerCase() === String(ingId).toLowerCase()));
-                const ingName = invItem ? invItem.name : (String(ingId).charAt(0).toUpperCase() + String(ingId).slice(1).replace(/_/g, ' '));
-                const unit = invItem ? (invItem.unit || 'g') : 'g';
+                const ingName = invItem ? invItem.name : (r.name || String(ingId).charAt(0).toUpperCase() + String(ingId).slice(1).replace(/_/g, ' '));
+                const unit = r.unit || (invItem ? invItem.unit : 'g') || 'g';
                 ingredientsList.push(`<span style="color:var(--cream); font-weight:700;">${ingName}</span>: <span style="color:var(--gold); font-weight:900;">${amt}${unit}</span>`);
               });
             } else if (item.ingredient_id) {
@@ -4693,11 +4818,7 @@
                 </div>
               `;
             } else {
-              recipeBadge = `
-                <div style="font-size: 10px; color: var(--muted); font-style: italic; margin-top: 6px;">
-                  No inventory recipe linked
-                </div>
-              `;
+              recipeBadge = '';
             }
 
             const itemMods = item.modifier_groups || item.modifierGroups || [];
@@ -4746,6 +4867,7 @@
                       <span style="background: rgba(255,255,255,0.06); color: var(--muted); border: 1px solid var(--line); border-radius: 12px; padding: 2px 6px; font-size: 9px; font-weight: 700;">HOUSE BLEND</span>
                       ${statusBadge}
                     </div>
+                    ${recipeBadge}
                     ${modBadge}
                   </div>
 
@@ -5077,7 +5199,25 @@
         });
         const data = await res.json();
         if (data.success) {
+          if (id && menuItems) {
+            const idx = menuItems.findIndex(i => String(i.id || i._id) === String(id));
+            if (idx !== -1) {
+              menuItems[idx] = {
+                ...menuItems[idx],
+                name,
+                price,
+                emoji,
+                category: primaryCategory,
+                category_ids: category_ids.length > 0 ? category_ids : [primaryCategory],
+                desc,
+                image_url,
+                recipe,
+                modifier_groups
+              };
+            }
+          }
           closeMenuItemModal();
+          renderMenuPage();
           await loadMenuItems();
         } else {
           alert('Could not save menu item: ' + (data.message || 'Error'));

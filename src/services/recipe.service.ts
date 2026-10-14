@@ -553,8 +553,19 @@ export class RecipeService {
         const qty = Number(cartLine.qty) || 1;
         if (!item || qty <= 0) continue;
 
-        if (Array.isArray(item.recipe) && item.recipe.length > 0) {
-          for (const ing of item.recipe) {
+        const itemId = item.id || item._id || item.menu_item_id;
+        const itemName = item.name;
+        const dbMatch = dbMenuItems.find((m: any) => 
+          (itemId && (m._id === itemId || (m as any).id === itemId)) || 
+          (itemName && m.name.toLowerCase() === String(itemName).toLowerCase())
+        );
+
+        const recipeToUse = (Array.isArray(item.recipe) && item.recipe.length > 0)
+          ? item.recipe
+          : (dbMatch && Array.isArray(dbMatch.recipe) && dbMatch.recipe.length > 0 ? dbMatch.recipe : null);
+
+        if (recipeToUse && recipeToUse.length > 0) {
+          for (const ing of recipeToUse) {
             const rawId = ing.ingredient_id || ing.ingredientId;
             const inv = resolveInvItem(rawId) || resolveInvItem(ing.name);
             const targetId = inv ? (inv._id || (inv as any).id) : rawId;
@@ -563,12 +574,22 @@ export class RecipeService {
               addDeduction(targetId, inv ? inv.name : (ing.name || targetId), amount * qty, ing.unit || inv?.unit || 'g');
             }
           }
+        } else if (dbMatch && (dbMatch as any).ingredient_id) {
+          const inv = resolveInvItem((dbMatch as any).ingredient_id);
+          const targetId = inv ? (inv._id || (inv as any).id) : (dbMatch as any).ingredient_id;
+          const amt = Number((dbMatch as any).ingredient_amount || 1);
+          addDeduction(targetId, inv ? inv.name : targetId, amt * qty, inv?.unit || 'g');
         } else {
           const staticIngredients = RECIPES[item.id] || (item.name ? RECIPES[String(item.name).toLowerCase()] : null);
           if (staticIngredients) {
             for (const ing of staticIngredients) {
               const inv = resolveInvItem(ing.ingredientId);
               addDeduction(inv ? (inv._id || (inv as any).id) : ing.ingredientId, inv ? inv.name : ing.ingredientId, ing.amount * qty, inv?.unit || 'g');
+            }
+          } else {
+            const inv = resolveInvItem(itemId) || resolveInvItem(itemName);
+            if (inv) {
+              addDeduction(inv._id || (inv as any).id, inv.name, 1 * qty, inv.unit || 'unit');
             }
           }
         }
@@ -582,11 +603,44 @@ export class RecipeService {
         const qty = Number(cartLine.qty) || 1;
         if (!item || qty <= 0) continue;
 
-        const staticIngredients = RECIPES[item.id] || (item.name ? RECIPES[String(item.name).toLowerCase()] : null);
-        if (staticIngredients) {
-          for (const ing of staticIngredients) {
-            const inv = resolveInvItem(ing.ingredientId);
-            addDeduction(inv ? (inv._id || (inv as any).id) : ing.ingredientId, inv ? inv.name : ing.ingredientId, ing.amount * qty, inv?.unit || 'bottle');
+        const itemId = item.id || item._id || item.menu_item_id;
+        const itemName = item.name;
+        const dbMatch = dbMenuItems.find((m: any) => 
+          (itemId && (m._id === itemId || (m as any).id === itemId)) || 
+          (itemName && m.name.toLowerCase() === String(itemName).toLowerCase())
+        );
+
+        const recipeToUse = (Array.isArray(item.recipe) && item.recipe.length > 0)
+          ? item.recipe
+          : (dbMatch && Array.isArray(dbMatch.recipe) && dbMatch.recipe.length > 0 ? dbMatch.recipe : null);
+
+        if (recipeToUse && recipeToUse.length > 0) {
+          for (const ing of recipeToUse) {
+            const rawId = ing.ingredient_id || ing.ingredientId;
+            const inv = resolveInvItem(rawId) || resolveInvItem(ing.name);
+            const targetId = inv ? (inv._id || (inv as any).id) : rawId;
+            const amount = Number(ing.quantity !== undefined ? ing.quantity : (ing.amount || 0));
+            if (targetId && amount > 0) {
+              addDeduction(targetId, inv ? inv.name : (ing.name || targetId), amount * qty, ing.unit || inv?.unit || 'g');
+            }
+          }
+        } else if (dbMatch && (dbMatch as any).ingredient_id) {
+          const inv = resolveInvItem((dbMatch as any).ingredient_id);
+          const targetId = inv ? (inv._id || (inv as any).id) : (dbMatch as any).ingredient_id;
+          const amt = Number((dbMatch as any).ingredient_amount || 1);
+          addDeduction(targetId, inv ? inv.name : targetId, amt * qty, inv?.unit || 'bottle');
+        } else {
+          const staticIngredients = RECIPES[item.id] || (item.name ? RECIPES[String(item.name).toLowerCase()] : null);
+          if (staticIngredients) {
+            for (const ing of staticIngredients) {
+              const inv = resolveInvItem(ing.ingredientId);
+              addDeduction(inv ? (inv._id || (inv as any).id) : ing.ingredientId, inv ? inv.name : ing.ingredientId, ing.amount * qty, inv?.unit || 'bottle');
+            }
+          } else {
+            const inv = resolveInvItem(itemId) || resolveInvItem(itemName);
+            if (inv) {
+              addDeduction(inv._id || (inv as any).id, inv.name, 1 * qty, inv.unit || 'bottle');
+            }
           }
         }
       }

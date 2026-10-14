@@ -1945,6 +1945,7 @@ router.get('/inventory', async (req, res) => {
         _id: i._id || i.id,
         id: i._id || i.id,
         name: i.name,
+        brand: i.brand || '',
         stock: Number(i.stock) || 0,
         unit: i.unit || 'g',
         category: i.category || (i.unit === 'g' ? 'shisha' : 'beverages'),
