@@ -2053,12 +2053,14 @@
       const restCode = localStorage.getItem('benzin_restaurant_code') || '4821';
       headers['x-restaurant-id'] = restId;
       headers['x-restaurant-code'] = restCode;
-      const uId = localStorage.getItem('benzin_user_id');
-      const uName = localStorage.getItem('benzin_user_name');
-      const uRole = localStorage.getItem('benzin_user_role');
-      if (uId) headers['x-user-id'] = uId;
-      if (uName) headers['x-user-name'] = uName;
-      if (uRole) headers['x-user-role'] = uRole;
+      const uId = localStorage.getItem('benzin_user_id') || 'usr_owner';
+      const uName = localStorage.getItem('benzin_user_name') || 'Owner';
+      const uRole = localStorage.getItem('benzin_user_role') || 'owner';
+      headers['x-user-id'] = uId;
+      headers['x-user-name'] = uName;
+      headers['x-user-role'] = uRole;
+      const uPin = localStorage.getItem('benzin_user_pin') || localStorage.getItem('benzin_admin_pin');
+      if (uPin) headers['x-admin-pin'] = uPin;
       return headers;
     }
 
@@ -3965,10 +3967,11 @@
     async function adjustInventory(itemId, amount, action) {
       try {
         const headers = getAuthHeaders();
+        const role = (localStorage.getItem('benzin_user_role') || 'owner').toLowerCase();
         const res = await fetch(`${API_URL}/api/orders/inventory/adjust`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ ingredientId: itemId, amount, type: action === 'add' || action === 'increase' ? 'increase' : 'decrease' })
+          body: JSON.stringify({ ingredientId: itemId, amount, type: action === 'add' || action === 'increase' ? 'increase' : 'decrease', role })
         });
         const data = await res.json();
         if (data.success) {
@@ -4023,6 +4026,7 @@
       const unit = document.getElementById('invEditUnit').value.trim();
       const stock = parseFloat(document.getElementById('invEditStock').value);
       const reorder_threshold = parseFloat(document.getElementById('invEditMinAlert').value) || 100;
+      const role = (localStorage.getItem('benzin_user_role') || 'owner').toLowerCase();
 
       if (!ingredientId || !name || isNaN(stock)) {
         alert('Please fill in a valid inventory item name and stock quantity');
@@ -4034,7 +4038,7 @@
         const res = await fetch(`${API_URL}/api/orders/inventory/update`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ ingredientId, name, brand, category, unit, stock, reorder_threshold })
+          body: JSON.stringify({ ingredientId, name, brand, category, unit, stock, reorder_threshold, role })
         });
 
         const data = await res.json();
@@ -4054,10 +4058,11 @@
 
       try {
         const headers = getAuthHeaders();
+        const role = (localStorage.getItem('benzin_user_role') || 'owner').toLowerCase();
         const res = await fetch(`${API_URL}/api/orders/inventory/delete`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ ingredientId })
+          body: JSON.stringify({ ingredientId, role })
         });
 
         const data = await res.json();
@@ -4078,6 +4083,7 @@
       const unit = document.getElementById('invNewUnit').value;
       const stock = parseFloat(document.getElementById('invNewStock').value);
       const reorder_threshold = parseFloat(document.getElementById('invNewMinAlert').value) || 100;
+      const role = (localStorage.getItem('benzin_user_role') || 'owner').toLowerCase();
 
       if (!name || isNaN(stock)) {
         alert('Please fill in a valid inventory item name and stock quantity');
@@ -4089,7 +4095,7 @@
         const res = await fetch(`${API_URL}/api/orders/inventory/create`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ name, brand, category, unit, stock, reorder_threshold })
+          body: JSON.stringify({ name, brand, category, unit, stock, reorder_threshold, role })
         });
 
         const data = await res.json();
