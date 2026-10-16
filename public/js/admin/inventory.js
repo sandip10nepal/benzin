@@ -133,10 +133,18 @@ export async function adjustInventory(itemId, amount, action) {
   try {
     const headers = getAuthHeaders();
     const role = (localStorage.getItem('benzin_user_role') || 'owner').toLowerCase();
+    const pin = localStorage.getItem('benzin_user_pin') || localStorage.getItem('benzin_admin_pin') || undefined;
     const res = await fetch(`${API_URL}/api/orders/inventory/adjust`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ ingredientId: itemId, amount, type: action === 'add' || action === 'increase' ? 'increase' : 'decrease', role })
+      body: JSON.stringify({
+        ingredientId: itemId,
+        amount,
+        type: action === 'add' || action === 'increase' ? 'increase' : 'decrease',
+        role,
+        authPin: pin,
+        pin: pin
+      })
     });
     const data = await res.json();
     if (data.success) {
@@ -326,10 +334,11 @@ export async function deleteInventoryItem(ingredientId) {
   try {
     const headers = getAuthHeaders();
     const role = (localStorage.getItem('benzin_user_role') || 'owner').toLowerCase();
+    const pin = localStorage.getItem('benzin_user_pin') || localStorage.getItem('benzin_admin_pin') || undefined;
     const res = await fetch(`${API_URL}/api/orders/inventory/delete`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ ingredientId, role })
+      body: JSON.stringify({ ingredientId, role, authPin: pin, pin: pin })
     });
 
     const data = await res.json();
@@ -354,6 +363,7 @@ export async function saveNewInventoryItem() {
   const stock = parseFloat(document.getElementById('invNewStock').value);
   const reorder_threshold = parseFloat(document.getElementById('invNewMinAlert').value) || 100;
   const role = (localStorage.getItem('benzin_user_role') || 'owner').toLowerCase();
+  const pin = localStorage.getItem('benzin_user_pin') || localStorage.getItem('benzin_admin_pin') || undefined;
 
   if (!name || isNaN(stock)) {
     alert('Please fill in a valid inventory item name and stock quantity');
@@ -365,7 +375,7 @@ export async function saveNewInventoryItem() {
     const res = await fetch(`${API_URL}/api/orders/inventory/create`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ name, brand, category, unit, stock, reorder_threshold, role })
+      body: JSON.stringify({ name, brand, category, unit, stock, reorder_threshold, role, authPin: pin, pin: pin })
     });
 
     const data = await res.json();
@@ -580,18 +590,19 @@ export async function saveInvCategory() {
 
   try {
     const headers = getAuthHeaders();
+    const pin = localStorage.getItem('benzin_user_pin') || localStorage.getItem('benzin_admin_pin') || undefined;
     let res;
     if (id) {
       res = await fetch(`${API_URL}/api/orders/inventory/categories/update`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ id, title, icon })
+        body: JSON.stringify({ id, title, icon, authPin: pin, pin: pin })
       });
     } else {
       res = await fetch(`${API_URL}/api/orders/inventory/categories`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ title, icon })
+        body: JSON.stringify({ title, icon, authPin: pin, pin: pin })
       });
     }
     const data = await res.json();
@@ -631,10 +642,11 @@ export async function deleteInvCategory(catId) {
   if (!confirm(`Are you sure you want to delete inventory category "${cat?.title || catId}"?`)) return;
   try {
     const headers = getAuthHeaders();
+    const pin = localStorage.getItem('benzin_user_pin') || localStorage.getItem('benzin_admin_pin') || undefined;
     const res = await fetch(`${API_URL}/api/orders/inventory/categories/delete`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ id: targetId })
+      body: JSON.stringify({ id: targetId, authPin: pin, pin: pin })
     });
     const data = await res.json();
     if (data.success) {

@@ -33,7 +33,7 @@ async function runAllWorkflowTests() {
     });
     const rosterData: any = await rosterRes.json();
     const staffList = rosterData.staff || [];
-    const serverUser = staffList.find((s: any) => s.name && s.name.includes('Sandip')) || staffList[0];
+    const serverUser = staffList.find((s: any) => s.name && s.name.includes('Suwasna')) || staffList.find((s: any) => s.role === 'cashier' || s.role === 'server') || staffList[0];
     record('Auth', 'Load Staff Roster', rosterData.success && staffList.length > 0, `Found ${staffList.length} staff members for Cavalli`);
 
     // Staff PIN Login
@@ -43,7 +43,7 @@ async function runAllWorkflowTests() {
       body: JSON.stringify({
         restaurant_code: RESTAURANT_CODE,
         user_id: serverUser.id,
-        pin: '1234'
+        pin: '1111'
       })
     });
     const verifyData: any = await verifyRes.json();

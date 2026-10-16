@@ -87,6 +87,17 @@ export async function loadData() {
           localStorage.setItem('benzin_restaurant_name', data.restaurant.name);
           if (nameEl) nameEl.innerText = data.restaurant.name;
         }
+        if (data.success && Array.isArray(data.staff)) {
+          const currentUserId = localStorage.getItem('benzin_user_id');
+          const currentUserName = localStorage.getItem('benzin_user_name');
+          const match = data.staff.find(s => s._id === currentUserId || s.id === currentUserId || (currentUserName && s.name && s.name.toLowerCase() === currentUserName.toLowerCase()));
+          if (match && match.role) {
+            localStorage.setItem('benzin_user_role', match.role);
+            const roleEl = document.getElementById('headerStaffRole');
+            if (roleEl) roleEl.innerText = String(match.role).toUpperCase();
+            if (typeof window.updateNavTabLockBadges === 'function') window.updateNavTabLockBadges();
+          }
+        }
       }).catch(_ => {});
     }
 

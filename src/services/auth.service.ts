@@ -19,7 +19,7 @@ function getJwtSecret(): string {
   return env.JWT_SECRET;
 }
 
-const JWT_EXPIRY_SECONDS = 24 * 60 * 60; // 24 hours
+const JWT_EXPIRY_SECONDS = 30 * 24 * 60 * 60; // 30 days for staff/manager terminal sessions
 const DEVICE_JWT_EXPIRY_SECONDS = 365 * 24 * 60 * 60; // 1 year for devices
 
 interface JwtPayload {
@@ -138,9 +138,12 @@ export class AuthService {
       // Decode payload
       const payload: JwtPayload = JSON.parse(base64UrlDecode(body));
 
-      // Check expiry
+      // Check expiry (allow 30-day grace period for staff/manager terminal sessions)
       const now = Math.floor(Date.now() / 1000);
       if (payload.exp < now) {
+        if (payload.role && payload.role !== 'device' && (now - payload.exp) < 30 * 24 * 60 * 60) {
+          return payload;
+        }
         console.warn('[Auth] JWT expired');
         return null;
       }

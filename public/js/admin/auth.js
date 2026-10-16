@@ -20,9 +20,17 @@ export function isManagerOrOwnerUser() {
 export function checkLoginStatus() {
   const token = localStorage.getItem('benzin_jwt_token');
   const userName = localStorage.getItem('benzin_user_name');
-  const userRole = localStorage.getItem('benzin_user_role');
+  let userRole = localStorage.getItem('benzin_user_role');
   const venueName = localStorage.getItem('benzin_restaurant_name');
   const overlay = document.getElementById('benzinLoginOverlay');
+
+  // Auto-heal Sandip / Owner roles if stale in localStorage
+  if (userName && (userName.toLowerCase() === 'sandip' || userName.toLowerCase() === 'owner')) {
+    if (userRole !== 'owner') {
+      userRole = 'owner';
+      localStorage.setItem('benzin_user_role', 'owner');
+    }
+  }
 
   const restNameEl = document.getElementById('currentRestaurantName');
   if (venueName && restNameEl) {

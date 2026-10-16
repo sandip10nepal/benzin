@@ -203,7 +203,7 @@ router.post('/staff-roster', async (req, res) => {
     }
 
     const allUsers = await MultiTenantDbService.listUsers(restaurant._id);
-    const includeManagers = req.body?.include_managers === true || req.query?.include_managers === 'true';
+    const includeManagers = req.body?.include_managers !== false && req.query?.include_managers !== 'false';
     const staffList: any[] = [];
     for (const u of allUsers) {
       if (u.active && (includeManagers || (u.role !== 'owner' && u.role !== 'manager' && u.role !== 'platform_admin'))) {
