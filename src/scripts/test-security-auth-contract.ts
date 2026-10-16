@@ -109,6 +109,15 @@ async function runSecuritySuite() {
         role: 'server',
         pin_hash: serverPinHash,
         active: true
+      },
+      {
+        _id: 'usr_sec_inactive',
+        restaurant_id: cavalliId,
+        name: 'Inactive Staff',
+        email: 'inactive@cavalli.test',
+        role: 'server',
+        pin_hash: AuthService.hashPin('0000'),
+        active: false
       }
     ];
 
@@ -534,7 +543,8 @@ async function runSecuritySuite() {
       });
     }
 
-    // Test 4.2: POST /api/employees/verify-pin (Fast terminal switch on floor)
+    // Test 4.2: POST /api/employees/verify-pin returns signed scoped JWT
+    let quickSwitchToken = '';
     {
       const res = await fetch(`${baseUrl}/api/employees/verify-pin`, {
         method: 'POST',
@@ -545,17 +555,150 @@ async function runSecuritySuite() {
         body: JSON.stringify({ pin: '1234' })
       });
       const data: any = await res.json().catch(() => ({}));
-      const hasTokenInQuickSwitch = data.success && Boolean(data.token);
+      quickSwitchToken = data.token || '';
+      const payload = quickSwitchToken ? AuthService.verifyToken(quickSwitchToken) : null;
+      const isValidScopedToken = Boolean(
+        data.success && 
+        quickSwitchToken && 
+        payload && 
+        payload.sub === 'usr_sec_owner' && 
+        payload.rid === cavalliId && 
+        payload.role === 'owner'
+      );
 
       recordResult({
         suite: 'Staff Auth Contracts',
-        name: 'POST /api/employees/verify-pin (Quick-switch on terminal) response contract gap',
+        name: 'POST /api/employees/verify-pin issues properly scoped JWT',
         statusCode: res.status,
         expectedSecureStatus: 200,
-        currentResult: !hasTokenInQuickSwitch ? 'GAP_CONFIRMED' : 'PASS',
-        description: !hasTokenInQuickSwitch 
-          ? 'CONFIRMED CONTRACT GAP: Quick-switch returns { success: true, employee: {...} } WITHOUT issuing a new JWT! This explains why frontend relied on insecure x-user-role header.'
-          : 'Quick-switch issued a JWT token.'
+        currentResult: isValidScopedToken ? 'PASS' : 'FAIL',
+        description: isValidScopedToken 
+          ? 'Quick-switch successfully issued a cryptographically signed JWT bound to employee and restaurant.'
+          : 'Quick-switch failed to issue a valid scoped JWT token.'
+      });
+    }
+
+    // Test 4.3: Quick-switch issued JWT authorizes protected manager endpoints
+    {
+      const res = await fetch(`${baseUrl}/api/orders`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${quickSwitchToken}`
+        }
+      });
+      recordResult({
+        suite: 'Staff Auth Contracts',
+        name: 'Quick-switch issued JWT authorizes GET /api/orders',
+        statusCode: res.status,
+        expectedSecureStatus: 200,
+        currentResult: res.status === 200 ? 'PASS' : 'FAIL',
+        description: res.status === 200
+          ? 'Token issued by quick-switch successfully authorized manager access.'
+          : 'Token issued by quick-switch was rejected.'
+      });
+    }
+
+    // Test 4.4: Quick-switch rejects invalid PIN
+    {
+      const res = await fetch(`${baseUrl}/api/employees/verify-pin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-restaurant-id': cavalliId
+        },
+        body: JSON.stringify({ pin: '9999' })
+      });
+      recordResult({
+        suite: 'Staff Auth Contracts',
+        name: 'Quick-switch rejects invalid PIN',
+        statusCode: res.status,
+        expectedSecureStatus: 401,
+        currentResult: res.status === 401 ? 'PASS' : 'FAIL',
+        description: res.status === 401
+          ? 'Invalid PIN rejected with 401 Unauthorized.'
+          : 'Invalid PIN was not properly rejected.'
+      });
+    }
+
+    // Test 4.5: Quick-switch rejects inactive employee PIN
+    {
+      const res = await fetch(`${baseUrl}/api/employees/verify-pin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-restaurant-id': cavalliId
+        },
+        body: JSON.stringify({ pin: '0000' })
+      });
+      recordResult({
+        suite: 'Staff Auth Contracts',
+        name: 'Quick-switch rejects inactive employee PIN',
+        statusCode: res.status,
+        expectedSecureStatus: 401,
+        currentResult: res.status === 401 ? 'PASS' : 'FAIL',
+        description: res.status === 401
+          ? 'Inactive employee PIN was securely rejected.'
+          : 'Inactive employee PIN was accepted.'
+      });
+    }
+
+    // Test 4.6: Quick-switch cross-tenant isolation enforcement
+    {
+      const tenantBToken = AuthService.generateToken({
+        sub: 'usr_sec_tenantb',
+        rid: otherTenantId,
+        role: 'manager',
+        rname: 'Tenant B'
+      });
+
+      const res = await fetch(`${baseUrl}/api/employees/verify-pin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${tenantBToken}`,
+          'x-restaurant-id': cavalliId
+        },
+        body: JSON.stringify({ pin: '1234' })
+      });
+      recordResult({
+        suite: 'Staff Auth Contracts',
+        name: 'Cross-tenant PIN verification attempt rejected',
+        statusCode: res.status,
+        expectedSecureStatus: 403,
+        currentResult: res.status === 403 ? 'PASS' : 'FAIL',
+        description: res.status === 403
+          ? 'Cross-tenant PIN verification forbidden as expected.'
+          : 'Cross-tenant PIN verification was not blocked.'
+      });
+    }
+
+    // Test 4.7: Quick-switch prevents role elevation via request body
+    {
+      const res = await fetch(`${baseUrl}/api/employees/verify-pin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-restaurant-id': cavalliId
+        },
+        body: JSON.stringify({
+          pin: '5678', // Server PIN
+          role: 'owner' // Attempted role elevation attack
+        })
+      });
+      const data: any = await res.json().catch(() => ({}));
+      const payload = data.token ? AuthService.verifyToken(data.token) : null;
+      const roleRemainedServer = Boolean(payload && payload.role === 'server');
+
+      recordResult({
+        suite: 'Staff Auth Contracts',
+        name: 'Quick-switch prevents role elevation via request manipulation',
+        statusCode: res.status,
+        expectedSecureStatus: 200,
+        currentResult: roleRemainedServer ? 'PASS' : 'FAIL',
+        description: roleRemainedServer
+          ? 'Role elevation blocked: Token assigned role: server matching database record, ignoring requested owner role.'
+          : 'Role elevation was not blocked!'
       });
     }
 

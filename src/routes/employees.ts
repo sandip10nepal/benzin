@@ -229,33 +229,70 @@ router.post('/payroll/fulfill', optionalAuth, async (req, res) => {
   }
 });
 
-// POST /api/employees/verify-pin — verify a PIN and return employee profile + clock status
+// POST /api/employees/verify-pin — verify a PIN, issue scoped employee JWT, and return profile + clock status
 router.post('/verify-pin', optionalAuth, async (req, res) => {
   try {
     const { pin } = req.body;
     if (!pin) return res.status(400).json({ success: false, message: 'PIN required' });
     const pinStr = String(pin).trim();
 
+    // Tenant boundary check: If authenticated caller targets a different restaurant ID, forbid immediately
+    const targetRid = String(req.headers?.['x-restaurant-id'] || req.body?.restaurant_id || req.query?.restaurant_id || '').trim();
+    const callerRid = req.tenant?.restaurant_id;
+    if (targetRid && callerRid && targetRid !== callerRid && req.tenant?.role !== 'platform_admin') {
+      return res.status(403).json({ success: false, message: 'Cross-tenant PIN verification forbidden' });
+    }
+
     const restaurantId = await resolveRestaurantId(req);
+    if (!restaurantId) {
+      return res.status(400).json({ success: false, message: 'Tenant restaurant ID is required' });
+    }
 
     // 1. Search in MultiTenantDbService
     if (MultiTenantDbService.isInitialized()) {
       const users = await UserRepository.listByRestaurant(restaurantId);
       const user = users.find(u => u.active !== false && AuthService.verifyPin(pinStr, u.pin_hash));
       if (user) {
+        // Check account lock
+        if (MultiTenantDbService.isAccountLocked(user)) {
+          return res.status(423).json({
+            success: false,
+            message: 'User account is temporarily locked due to multiple failed login attempts. Please wait 15 minutes.'
+          });
+        }
+
+        // Reset failed login counter on success
+        await MultiTenantDbService.resetFailedLogins(user._id);
+
+        const restaurant = await MultiTenantDbService.getRestaurant(restaurantId);
+        const rName = restaurant?.name || 'Cavalli Lounge';
+
+        // Issue cryptographically signed scoped JWT token for the verified employee session
+        // Note: Identity, role, and restaurant are derived strictly from database records — never client-supplied fields
+        const token = AuthService.generateStaffToken(
+          user._id,
+          restaurantId,
+          user.role,
+          rName
+        );
+
         const activeShift = await MultiTenantDbService.getActiveTimecard(restaurantId, user._id);
+        const profile = {
+          id: user._id,
+          name: user.name,
+          role: user.role,
+          position: user.position || user.role,
+          hourly_rate: user.hourly_rate ?? null,
+          email: user.email,
+          is_clocked_in: !!activeShift,
+          active_shift: activeShift || null,
+        };
+
         return res.json({
           success: true,
-          employee: {
-            id: user._id,
-            name: user.name,
-            role: user.role,
-            position: user.position || user.role,
-            hourly_rate: user.hourly_rate ?? null,
-            email: user.email,
-            is_clocked_in: !!activeShift,
-            active_shift: activeShift || null,
-          }
+          token,
+          employee: profile,
+          user: profile
         });
       }
     }

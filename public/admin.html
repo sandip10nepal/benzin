@@ -6191,8 +6191,12 @@
           body: JSON.stringify({ pin })
         });
         const data = await res.json();
-        if (data.success && data.user) {
-          const user = data.user;
+        if (data.success && (data.user || data.employee)) {
+          const user = data.user || data.employee;
+          if (data.token) {
+            localStorage.setItem('benzin_jwt_token', data.token);
+          }
+          localStorage.setItem('benzin_user_id', user.id || user._id || '');
           localStorage.setItem('benzin_user_role', user.role);
           localStorage.setItem('benzin_user_name', user.name);
 
