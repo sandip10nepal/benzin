@@ -624,8 +624,9 @@ export class MultiTenantDbService {
   }
 
   static async resolveRestaurantId(idOrSlug: string): Promise<string> {
-    if (!idOrSlug) return 'RES_EED4E9D266DF';
+    if (!idOrSlug) return '';
     const clean = String(idOrSlug).trim();
+    if (!clean) return '';
     const searchSlugs = [clean.toLowerCase()];
     if (clean.toLowerCase() === 'cavalli') searchSlugs.push('cavali');
     if (clean.toLowerCase() === 'cavali') searchSlugs.push('cavalli');

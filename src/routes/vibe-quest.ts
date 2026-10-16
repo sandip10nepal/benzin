@@ -72,7 +72,10 @@ router.post('/events', async (req, res, next) => {
  */
 router.get('/admin/settings', optionalAuth, async (req, res, next) => {
   try {
-    const restaurantId = (await resolveTenantRestaurantId(req)) || 'RES_EED4E9D266DF';
+    const restaurantId = await resolveTenantRestaurantId(req);
+    if (!restaurantId) {
+      return res.status(400).json({ success: false, error: 'Tenant restaurant ID is required' });
+    }
 
     // Verify tenant authorization match if non-platform_admin
     if (req.tenant && req.tenant.role !== 'platform_admin' && req.tenant.restaurant_id !== restaurantId) {
@@ -98,7 +101,10 @@ router.get('/admin/settings', optionalAuth, async (req, res, next) => {
  */
 router.get('/admin/draft', optionalAuth, async (req, res, next) => {
   try {
-    const restaurantId = (await resolveTenantRestaurantId(req)) || 'RES_EED4E9D266DF';
+    const restaurantId = await resolveTenantRestaurantId(req);
+    if (!restaurantId) {
+      return res.status(400).json({ success: false, error: 'Tenant restaurant ID is required' });
+    }
 
     if (req.tenant && req.tenant.role !== 'platform_admin' && req.tenant.restaurant_id !== restaurantId) {
       return res.status(403).json({ success: false, error: 'Forbidden: cross-tenant access denied' });
@@ -123,7 +129,10 @@ router.get('/admin/draft', optionalAuth, async (req, res, next) => {
  */
 router.put('/admin/draft', optionalAuth, async (req, res, next) => {
   try {
-    const restaurantId = (await resolveTenantRestaurantId(req)) || 'RES_EED4E9D266DF';
+    const restaurantId = await resolveTenantRestaurantId(req);
+    if (!restaurantId) {
+      return res.status(400).json({ success: false, error: 'Tenant restaurant ID is required' });
+    }
 
     if (req.tenant && req.tenant.role !== 'platform_admin' && req.tenant.restaurant_id !== restaurantId) {
       return res.status(403).json({ success: false, error: 'Forbidden: cross-tenant access denied' });
@@ -148,7 +157,10 @@ router.put('/admin/draft', optionalAuth, async (req, res, next) => {
  */
 router.post('/admin/save-questions', optionalAuth, async (req, res, next) => {
   try {
-    const restaurantId = (await resolveTenantRestaurantId(req)) || 'RES_EED4E9D266DF';
+    const restaurantId = await resolveTenantRestaurantId(req);
+    if (!restaurantId) {
+      return res.status(400).json({ success: false, error: 'Tenant restaurant ID is required' });
+    }
 
     if (req.tenant && req.tenant.role !== 'platform_admin' && req.tenant.restaurant_id !== restaurantId) {
       return res.status(403).json({ success: false, error: 'Forbidden: cross-tenant access denied' });
@@ -172,7 +184,10 @@ router.post('/admin/save-questions', optionalAuth, async (req, res, next) => {
  */
 router.post('/admin/validate', optionalAuth, async (req, res, next) => {
   try {
-    const restaurantId = (await resolveTenantRestaurantId(req)) || 'RES_EED4E9D266DF';
+    const restaurantId = await resolveTenantRestaurantId(req);
+    if (!restaurantId) {
+      return res.status(400).json({ success: false, error: 'Tenant restaurant ID is required' });
+    }
 
     if (req.tenant && req.tenant.role !== 'platform_admin' && req.tenant.restaurant_id !== restaurantId) {
       return res.status(403).json({ success: false, error: 'Forbidden: cross-tenant access denied' });
@@ -191,7 +206,10 @@ router.post('/admin/validate', optionalAuth, async (req, res, next) => {
  */
 router.post('/admin/publish', optionalAuth, async (req, res, next) => {
   try {
-    const restaurantId = (await resolveTenantRestaurantId(req)) || 'RES_EED4E9D266DF';
+    const restaurantId = await resolveTenantRestaurantId(req);
+    if (!restaurantId) {
+      return res.status(400).json({ success: false, error: 'Tenant restaurant ID is required' });
+    }
 
     if (req.tenant && req.tenant.role !== 'platform_admin' && req.tenant.restaurant_id !== restaurantId) {
       return res.status(403).json({ success: false, error: 'Forbidden: cross-tenant access denied' });
@@ -224,7 +242,10 @@ router.post('/admin/publish', optionalAuth, async (req, res, next) => {
  */
 router.post('/admin/toggle', optionalAuth, async (req, res, next) => {
   try {
-    const restaurantId = (await resolveTenantRestaurantId(req)) || 'RES_EED4E9D266DF';
+    const restaurantId = await resolveTenantRestaurantId(req);
+    if (!restaurantId) {
+      return res.status(400).json({ success: false, error: 'Tenant restaurant ID is required' });
+    }
 
     if (req.tenant && req.tenant.role !== 'platform_admin' && req.tenant.restaurant_id !== restaurantId) {
       return res.status(403).json({ success: false, error: 'Forbidden: cross-tenant access denied' });
@@ -244,7 +265,10 @@ router.post('/admin/toggle', optionalAuth, async (req, res, next) => {
  */
 router.get('/admin/analytics', optionalAuth, async (req, res, next) => {
   try {
-    const restaurantId = (await resolveTenantRestaurantId(req)) || 'RES_EED4E9D266DF';
+    const restaurantId = await resolveTenantRestaurantId(req);
+    if (!restaurantId) {
+      return res.status(400).json({ success: false, error: 'Tenant restaurant ID is required' });
+    }
 
     if (req.tenant && req.tenant.role !== 'platform_admin' && req.tenant.restaurant_id !== restaurantId) {
       return res.status(403).json({ success: false, error: 'Forbidden: cross-tenant access denied' });

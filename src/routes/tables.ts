@@ -3,34 +3,13 @@ import { MultiTenantDbService } from '../services/multi-tenant-db.service';
 import { OrderRepository } from '../modules/orders/order.repository';
 import { sseService } from '../services/sse.service';
 import { AuthService } from '../services/auth.service';
+import { resolveTenantRestaurantId } from '../middleware/tenant.middleware';
 
 const router = Router();
 
-// Helper to resolve restaurant ID from request context
-async function resolveRestaurantId(req: Request): Promise<string> {
-  const headerId = req.headers['x-restaurant-id'] as string;
-  if (headerId && headerId !== 'undefined' && headerId !== 'null') {
-    return headerId;
-  }
-  const queryId = req.query.restaurant_id as string;
-  if (queryId && queryId !== 'undefined' && queryId !== 'null') {
-    return queryId;
-  }
-  const bodyId = req.body?.restaurant_id as string;
-  if (bodyId && bodyId !== 'undefined' && bodyId !== 'null') {
-    return bodyId;
-  }
-  const restCode = (req.headers['x-restaurant-code'] || req.query.restaurant_code || req.body?.restaurant_code) as string;
-  if (restCode) {
-    const restaurant = await MultiTenantDbService.getRestaurantByCode(restCode);
-    if (restaurant) return restaurant._id;
-  }
-  return 'RES_EED4E9D266DF'; // Default Cavalli
-}
-
 // Helper to check manager role permissions via verified JWT or supervisor PIN
 async function isManagerOrAdmin(req: Request): Promise<boolean> {
-  const restaurantId = await resolveRestaurantId(req);
+  const restaurantId = await resolveTenantRestaurantId(req);
 
   // 1. Verify Cryptographic Bearer JWT Token
   const authHeader = req.headers?.authorization;
@@ -39,7 +18,7 @@ async function isManagerOrAdmin(req: Request): Promise<boolean> {
     const payload: any = AuthService.verifyToken(token);
     if (payload) {
       const tokenRid = payload.rid;
-      const isTenantMatch = !tokenRid || !restaurantId || tokenRid === restaurantId || payload.role === 'platform_admin';
+      const isTenantMatch = (tokenRid && restaurantId && tokenRid === restaurantId) || payload.role === 'platform_admin';
       if (isTenantMatch && ['owner', 'manager', 'platform_admin', 'admin'].includes(payload.role)) {
         if (payload.sub && MultiTenantDbService.isInitialized()) {
           const user: any = await MultiTenantDbService.getUser(String(payload.sub));
@@ -56,7 +35,7 @@ async function isManagerOrAdmin(req: Request): Promise<boolean> {
   if (req.tenant) {
     const tRole = req.tenant.role;
     const tRid = req.tenant.restaurant_id;
-    const isTenantMatch = !tRid || !restaurantId || tRid === restaurantId || tRole === 'platform_admin';
+    const isTenantMatch = (tRid && restaurantId && tRid === restaurantId) || tRole === 'platform_admin';
     if (isTenantMatch && ['owner', 'manager', 'platform_admin', 'admin'].includes(tRole)) {
       return true;
     }
@@ -130,7 +109,10 @@ export function sortTablesNaturally(a: any, b: any): number {
 // Returns all floor tables for the restaurant
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const restaurantId = await resolveRestaurantId(req);
+    const restaurantId = await resolveTenantRestaurantId(req);
+    if (!restaurantId) {
+      return res.status(400).json({ success: false, message: 'Tenant restaurant ID is required' });
+    }
     const tables = await MultiTenantDbService.listTables(restaurantId);
     // Sort tables naturally: 1-21, then P1-P8, etc.
     tables.sort(sortTablesNaturally);
@@ -153,7 +135,11 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(403).json({ success: false, message: 'Manager or owner role required to add tables' });
     }
 
-    const restaurantId = await resolveRestaurantId(req);
+    const restaurantId = await resolveTenantRestaurantId(req);
+    if (!restaurantId) {
+      return res.status(400).json({ success: false, message: 'Tenant restaurant ID is required' });
+    }
+
     const existingTables = await MultiTenantDbService.listTables(restaurantId);
 
     const rawNumStr = String(req.body.number || '').trim();
@@ -230,8 +216,12 @@ router.put('/:id', async (req: Request, res: Response) => {
       return res.status(403).json({ success: false, message: 'Manager or owner role required to edit tables' });
     }
 
+    const restaurantId = await resolveTenantRestaurantId(req);
+    if (!restaurantId) {
+      return res.status(400).json({ success: false, message: 'Tenant restaurant ID is required' });
+    }
+
     const tableId = String(req.params.id);
-    const restaurantId = await resolveRestaurantId(req);
 
     const existing = await MultiTenantDbService.getTable(tableId, restaurantId);
     if (!existing) {
@@ -315,8 +305,12 @@ router.delete('/:id', async (req: Request, res: Response) => {
       return res.status(403).json({ success: false, message: 'Manager or owner role required to delete tables' });
     }
 
+    const restaurantId = await resolveTenantRestaurantId(req);
+    if (!restaurantId) {
+      return res.status(400).json({ success: false, message: 'Tenant restaurant ID is required' });
+    }
+
     const tableId = String(req.params.id);
-    const restaurantId = await resolveRestaurantId(req);
 
     const table = await MultiTenantDbService.getTable(tableId, restaurantId);
     if (!table) {

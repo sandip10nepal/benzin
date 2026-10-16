@@ -54,7 +54,7 @@ router.get('/', optionalAuth, async (req, res) => {
 
     const restaurantId = await resolveRestaurantId(req);
     if (!restaurantId) {
-      return res.json({ success: true, employees: [] });
+      return res.status(400).json({ success: false, message: 'Tenant restaurant ID is required' });
     }
 
     let employees: any[] = [];

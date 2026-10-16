@@ -18,20 +18,41 @@ const router = Router();
 // GET /api/orders/live
 // Server-Sent Events stream for real-time dashboard updates (Tenant-Isolated & Customer-Scoped)
 router.get('/live', async (req, res) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache, no-transform');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.flushHeaders?.();
-
   let restaurantId = await resolveTenantRestaurantId(req);
-  if (!restaurantId || restaurantId === 'RES_001') {
-    restaurantId = 'RES_EED4E9D266DF';
+
+  // Check for customer tracking capability token & orderId
+  const trackingToken = (req.query.tracking_token as string) || (req.query.trackingToken as string) || (req.headers['x-tracking-token'] as string) || '';
+  const trackingOrderId = (req.query.order_id as string) || (req.query.orderId as string) || '';
+  let trackingExpiresAt: string | null = null;
+  let isCustomerTracking = false;
+
+  if (trackingToken && trackingOrderId) {
+    const orderRecord = await OrderRepository.findById(trackingOrderId, restaurantId || undefined);
+    if (!orderRecord) {
+      return res.status(404).json({ success: false, message: 'Order not found for tracking' });
+    }
+    const expTime = new Date(orderRecord.tracking_expires_at || orderRecord.trackingExpiresAt).getTime();
+    if (Date.now() > expTime) {
+      return res.status(410).json({ success: false, message: 'Tracking access expired (2-hour limit reached)', expired: true });
+    }
+    const tokenHash = crypto.createHash('sha256').update(trackingToken).digest('hex');
+    const storedHash = orderRecord.tracking_token_hash || orderRecord.trackingTokenHash;
+    if (!storedHash || storedHash !== tokenHash) {
+      return res.status(403).json({ success: false, message: 'Invalid tracking capability token' });
+    }
+    isCustomerTracking = true;
+    trackingExpiresAt = orderRecord.tracking_expires_at || orderRecord.trackingExpiresAt;
+    restaurantId = orderRecord.restaurant_id || orderRecord.restaurantId || restaurantId;
+  }
+
+  // Reject un-scoped requests without tenant context
+  if (!restaurantId) {
+    return res.status(400).json({ success: false, message: 'Tenant restaurant ID is required' });
   }
 
   const token = (req.query.token as string) || (req.headers.authorization ? req.headers.authorization.replace('Bearer ', '') : '');
   let userId: string | null = null;
-  let role = 'manager';
+  let role = isCustomerTracking ? 'customer_tracking' : 'manager';
 
   if (token) {
     const payload = AuthService.verifyToken(token);
@@ -42,36 +63,11 @@ router.get('/live', async (req, res) => {
     }
   }
 
-  // Check for customer tracking capability token & orderId
-  const trackingToken = (req.query.tracking_token as string) || (req.query.trackingToken as string) || (req.headers['x-tracking-token'] as string) || '';
-  const trackingOrderId = (req.query.order_id as string) || (req.query.orderId as string) || '';
-  let trackingExpiresAt: string | null = null;
-  let isCustomerTracking = false;
-
-  if (trackingToken && trackingOrderId) {
-    const orderRecord = await OrderRepository.findById(trackingOrderId, restaurantId);
-    if (!orderRecord) {
-      res.write(`data: ${JSON.stringify({ type: 'error', message: 'Order not found for tracking' })}\n\n`);
-      res.end();
-      return;
-    }
-    const expTime = new Date(orderRecord.tracking_expires_at || orderRecord.trackingExpiresAt).getTime();
-    if (Date.now() > expTime) {
-      res.write(`data: ${JSON.stringify({ type: 'tracking_expired', orderId: trackingOrderId, message: 'Tracking access expired (2-hour limit reached)', expired: true })}\n\n`);
-      res.end();
-      return;
-    }
-    const tokenHash = crypto.createHash('sha256').update(trackingToken).digest('hex');
-    const storedHash = orderRecord.tracking_token_hash || orderRecord.trackingTokenHash;
-    if (!storedHash || storedHash !== tokenHash) {
-      res.write(`data: ${JSON.stringify({ type: 'error', message: 'Invalid tracking capability token' })}\n\n`);
-      res.end();
-      return;
-    }
-    isCustomerTracking = true;
-    trackingExpiresAt = orderRecord.tracking_expires_at || orderRecord.trackingExpiresAt;
-    role = 'customer_tracking';
-  }
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders?.();
 
   const clientId = Date.now();
   sseService.addClient({
@@ -125,7 +121,7 @@ async function isManagerOrOwner(req: any, authPin?: any): Promise<boolean> {
     const payload: any = AuthService.verifyToken(token);
     if (payload) {
       const tokenRid = payload.rid;
-      const isTenantMatch = !tokenRid || !restaurantId || tokenRid === restaurantId || payload.role === 'platform_admin';
+      const isTenantMatch = (tokenRid && restaurantId && tokenRid === restaurantId) || payload.role === 'platform_admin';
       
       if (isTenantMatch && (payload.role === 'owner' || payload.role === 'manager' || payload.role === 'platform_admin' || (payload.role as string) === 'admin')) {
         if (payload.sub && MultiTenantDbService.isInitialized()) {
@@ -143,7 +139,7 @@ async function isManagerOrOwner(req: any, authPin?: any): Promise<boolean> {
   if (req.tenant) {
     const tRole = req.tenant.role;
     const tRid = req.tenant.restaurant_id;
-    const isTenantMatch = !tRid || !restaurantId || tRid === restaurantId || tRole === 'platform_admin';
+    const isTenantMatch = (tRid && restaurantId && tRid === restaurantId) || tRole === 'platform_admin';
     if (isTenantMatch && (tRole === 'owner' || tRole === 'manager' || tRole === 'platform_admin' || (tRole as string) === 'admin')) {
       return true;
     }

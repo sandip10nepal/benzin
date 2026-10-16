@@ -37,6 +37,8 @@ import ordersRouter from '../routes/orders';
 import tablesRouter from '../routes/tables';
 import employeesRouter from '../routes/employees';
 import authRouter from '../routes/auth';
+import menuRouter from '../routes/menu';
+import vibeQuestRouter from '../routes/vibe-quest';
 
 const DB_FILE = path.join(__dirname, '../../multi_tenant_db.json');
 
@@ -270,12 +272,35 @@ async function runSecuritySuite() {
       }
     ];
 
+    // Seed test menu items & categories
+    const testMenuItems = [
+      {
+        _id: 'itm_sec_mint_hookah',
+        restaurant_id: cavalliId,
+        name: 'Cavalli Mint Hookah',
+        category_id: 'cat_hookah',
+        price: 35,
+        available: true,
+        desc: 'Signature mint blend'
+      }
+    ];
+    const testCategories = [
+      {
+        _id: 'cat_hookah',
+        restaurant_id: cavalliId,
+        name: 'Hookah',
+        title: 'Hookah'
+      }
+    ];
+
     // Overwrite local memory collections for the test duration
     MultiTenantDbService.saveCollection('restaurants', testRestaurants as any);
     MultiTenantDbService.saveCollection('users', testUsers as any);
     MultiTenantDbService.saveCollection('orders', testOrders as any);
     MultiTenantDbService.saveCollection('tables', testTables as any);
     MultiTenantDbService.saveCollection('inventory_items', testInventory as any);
+    MultiTenantDbService.saveCollection('menu_items', testMenuItems as any);
+    MultiTenantDbService.saveCollection('menu_categories', testCategories as any);
 
     // Build Express Test Application
     const app: Express = express();
@@ -287,6 +312,8 @@ async function runSecuritySuite() {
     app.use('/api/tables', tablesRouter);
     app.use('/api/employees', employeesRouter);
     app.use('/api/auth', authRouter);
+    app.use('/api/menu', menuRouter);
+    app.use('/api/vibe-quest', vibeQuestRouter);
 
     // Bind server to ephemeral random port
     await new Promise<void>((resolve) => {
@@ -456,7 +483,7 @@ async function runSecuritySuite() {
     // ─────────────────────────────────────────────────────────────────────────
     console.log('\n--- Suite 3: Tenant Isolation & Un-Scoped Default Fallback ---');
 
-    // Test 3.1: GET /api/orders with ZERO tenant headers (demonstrating default Cavalli fallback)
+    // Test 3.1: GET /api/orders without tenant context (demonstrating safe rejection)
     {
       const res = await fetch(`${baseUrl}/api/orders`, {
         method: 'GET',
@@ -470,13 +497,13 @@ async function runSecuritySuite() {
 
       recordResult({
         suite: 'Tenant Isolation',
-        name: 'GET /api/orders without tenant headers returns Cavalli data by default',
+        name: 'GET /api/orders without tenant headers returns HTTP 400',
         statusCode: res.status,
         expectedSecureStatus: 400,
-        currentResult: (res.status === 200 && hasCavalliOrder) ? 'VULNERABILITY_CONFIRMED' : 'PASS',
-        description: (res.status === 200 && hasCavalliOrder)
-          ? 'Un-scoped request with no tenant ID leaked Cavalli live orders due to default fallback (4821)!'
-          : 'Request properly rejected or isolated.'
+        currentResult: (res.status === 400 && !hasCavalliOrder) ? 'PASS' : 'FAIL',
+        description: (res.status === 400 && !hasCavalliOrder)
+          ? 'Un-scoped request properly rejected with HTTP 400; Cavalli orders protected.'
+          : 'SECURITY FAILURE: Request without tenant headers leaked Cavalli orders!'
       });
     }
 
@@ -504,10 +531,233 @@ async function runSecuritySuite() {
         name: 'Cross-tenant order lookup (Tenant B user fetching Cavalli order)',
         statusCode: res.status,
         expectedSecureStatus: 404,
-        currentResult: leaked ? 'VULNERABILITY_CONFIRMED' : 'PASS',
-        description: leaked 
-          ? 'CRITICAL LEAK: Tenant B user was able to read Cavalli order data!'
-          : 'Tenant isolation enforced: Cavalli order was not returned to Tenant B.'
+        currentResult: (!leaked && (res.status === 404 || res.status === 403)) ? 'PASS' : 'FAIL',
+        description: (!leaked && (res.status === 404 || res.status === 403))
+          ? 'Tenant isolation enforced: Cavalli order was not returned to Tenant B.'
+          : 'CRITICAL LEAK: Tenant B user was able to read Cavalli order data!'
+      });
+    }
+
+    // Test 3.3: GET /api/tables without tenant headers returns HTTP 400
+    {
+      const res = await fetch(`${baseUrl}/api/tables`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      const data: any = await res.json().catch(() => ({}));
+      const hasTables = Array.isArray(data.tables) && data.tables.length > 0;
+
+      recordResult({
+        suite: 'Tenant Isolation',
+        name: 'GET /api/tables without tenant headers returns HTTP 400',
+        statusCode: res.status,
+        expectedSecureStatus: 400,
+        currentResult: (res.status === 400 && !hasTables) ? 'PASS' : 'FAIL',
+        description: (res.status === 400 && !hasTables)
+          ? 'Un-scoped request rejected with HTTP 400; Cavalli tables protected.'
+          : 'SECURITY FAILURE: Request without tenant headers leaked Cavalli floor tables!'
+      });
+    }
+
+    // Test 3.4: GET /api/employees without tenant headers returns HTTP 400
+    {
+      const res = await fetch(`${baseUrl}/api/employees`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      const data: any = await res.json().catch(() => ({}));
+      const hasEmployees = Array.isArray(data.employees) && data.employees.length > 0;
+
+      recordResult({
+        suite: 'Tenant Isolation',
+        name: 'GET /api/employees without tenant headers returns HTTP 400',
+        statusCode: res.status,
+        expectedSecureStatus: 400,
+        currentResult: (res.status === 400 && !hasEmployees) ? 'PASS' : 'FAIL',
+        description: (res.status === 400 && !hasEmployees)
+          ? 'Un-scoped request rejected with HTTP 400; Cavalli staff roster protected.'
+          : 'SECURITY FAILURE: Request without tenant headers leaked Cavalli employees!'
+      });
+    }
+
+    // Test 3.5: GET /api/orders/inventory without tenant headers returns HTTP 400
+    {
+      const res = await fetch(`${baseUrl}/api/orders/inventory`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      const data: any = await res.json().catch(() => ({}));
+      const hasInventory = data.inventory && Object.keys(data.inventory).length > 0;
+
+      recordResult({
+        suite: 'Tenant Isolation',
+        name: 'GET /api/orders/inventory without tenant headers returns HTTP 400',
+        statusCode: res.status,
+        expectedSecureStatus: 400,
+        currentResult: (res.status === 400 && !hasInventory) ? 'PASS' : 'FAIL',
+        description: (res.status === 400 && !hasInventory)
+          ? 'Un-scoped request rejected with HTTP 400; Cavalli inventory levels protected.'
+          : 'SECURITY FAILURE: Request without tenant headers leaked Cavalli inventory!'
+      });
+    }
+
+    // Test 3.6: GET /api/orders/live without tenant headers returns HTTP 400
+    {
+      const res = await fetch(`${baseUrl}/api/orders/live`, {
+        method: 'GET'
+      });
+
+      recordResult({
+        suite: 'Tenant Isolation',
+        name: 'GET /api/orders/live without tenant headers returns HTTP 400',
+        statusCode: res.status,
+        expectedSecureStatus: 400,
+        currentResult: res.status === 400 ? 'PASS' : 'FAIL',
+        description: res.status === 400
+          ? 'Un-scoped SSE connection rejected with HTTP 400; Cavalli live stream protected.'
+          : 'SECURITY FAILURE: Request without tenant headers connected to Cavalli live order stream!'
+      });
+    }
+
+    // Test 3.7: GET /api/vibe-quest/admin/settings without tenant headers returns HTTP 400
+    {
+      const res = await fetch(`${baseUrl}/api/vibe-quest/admin/settings`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      recordResult({
+        suite: 'Tenant Isolation',
+        name: 'GET /api/vibe-quest/admin/settings without tenant headers returns HTTP 400',
+        statusCode: res.status,
+        expectedSecureStatus: 400,
+        currentResult: res.status === 400 ? 'PASS' : 'FAIL',
+        description: res.status === 400
+          ? 'Un-scoped vibe quest admin request rejected with HTTP 400; Cavalli settings protected.'
+          : 'SECURITY FAILURE: Request without tenant headers accessed Cavalli vibe quest settings!'
+      });
+    }
+
+    // Test 3.8: Legitimate authenticated Cavalli Manager accessing Cavalli private endpoints
+    {
+      const cavalliManagerToken = AuthService.generateToken({
+        sub: 'usr_sec_owner',
+        rid: cavalliId,
+        role: 'manager',
+        rname: 'Cavalli Lounge'
+      });
+
+      const [ordersRes, tablesRes, employeesRes, invRes] = await Promise.all([
+        fetch(`${baseUrl}/api/orders`, { headers: { 'Authorization': `Bearer ${cavalliManagerToken}` } }),
+        fetch(`${baseUrl}/api/tables`, { headers: { 'Authorization': `Bearer ${cavalliManagerToken}` } }),
+        fetch(`${baseUrl}/api/employees`, { headers: { 'Authorization': `Bearer ${cavalliManagerToken}` } }),
+        fetch(`${baseUrl}/api/orders/inventory`, { headers: { 'Authorization': `Bearer ${cavalliManagerToken}` } }),
+      ]);
+
+      const allSuccess = ordersRes.status === 200 && tablesRes.status === 200 && employeesRes.status === 200 && invRes.status === 200;
+
+      recordResult({
+        suite: 'Tenant Isolation',
+        name: 'Authenticated Cavalli manager legitimate access to private endpoints',
+        statusCode: ordersRes.status,
+        expectedSecureStatus: 200,
+        currentResult: allSuccess ? 'PASS' : 'FAIL',
+        description: allSuccess
+          ? 'Cavalli manager successfully accessed orders, tables, employees, and inventory with verified token.'
+          : 'OPERATIONAL REGRESSION: Legitimate Cavalli manager could not access private endpoints!'
+      });
+    }
+
+    // Test 3.9: Cross-tenant parameter injection attempt (Tenant B token with Cavalli x-restaurant-id header)
+    {
+      const tokenB = AuthService.generateToken({
+        sub: 'usr_sec_tenantb',
+        rid: otherTenantId,
+        role: 'manager',
+        rname: 'Tenant B'
+      });
+
+      const res = await fetch(`${baseUrl}/api/orders`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${tokenB}`,
+          'x-restaurant-id': cavalliId
+        }
+      });
+      const data: any = await res.json().catch(() => ({}));
+      const returnedOrders = Array.isArray(data.orders) ? data.orders : [];
+      const hasCavalliOrder = returnedOrders.some((o: any) => o._id === 'ord_sec_cavalli_leak' || o.id === 'ord_sec_cavalli_leak');
+
+      recordResult({
+        suite: 'Tenant Isolation',
+        name: 'Cross-tenant parameter injection (Tenant B token with Cavalli header)',
+        statusCode: res.status,
+        expectedSecureStatus: 400,
+        currentResult: (!hasCavalliOrder && (res.status === 400 || res.status === 403 || returnedOrders.length === 0)) ? 'PASS' : 'FAIL',
+        description: (!hasCavalliOrder && (res.status === 400 || res.status === 403 || returnedOrders.length === 0))
+          ? 'Cross-tenant mismatch prevented: Tenant B cannot access Cavalli data via spoofed header.'
+          : 'SECURITY FAILURE: Tenant B with Cavalli header accessed Cavalli orders!'
+      });
+    }
+
+    // Test 3.10: Legitimate public guest menu lookup via slug
+    {
+      const res = await fetch(`${baseUrl}/api/menu?restaurant_slug=cavali`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      const data: any = await res.json().catch(() => ({}));
+      const items = Array.isArray(data.items) ? data.items : (Array.isArray(data) ? data : []);
+      const hasMenuItems = items.some((i: any) => i.name === 'Cavalli Mint Hookah');
+
+      recordResult({
+        suite: 'Tenant Isolation',
+        name: 'Legitimate public guest menu lookup via restaurant slug',
+        statusCode: res.status,
+        expectedSecureStatus: 200,
+        currentResult: (res.status === 200 && hasMenuItems) ? 'PASS' : 'FAIL',
+        description: (res.status === 200 && hasMenuItems)
+          ? 'Public guest menu lookup via slug succeeded without requiring manager credentials.'
+          : 'OPERATIONAL REGRESSION: Public guest menu lookup via slug failed!'
+      });
+    }
+
+    // Test 3.11: Legitimate guest table order placement with explicit restaurant ID
+    {
+      const res = await fetch(`${baseUrl}/api/orders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          restaurant_id: cavalliId,
+          table: '3',
+          table_id: '3',
+          customer_name: 'Guest Table 3',
+          items: [{ name: 'Cavalli Mint Hookah', price: 35, quantity: 1, category: 'hookah' }]
+        })
+      });
+
+      recordResult({
+        suite: 'Tenant Isolation',
+        name: 'Legitimate guest table order placement with explicit tenant ID',
+        statusCode: res.status,
+        expectedSecureStatus: 201,
+        currentResult: res.status === 201 ? 'PASS' : 'FAIL',
+        description: res.status === 201
+          ? 'Public guest order created successfully with explicit tenant ID.'
+          : 'OPERATIONAL REGRESSION: Public guest order creation failed!'
       });
     }
 

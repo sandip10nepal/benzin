@@ -24,7 +24,7 @@ export class VibeQuestService {
    * Resolve canonical restaurant _id.
    */
   static async resolveRestaurantId(restaurantId: string): Promise<string> {
-    if (!restaurantId) return 'RES_EED4E9D266DF';
+    if (!restaurantId) return '';
     try {
       const rest = await MultiTenantDbService.getRestaurant(restaurantId);
       return rest?._id || restaurantId;
