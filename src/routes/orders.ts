@@ -369,7 +369,7 @@ function classifyOrderItem(item: any): 'hookah' | 'drinks' | 'food' {
 }
 
 // Helper: Convert any order (MultiTenant or Legacy) into clean standardized format for KDS / client
-function mapOrderForClient(o: any): any {
+export function mapOrderForClient(o: any): any {
   if (!o) return {};
 
   // Consolidate all items

@@ -76,6 +76,7 @@ import {
   adjustInventory,
   openAddInventoryModal,
   closeAddInventoryModal,
+  openEditInventoryModal,
   openEditInventoryModalFromObj,
   closeEditInventoryModal,
   saveEditInventoryItem,
@@ -285,6 +286,7 @@ window.switchInventorySubTab = switchInventorySubTab;
 window.adjustInventory = adjustInventory;
 window.openAddInventoryModal = openAddInventoryModal;
 window.closeAddInventoryModal = closeAddInventoryModal;
+window.openEditInventoryModal = openEditInventoryModal;
 window.openEditInventoryModalFromObj = openEditInventoryModalFromObj;
 window.closeEditInventoryModal = closeEditInventoryModal;
 window.saveEditInventoryItem = saveEditInventoryItem;

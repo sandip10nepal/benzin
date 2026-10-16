@@ -111,6 +111,7 @@ export async function handleStaffPinLogin(isClockOnly) {
       localStorage.setItem('benzin_user_id', data.user.id || data.user._id || '');
       localStorage.setItem('benzin_user_name', data.user.name);
       localStorage.setItem('benzin_user_role', data.user.role);
+      localStorage.setItem('benzin_user_pin', pin);
       if (data.restaurant) {
         localStorage.setItem('benzin_restaurant_id', data.restaurant.id);
         localStorage.setItem('benzin_selected_slug', data.restaurant.slug);
@@ -123,6 +124,7 @@ export async function handleStaffPinLogin(isClockOnly) {
       checkLoginStatus();
       if (typeof window.loadData === 'function') await window.loadData();
       if (typeof window.connectSSE === 'function') window.connectSSE();
+      if (typeof window.fetchOrders === 'function') window.fetchOrders(false);
       if (data.message) alert('🎉 ' + data.message);
     } else {
       alert('Verification Failed: ' + (data.error || data.message || 'Invalid PIN'));
@@ -306,6 +308,7 @@ export async function submitStaffSwitchPin() {
       localStorage.setItem('benzin_user_id', user.id || user._id || '');
       localStorage.setItem('benzin_user_role', user.role);
       localStorage.setItem('benzin_user_name', user.name);
+      localStorage.setItem('benzin_user_pin', pin);
 
       const nameEl = document.getElementById('headerStaffName');
       if (nameEl) nameEl.innerText = user.name;
@@ -313,6 +316,9 @@ export async function submitStaffSwitchPin() {
       if (roleEl) roleEl.innerText = String(user.role).toUpperCase();
 
       closeStaffSwitchModal();
+      if (typeof window.updateNavTabLockBadges === 'function') window.updateNavTabLockBadges();
+      if (typeof window.connectSSE === 'function') window.connectSSE();
+      if (typeof window.fetchOrders === 'function') window.fetchOrders(false);
       if (typeof window.loadData === 'function') await window.loadData();
     } else {
       alert('Invalid Staff PIN: ' + (data.message || 'Verification failed'));

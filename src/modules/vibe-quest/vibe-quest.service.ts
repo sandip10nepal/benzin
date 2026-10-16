@@ -1,5 +1,7 @@
 import fs from 'fs';
 import path from 'path';
+import type { Db } from 'mongodb';
+import { env } from '../../config/env';
 import { MultiTenantDbService } from '../../services/multi-tenant-db.service';
 import { sseService } from '../../services/sse.service';
 import { VibeQuestEngine } from './vibe-quest.engine';
@@ -12,12 +14,16 @@ import {
 } from './vibe-quest.types';
 
 export class VibeQuestService {
-  private static getDb() {
-    const db = MultiTenantDbService.getDb();
-    if (!db) {
-      throw new Error('Database is unavailable');
+  private static async getDb(): Promise<Db | null> {
+    if (env.isMongoMode) {
+      try {
+        return await MultiTenantDbService.ensureReady();
+      } catch (err) {
+        console.warn('[VibeQuestService] MongoDB not ready:', err);
+        return null;
+      }
     }
-    return db;
+    return MultiTenantDbService.getDb();
   }
 
   /**
@@ -38,12 +44,8 @@ export class VibeQuestService {
    */
   static async getSettings(restaurantId: string): Promise<VibeQuestRestaurantSettings | null> {
     const canonicalId = await this.resolveRestaurantId(restaurantId);
-    const db = this.getDb();
-    const rest = await db.collection<any>('restaurants').findOne(
-      { $or: [{ _id: canonicalId }, { id: canonicalId }] },
-      { projection: { 'settings.vibe_quest': 1 } }
-    );
-    return (rest?.settings?.vibe_quest as VibeQuestRestaurantSettings) || null;
+    const rest = await MultiTenantDbService.getRestaurant(canonicalId);
+    return ((rest?.settings as any)?.vibe_quest as VibeQuestRestaurantSettings) || null;
   }
 
   /**
@@ -51,12 +53,8 @@ export class VibeQuestService {
    */
   static async getPublishedConfig(restaurantId: string): Promise<VibeQuestConfig | null> {
     const canonicalId = await this.resolveRestaurantId(restaurantId);
-    const db = this.getDb();
-    const rest = await db.collection<any>('restaurants').findOne(
-      { $or: [{ _id: canonicalId }, { id: canonicalId }] },
-      { projection: { 'settings.vibe_quest': 1 } }
-    );
-    const vq = rest?.settings?.vibe_quest as VibeQuestRestaurantSettings | undefined;
+    const rest = await MultiTenantDbService.getRestaurant(canonicalId);
+    const vq = (rest?.settings as any)?.vibe_quest as VibeQuestRestaurantSettings | undefined;
     if (!vq || vq.enabled === false) {
       return null;
     }
@@ -68,7 +66,6 @@ export class VibeQuestService {
    */
   static async updateDraft(restaurantId: string, draft: VibeQuestConfig): Promise<boolean> {
     const canonicalId = await this.resolveRestaurantId(restaurantId);
-    const db = this.getDb();
     const now = new Date().toISOString();
     draft.updated_at = now;
 
@@ -83,20 +80,24 @@ export class VibeQuestService {
       published_at: now,
     };
 
-    await db.collection<any>('restaurants').updateOne(
-      { $or: [{ _id: canonicalId }, { id: canonicalId }] },
-      {
-        $set: {
-          'settings.vibe_quest.enabled': true,
-          'settings.vibe_quest.published_version': nextVersion,
-          'settings.vibe_quest.draft': draft,
-          'settings.vibe_quest.published': publishedConfig,
-          'settings.vibe_quest.updated_at': now,
-          'settings.vibe_quest.published_at': now,
-        },
-      },
-      { upsert: false }
-    );
+    const rest = await MultiTenantDbService.getRestaurant(canonicalId);
+    const currentSettings = (rest?.settings as any) || {};
+    const updatedVibeQuest = {
+      ...currentSettings.vibe_quest,
+      enabled: true,
+      published_version: nextVersion,
+      draft,
+      published: publishedConfig,
+      updated_at: now,
+      published_at: now,
+    };
+
+    await MultiTenantDbService.updateRestaurant(canonicalId, {
+      settings: {
+        ...currentSettings,
+        vibe_quest: updatedVibeQuest,
+      } as any,
+    });
 
     // Broadcast SSE update
     try {
@@ -122,7 +123,6 @@ export class VibeQuestService {
     customSettings?: Partial<VibeQuestConfigSettings>
   ): Promise<{ success: boolean; version: number; config: VibeQuestConfig }> {
     const canonicalId = await this.resolveRestaurantId(restaurantId);
-    const db = this.getDb();
     const existingSettings = await this.getSettings(canonicalId);
     const currentVersion = existingSettings?.published_version || existingSettings?.draft?.version || 1;
     const nextVersion = currentVersion + 1;
@@ -220,20 +220,22 @@ export class VibeQuestService {
       published_at: now,
     };
 
-    await db.collection<any>('restaurants').updateOne(
-      { $or: [{ _id: canonicalId }, { id: canonicalId }] },
-      {
-        $set: {
-          'settings.vibe_quest.enabled': true,
-          'settings.vibe_quest.published_version': nextVersion,
-          'settings.vibe_quest.published': newConfig,
-          'settings.vibe_quest.draft': newConfig,
-          'settings.vibe_quest.published_at': now,
-          'settings.vibe_quest.updated_at': now,
+    const rest = await MultiTenantDbService.getRestaurant(canonicalId);
+    const currentSettings = (rest?.settings as any) || {};
+    await MultiTenantDbService.updateRestaurant(canonicalId, {
+      settings: {
+        ...currentSettings,
+        vibe_quest: {
+          ...currentSettings.vibe_quest,
+          enabled: true,
+          published_version: nextVersion,
+          published: newConfig,
+          draft: newConfig,
+          published_at: now,
+          updated_at: now,
         },
-      },
-      { upsert: false }
-    );
+      } as any,
+    });
 
     try {
       sseService.broadcast(
@@ -284,8 +286,8 @@ export class VibeQuestService {
    * Validate draft against live catalog.
    */
   static async validateDraft(restaurantId: string): Promise<VibeQuestValidationResult> {
-    const db = this.getDb();
-    const settings = await this.getSettings(restaurantId);
+    const canonicalId = await this.resolveRestaurantId(restaurantId);
+    const settings = await this.getSettings(canonicalId);
     if (!settings?.draft) {
       return {
         valid: false,
@@ -293,10 +295,10 @@ export class VibeQuestService {
       };
     }
 
-    const categories = await db.collection<any>('menu_categories').find({ restaurant_id: restaurantId }).toArray();
-    const products = await db.collection<any>('menu_items').find({ restaurant_id: restaurantId }).toArray();
+    const categories = await MultiTenantDbService.listCategories(canonicalId);
+    const products = await MultiTenantDbService.listMenuItems(canonicalId);
 
-    return VibeQuestEngine.validateConfig(settings.draft, categories, products);
+    return VibeQuestEngine.validateConfig(settings.draft, categories as any, products as any);
   }
 
   /**
@@ -307,8 +309,8 @@ export class VibeQuestService {
     version: number;
     validation: VibeQuestValidationResult;
   }> {
-    const db = this.getDb();
-    const settings = await this.getSettings(restaurantId);
+    const canonicalId = await this.resolveRestaurantId(restaurantId);
+    const settings = await this.getSettings(canonicalId);
     if (!settings?.draft) {
       return {
         success: false,
@@ -320,7 +322,7 @@ export class VibeQuestService {
       };
     }
 
-    const validation = await this.validateDraft(restaurantId);
+    const validation = await this.validateDraft(canonicalId);
     if (!validation.valid) {
       return {
         success: false,
@@ -338,27 +340,30 @@ export class VibeQuestService {
       published_at: now,
     };
 
-    await db.collection<any>('restaurants').updateOne(
-      { _id: restaurantId },
-      {
-        $set: {
-          'settings.vibe_quest.enabled': true,
-          'settings.vibe_quest.published_version': nextVersion,
-          'settings.vibe_quest.published': publishedConfig,
-          'settings.vibe_quest.published_at': now,
-          'settings.vibe_quest.updated_at': now,
+    const rest = await MultiTenantDbService.getRestaurant(canonicalId);
+    const currentSettings = (rest?.settings as any) || {};
+    await MultiTenantDbService.updateRestaurant(canonicalId, {
+      settings: {
+        ...currentSettings,
+        vibe_quest: {
+          ...currentSettings.vibe_quest,
+          enabled: true,
+          published_version: nextVersion,
+          published: publishedConfig,
+          published_at: now,
+          updated_at: now,
         },
-      }
-    );
+      } as any,
+    });
 
     // Broadcast SSE update
     sseService.broadcast(
       {
         type: 'vibe_quest_updated',
         version: nextVersion,
-        restaurant_id: restaurantId,
+        restaurant_id: canonicalId,
       },
-      restaurantId
+      canonicalId
     );
 
     return {
@@ -372,25 +377,28 @@ export class VibeQuestService {
    * Toggle Vibe Quest enabled state.
    */
   static async setEnabled(restaurantId: string, enabled: boolean): Promise<boolean> {
-    const db = this.getDb();
+    const canonicalId = await this.resolveRestaurantId(restaurantId);
     const now = new Date().toISOString();
-    await db.collection<any>('restaurants').updateOne(
-      { _id: restaurantId },
-      {
-        $set: {
-          'settings.vibe_quest.enabled': enabled,
-          'settings.vibe_quest.updated_at': now,
+    const rest = await MultiTenantDbService.getRestaurant(canonicalId);
+    const currentSettings = (rest?.settings as any) || {};
+    await MultiTenantDbService.updateRestaurant(canonicalId, {
+      settings: {
+        ...currentSettings,
+        vibe_quest: {
+          ...currentSettings.vibe_quest,
+          enabled,
+          updated_at: now,
         },
-      }
-    );
+      } as any,
+    });
 
     sseService.broadcast(
       {
         type: 'vibe_quest_updated',
         enabled,
-        restaurant_id: restaurantId,
+        restaurant_id: canonicalId,
       },
-      restaurantId
+      canonicalId
     );
 
     return true;
@@ -411,17 +419,20 @@ export class VibeQuestService {
     }
   ): Promise<void> {
     try {
-      const db = this.getDb();
-      await db.collection<any>('vibe_quest_events').insertOne({
-        restaurant_id: restaurantId,
-        event_type: event.event_type,
-        question_id: event.question_id,
-        answer_id: event.answer_id,
-        product_id: event.product_id,
-        session_id: event.session_id,
-        metadata: event.metadata,
-        created_at: new Date(),
-      });
+      const canonicalId = await this.resolveRestaurantId(restaurantId);
+      const db = await this.getDb();
+      if (db) {
+        await db.collection<any>('vibe_quest_events').insertOne({
+          restaurant_id: canonicalId,
+          event_type: event.event_type,
+          question_id: event.question_id,
+          answer_id: event.answer_id,
+          product_id: event.product_id,
+          session_id: event.session_id,
+          metadata: event.metadata,
+          created_at: new Date(),
+        });
+      }
     } catch (err: any) {
       console.warn('[VibeQuest] Failed to record event:', err.message);
     }
@@ -431,21 +442,30 @@ export class VibeQuestService {
    * Get aggregate metrics for admin panel.
    */
   static async getAnalyticsSummary(restaurantId: string): Promise<any> {
-    const db = this.getDb();
+    const canonicalId = await this.resolveRestaurantId(restaurantId);
+    const db = await this.getDb();
+    if (!db) {
+      return {
+        total_events: 0,
+        event_counts: {},
+        top_answers: [],
+        top_products_selected: [],
+      };
+    }
     const collection = db.collection<any>('vibe_quest_events');
 
-    const totalEvents = await collection.countDocuments({ restaurant_id: restaurantId });
+    const totalEvents = await collection.countDocuments({ restaurant_id: canonicalId });
 
     const eventCounts = await collection
       .aggregate([
-        { $match: { restaurant_id: restaurantId } },
+        { $match: { restaurant_id: canonicalId } },
         { $group: { _id: '$event_type', count: { $sum: 1 } } },
       ])
       .toArray();
 
     const topAnswers = await collection
       .aggregate([
-        { $match: { restaurant_id: restaurantId, event_type: 'answer_selected' } },
+        { $match: { restaurant_id: canonicalId, event_type: 'answer_selected' } },
         { $group: { _id: { question_id: '$question_id', answer_id: '$answer_id' }, count: { $sum: 1 } } },
         { $sort: { count: -1 } },
         { $limit: 10 },
@@ -454,7 +474,7 @@ export class VibeQuestService {
 
     const topProductsSelected = await collection
       .aggregate([
-        { $match: { restaurant_id: restaurantId, event_type: 'recommendation_selected' } },
+        { $match: { restaurant_id: canonicalId, event_type: 'recommendation_selected' } },
         { $group: { _id: '$product_id', count: { $sum: 1 } } },
         { $sort: { count: -1 } },
         { $limit: 10 },

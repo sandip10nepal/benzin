@@ -126,7 +126,7 @@ export async function submitCashPayment() {
  * Preserves Hookah Ice Base, Ice Hose, server requests, readiness badges, and staff badges.
  */
 export function renderTicketCard(order, isFulfilled = false) {
-  const isFulfilledOrder = Boolean(isFulfilled || order.status === 'fulfilled' || order.status === 'completed' || order.closedSession || (order.fulfilledDepartments && order.fulfilledDepartments.length > 0));
+  const isFulfilledOrder = Boolean(isFulfilled || order.status === 'fulfilled' || order.status === 'completed' || order.closedSession);
   const orderId = order.id || order._id || 'ORD-000';
   const displayId = String(orderId).slice(-6).toUpperCase();
   const timeStr = order.createdAt ? new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now';
@@ -436,17 +436,25 @@ export function renderOrders() {
   const kdsContainer = document.getElementById('ticketsGrid');
   const archiveContainer = document.getElementById('archiveTicketsGrid');
 
-  const activeOrders = state.orders.filter(o => {
-    const isFulfilled = o.status === 'fulfilled' || o.status === 'completed' || o.closedSession;
-    const hasFulfilledDeps = o.fulfilledDepartments && o.fulfilledDepartments.length > 0;
-    return !isFulfilled && !hasFulfilledDeps;
-  });
+  const isOrderArchived = (o) => {
+    if (o.status === 'fulfilled' || o.status === 'completed' || Boolean(o.closedSession)) {
+      return true;
+    }
+    const hasFood = Array.isArray(o.food) && o.food.length > 0;
+    const hasDrinks = (Array.isArray(o.drinks) && o.drinks.length > 0) || o.kind === 'chai';
+    const hasHookah = Array.isArray(o.hookahs) && o.hookahs.length > 0;
+    const ful = Array.isArray(o.fulfilledDepartments) ? o.fulfilledDepartments : [];
+    if (hasFood || hasDrinks || hasHookah) {
+      const foodDone = !hasFood || ful.includes('food');
+      const barDone = !hasDrinks || ful.includes('drinks') || ful.includes('bar');
+      const hookahDone = !hasHookah || ful.includes('hookah');
+      return foodDone && barDone && hookahDone;
+    }
+    return false;
+  };
 
-  const archivedOrders = state.orders.filter(o => {
-    const isFulfilled = o.status === 'fulfilled' || o.status === 'completed' || o.closedSession;
-    const hasFulfilledDeps = o.fulfilledDepartments && o.fulfilledDepartments.length > 0;
-    return isFulfilled || hasFulfilledDeps;
-  });
+  const activeOrders = state.orders.filter(o => !isOrderArchived(o));
+  const archivedOrders = state.orders.filter(o => isOrderArchived(o));
 
   if (kdsContainer) {
     if (activeOrders.length === 0) {

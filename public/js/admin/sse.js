@@ -206,3 +206,9 @@ export function connectSSE() {
     setTimeout(connectSSE, 3000);
   };
 }
+
+// Resilient background sync interval: ensures multi-instance and cloud-to-local order parity
+setInterval(() => {
+  fetchOrders(true);
+}, 4000);
+

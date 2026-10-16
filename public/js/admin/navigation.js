@@ -136,6 +136,7 @@ export function switchTab(tab) {
 
   if (tab === 'kds' || tab === 'archive') {
     if (typeof window.renderOrders === 'function') window.renderOrders();
+    if (typeof window.fetchOrders === 'function') window.fetchOrders(true);
   } else if (tab === 'tables') {
     if (typeof window.renderTablesPage === 'function') window.renderTablesPage();
   } else if (tab === 'inventory') {

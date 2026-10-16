@@ -33,7 +33,7 @@ async function runAllWorkflowTests() {
     });
     const rosterData: any = await rosterRes.json();
     const staffList = rosterData.staff || [];
-    const serverUser = staffList.find((s: any) => s.role === 'server') || staffList[0];
+    const serverUser = staffList.find((s: any) => s.name && s.name.includes('Sandip')) || staffList[0];
     record('Auth', 'Load Staff Roster', rosterData.success && staffList.length > 0, `Found ${staffList.length} staff members for Cavalli`);
 
     // Staff PIN Login
@@ -50,7 +50,7 @@ async function runAllWorkflowTests() {
     serverToken = verifyData.token;
     record('Auth', 'Staff PIN Login (Server)', verifyData.success && !!serverToken, `Issued Server JWT for ${serverUser.name}`);
 
-    // Staff Quick Switch via /api/employees/verify-pin with Owner/Manager PIN (1234)
+    // Staff Quick Switch via /api/employees/verify-pin with Owner/Manager PIN (2448)
     const switchRes = await fetch(`${BASE_URL}/api/employees/verify-pin`, {
       method: 'POST',
       headers: {
@@ -58,7 +58,7 @@ async function runAllWorkflowTests() {
         'x-restaurant-id': RESTAURANT_ID,
         'x-restaurant-code': RESTAURANT_CODE
       },
-      body: JSON.stringify({ pin: '1234' })
+      body: JSON.stringify({ pin: '2448' })
     });
     const switchData: any = await switchRes.json();
     managerToken = switchData.token;
@@ -318,8 +318,8 @@ async function runAllWorkflowTests() {
     });
     const vqData: any = await vqRes.json();
     const isLocalDbUnavailable = vqRes.status === 500 && (vqData.error?.message?.includes('internal server error') || vqData.error?.message?.includes('Database is unavailable'));
-    const isVqSuccess = vqRes.status === 200 && (vqData.questions || vqData.config?.questions || []).length > 0;
-    record('Vibe Quest', 'Questionnaire Configuration', isVqSuccess || isLocalDbUnavailable, isVqSuccess ? `Loaded discovery questions from MongoDB` : `Local mode verified: Backend requires MongoDB for Vibe Quest (handled gracefully)`);
+    const isVqSuccess = vqRes.status === 200 && (vqData.draft?.questions || vqData.published?.questions || vqData.questions || []).length > 0;
+    record('Vibe Quest', 'Questionnaire Configuration', isVqSuccess || isLocalDbUnavailable, isVqSuccess ? `Loaded discovery questions from MongoDB (${(vqData.draft?.questions || []).length} questions)` : `Local mode verified: Backend requires MongoDB for Vibe Quest (handled gracefully)`);
   } catch (err: any) {
     record('Vibe Quest', 'Vibe Quest Exception', false, err.message);
   }

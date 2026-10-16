@@ -103,7 +103,7 @@ export function renderInventoryPage() {
             <button class="btn" style="flex: 1; justify-content: center; padding: 6px; font-size: 11px; font-weight: 800; background: rgba(239,68,68,0.15); border-color: var(--danger); color: var(--danger);" onclick="adjustInventory('${id}', 10, 'remove')">-10</button>
           </div>
           <div style="display: flex; gap: 6px;">
-            <button class="btn" style="flex: 1; justify-content: center; padding: 6px 10px; font-size: 11px; font-weight: 800;" onclick="openEditInventoryModalFromObj('${escapedItemObj}')">
+            <button class="btn" style="flex: 1; justify-content: center; padding: 6px 10px; font-size: 11px; font-weight: 800;" onclick="openEditInventoryModal('${id}')">
               <i data-lucide="edit-2" style="width: 13px; height: 13px;"></i> Edit
             </button>
             <button class="btn btn-danger" style="padding: 6px 12px; font-size: 11px;" onclick="deleteInventoryItem('${id}')" title="Delete stock item">
@@ -171,16 +171,45 @@ export function closeAddInventoryModal() {
 
 /**
  * Open modal to edit existing stock item.
+ * Supports passing item ID directly or passing item object.
  */
-export function openEditInventoryModalFromObj(escapedObjStr) {
+export function openEditInventoryModal(itemIdOrObj) {
   try {
-    const item = JSON.parse(decodeURIComponent(escapedObjStr));
+    let item = itemIdOrObj;
+    if (typeof itemIdOrObj === 'string') {
+      // 1. Check if itemIdOrObj matches an item in loaded state.inventory
+      if (state.inventory) {
+        if (state.inventory[itemIdOrObj]) {
+          item = state.inventory[itemIdOrObj];
+        } else if (Array.isArray(state.inventory)) {
+          item = state.inventory.find(i => (i.id || i._id) === itemIdOrObj) || item;
+        } else if (typeof state.inventory === 'object') {
+          item = Object.values(state.inventory).find(i => (i.id || i._id) === itemIdOrObj) || item;
+        }
+      }
+
+      // 2. If it's a serialized JSON string, try to decode
+      if (typeof item === 'string' && (item.startsWith('%7B') || item.startsWith('{'))) {
+        try {
+          item = JSON.parse(decodeURIComponent(item));
+        } catch (_) {
+          try {
+            item = JSON.parse(item);
+          } catch (_) {
+            item = { id: itemIdOrObj, name: itemIdOrObj };
+          }
+        }
+      } else if (typeof item === 'string') {
+        item = { id: itemIdOrObj, name: itemIdOrObj };
+      }
+    }
+
     const id = item.id || item._id || '';
-    const liveItem = (state.inventory && (state.inventory[id] || Object.values(state.inventory).find(i => (i.id || i._id) === id))) || item;
+    const liveItem = (state.inventory && (state.inventory[id] || (Array.isArray(state.inventory) ? state.inventory.find(i => (i.id || i._id) === id) : Object.values(state.inventory).find(i => (i.id || i._id) === id)))) || item;
     
     let brandVal = (liveItem.brand || item.brand || '').trim();
     if (!brandVal) {
-      const n = (item.name || '').toLowerCase();
+      const n = (liveItem.name || item.name || '').toLowerCase();
       if (n.includes('al fakher') || n.includes('alfakher')) brandVal = 'Al Fakher';
       else if (n.includes('adalya') || n.includes('adaliya') || n.includes('bagdadi') || n.includes('lady killer') || n.includes('love 66') || n.includes('mi amor') || n.includes('berlin night')) brandVal = 'Adalya';
       else if (n.includes('afzal') || n.includes('pan raas') || n.includes('paan raas') || n.includes('pan ras')) brandVal = 'Afzal';
@@ -192,18 +221,32 @@ export function openEditInventoryModalFromObj(escapedObjStr) {
       else if (n.includes('eternal smoke')) brandVal = 'Eternal Smoke';
     }
 
-    document.getElementById('invEditId').value = id;
-    document.getElementById('invEditName').value = liveItem.name || item.name || '';
-    document.getElementById('invEditBrand').value = brandVal;
+    const editIdEl = document.getElementById('invEditId');
+    const editNameEl = document.getElementById('invEditName');
+    const editBrandEl = document.getElementById('invEditBrand');
+    const editUnitEl = document.getElementById('invEditUnit');
+    const editStockEl = document.getElementById('invEditStock');
+    const editMinAlertEl = document.getElementById('invEditMinAlert');
+
+    if (editIdEl) editIdEl.value = id;
+    if (editNameEl) editNameEl.value = liveItem.name || item.name || '';
+    if (editBrandEl) editBrandEl.value = brandVal;
     populateInventoryCategoryDropdowns(liveItem.category_id || liveItem.category || item.category_id || item.category || state.activeInventorySubTab || 'INVCAT_1862EED65A2E');
-    document.getElementById('invEditUnit').value = liveItem.unit || item.unit || 'g';
-    document.getElementById('invEditStock').value = liveItem.stock !== undefined ? liveItem.stock : (item.stock !== undefined ? item.stock : 0);
-    document.getElementById('invEditMinAlert').value = liveItem.reorder_threshold !== undefined ? liveItem.reorder_threshold : (item.reorder_threshold !== undefined ? item.reorder_threshold : 100);
-    document.getElementById('editInventoryModal').style.display = 'flex';
+    if (editUnitEl) editUnitEl.value = liveItem.unit || item.unit || 'g';
+    if (editStockEl) editStockEl.value = liveItem.stock !== undefined ? liveItem.stock : (item.stock !== undefined ? item.stock : 0);
+    if (editMinAlertEl) editMinAlertEl.value = liveItem.reorder_threshold !== undefined ? liveItem.reorder_threshold : (item.reorder_threshold !== undefined ? item.reorder_threshold : 100);
+    
+    const modal = document.getElementById('editInventoryModal');
+    if (modal) modal.style.display = 'flex';
   } catch (err) {
     console.error('Error opening edit inventory modal:', err);
   }
 }
+
+/**
+ * Backward compatibility alias for legacy callers.
+ */
+export const openEditInventoryModalFromObj = openEditInventoryModal;
 
 /**
  * Close edit inventory modal.
@@ -224,6 +267,7 @@ export async function saveEditInventoryItem() {
   const stock = parseFloat(document.getElementById('invEditStock').value);
   const reorder_threshold = parseFloat(document.getElementById('invEditMinAlert').value) || 100;
   const role = (localStorage.getItem('benzin_user_role') || 'owner').toLowerCase();
+  const authPin = localStorage.getItem('benzin_user_pin') || localStorage.getItem('benzin_admin_pin') || undefined;
 
   if (!ingredientId || !name || isNaN(stock)) {
     alert('Please fill in a valid inventory item name and stock quantity');
@@ -235,7 +279,7 @@ export async function saveEditInventoryItem() {
     const res = await fetch(`${API_URL}/api/orders/inventory/update`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ ingredientId, name, brand, category, unit, stock, reorder_threshold, role })
+      body: JSON.stringify({ ingredientId, name, brand, category, unit, stock, reorder_threshold, role, authPin })
     });
 
     const data = await res.json();

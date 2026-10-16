@@ -1,3 +1,4 @@
+import { env } from './config/env';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -18,8 +19,7 @@ import { MultiTenantDbService } from './services/multi-tenant-db.service';
 
 import tablesRouter from './routes/tables';
 import vibeQuestRouter from './routes/vibe-quest';
-
-import { env } from './config/env';
+import { MongoSyncService } from './services/mongo-sync.service';
 
 const app = express();
 const PORT = env.PORT;
@@ -27,6 +27,16 @@ const PORT = env.PORT;
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Ensure admin modules and admin.html are never stale cached by browser
+app.use((req, res, next) => {
+  if (req.path.startsWith('/js/admin') || req.path === '/admin.html' || req.path === '/admin' || req.path === '/staff') {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+  next();
+});
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*                    API ROUTES                                               */
@@ -190,6 +200,7 @@ app.listen(Number(PORT), '0.0.0.0', () => {
       await ensureDatabaseIndexes();
       console.log('🏢 Multi-tenant SaaS platform database ready');
       preloadMenuCache().catch(e => console.warn('Preload cache error:', e));
+      await MongoSyncService.start();
       return;
     } catch (err: any) {
       console.error(`[Database] Attempt ${attempt}/${maxAttempts} failed:`, err.message || err);
