@@ -1,6 +1,7 @@
 import { MongoClient } from 'mongodb';
+import { env } from '../config/env';
 
-const uri = 'mongodb+srv://sandip2nepal_db_user:jzKRgGtGJpU9jhR7@cluster0.tkcmyix.mongodb.net/benzin_saas_db?retryWrites=true&w=majority';
+const uri = env.MONGODB_URI;
 
 async function run() {
   const client = new MongoClient(uri);

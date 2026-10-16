@@ -178,7 +178,7 @@ static async listMenuItems(restaurantId: string, categoryId?: string): Promise<M
 Execute `gcloud run services update` with `--set-env-vars`:
 ```bash
 gcloud run services update hookah-lounge-backend \
-  --set-env-vars MONGODB_URI="mongodb+srv://sandip2nepal_db_user:jzKRgGtGJpU9jhR7@cluster0.tkcmyix.mongodb.net/benzin_saas_db?retryWrites=true&w=majority",JWT_SECRET="benzin_saas_jwt_secret_production_key_2026" \
+  --set-env-vars MONGODB_URI="mongodb+srv://<DB_USER>:<DB_PASSWORD>@cluster0.tkcmyix.mongodb.net/benzin_saas_db?retryWrites=true&w=majority",JWT_SECRET="<SECURE_JWT_SECRET>" \
   --project=project-52e90aa1-0b02-44aa-bf8 \
   --region=us-central1
 ```

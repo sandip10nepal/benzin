@@ -1,4 +1,5 @@
 import { MultiTenantDbService } from '../services/multi-tenant-db.service';
+import { env } from '../config/env';
 import { VibeQuestEngine } from '../modules/vibe-quest/vibe-quest.engine';
 import { VibeQuestService } from '../modules/vibe-quest/vibe-quest.service';
 import {
@@ -31,7 +32,7 @@ async function runTestSuite() {
   console.log('       BENZIN — CAVALLI VIBE QUEST: ACCEPTANCE TEST SUITE (1-30)          ');
   console.log('═══════════════════════════════════════════════════════════════════════════\n');
 
-  const mongoUri = process.env.MONGODB_URI || 'mongodb+srv://sandip2nepal_db_user:jzKRgGtGJpU9jhR7@cluster0.tkcmyix.mongodb.net/benzin_saas_db?retryWrites=true&w=majority';
+  const mongoUri = env.MONGODB_URI;
   await MultiTenantDbService.initialize(mongoUri);
   const db = MultiTenantDbService.getDb()!;
 

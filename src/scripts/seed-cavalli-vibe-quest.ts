@@ -5,8 +5,9 @@
 import { MongoClient } from 'mongodb';
 import { VibeQuestConfig, VibeQuestQuestion } from '../modules/vibe-quest/vibe-quest.types';
 import { VibeQuestEngine } from '../modules/vibe-quest/vibe-quest.engine';
+import { env } from '../config/env';
 
-const uri = process.env.MONGODB_URI || 'mongodb+srv://sandip2nepal_db_user:jzKRgGtGJpU9jhR7@cluster0.tkcmyix.mongodb.net/benzin_saas_db?retryWrites=true&w=majority';
+const uri = env.MONGODB_URI;
 const RID = 'RES_EED4E9D266DF';
 
 export function buildCavalliVibeQuestQuestions(): VibeQuestQuestion[] {
