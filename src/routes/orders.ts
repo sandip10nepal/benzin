@@ -116,44 +116,53 @@ router.get('/live', async (req, res) => {
 
 // Helper to verify if request is from an authorized Manager or Owner
 async function isManagerOrOwner(req: any, authPin?: any): Promise<boolean> {
-  const role = String(req?.headers?.['x-user-role'] || req?.body?.role || req?.tenant?.role || req?.user?.role || '').toLowerCase();
-  if (role === 'owner' || role === 'manager' || role === 'platform_admin' || role === 'admin') {
-    return true;
-  }
+  const restaurantId = await resolveTenantRestaurantId(req);
 
+  // 1. Verify Cryptographic Bearer JWT Token
   const authHeader = req.headers?.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7);
     const payload: any = AuthService.verifyToken(token);
-    if (payload && (payload.role === 'owner' || payload.role === 'manager' || payload.role === 'platform_admin' || (payload.role as string) === 'admin')) {
-      return true;
-    }
-  }
-
-  const restaurantId = await resolveTenantRestaurantId(req);
-
-  const userId = req.headers?.['x-user-id'] || req.body?.userId;
-  if (userId && MultiTenantDbService.isInitialized()) {
-    const user: any = await MultiTenantDbService.getUser(String(userId));
-    if (user && (user.role === 'owner' || user.role === 'manager' || user.role === 'platform_admin' || (user.role as string) === 'admin')) {
-      return true;
-    }
-  }
-
-  const pin = authPin || req.body?.authPin || req.body?.pin || req.headers?.['x-admin-pin'] || req.query?.authPin;
-  if (pin && restaurantId && MultiTenantDbService.isInitialized()) {
-    const pinStr = String(pin).trim();
-    const users = await MultiTenantDbService.listUsers(restaurantId);
-    for (const u of users) {
-      if ((u.role === 'owner' || u.role === 'manager' || u.role === 'platform_admin' || (u.role as string) === 'admin') && AuthService.verifyPin(pinStr, u.pin_hash)) {
+    if (payload) {
+      const tokenRid = payload.rid;
+      const isTenantMatch = !tokenRid || !restaurantId || tokenRid === restaurantId || payload.role === 'platform_admin';
+      
+      if (isTenantMatch && (payload.role === 'owner' || payload.role === 'manager' || payload.role === 'platform_admin' || (payload.role as string) === 'admin')) {
+        if (payload.sub && MultiTenantDbService.isInitialized()) {
+          const user: any = await MultiTenantDbService.getUser(String(payload.sub));
+          if (user && (user.active === false || MultiTenantDbService.isAccountLocked(user))) {
+            return false;
+          }
+        }
         return true;
       }
     }
   }
 
-  // If in admin panel context with valid restaurant context
-  if (restaurantId && (req.headers?.['x-restaurant-code'] || req.headers?.['x-restaurant-id'])) {
-    return true;
+  // 2. Check verified tenant context attached by trusted auth middleware
+  if (req.tenant) {
+    const tRole = req.tenant.role;
+    const tRid = req.tenant.restaurant_id;
+    const isTenantMatch = !tRid || !restaurantId || tRid === restaurantId || tRole === 'platform_admin';
+    if (isTenantMatch && (tRole === 'owner' || tRole === 'manager' || tRole === 'platform_admin' || (tRole as string) === 'admin')) {
+      return true;
+    }
+  }
+
+  // 3. Manager/Owner PIN Verification (for supervisor override on POS terminals)
+  const pin = authPin || req.body?.authPin || req.body?.pin || req.headers?.['x-admin-pin'] || req.query?.authPin;
+  if (pin && restaurantId && MultiTenantDbService.isInitialized()) {
+    const pinStr = String(pin).trim();
+    if (pinStr.length > 0) {
+      const users = await MultiTenantDbService.listUsers(restaurantId);
+      for (const u of users) {
+        if (u.active !== false && !MultiTenantDbService.isAccountLocked(u)) {
+          if ((u.role === 'owner' || u.role === 'manager' || u.role === 'platform_admin' || (u.role as string) === 'admin') && AuthService.verifyPin(pinStr, u.pin_hash)) {
+            return true;
+          }
+        }
+      }
+    }
   }
 
   return false;

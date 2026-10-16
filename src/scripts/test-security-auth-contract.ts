@@ -209,6 +209,28 @@ async function runSecuritySuite() {
         total: 80.00,
         subtotal: 75.00,
         createdAt: new Date().toISOString()
+      },
+      {
+        _id: 'ord_sec_cavalli_override_valid',
+        id: 'ord_sec_cavalli_override_valid',
+        restaurant_id: cavalliId,
+        table: '7',
+        status: 'pending',
+        paymentStatus: 'unpaid',
+        total: 50.00,
+        subtotal: 45.00,
+        createdAt: new Date().toISOString()
+      },
+      {
+        _id: 'ord_sec_cavalli_override_invalid',
+        id: 'ord_sec_cavalli_override_invalid',
+        restaurant_id: cavalliId,
+        table: '8',
+        status: 'pending',
+        paymentStatus: 'unpaid',
+        total: 50.00,
+        subtotal: 45.00,
+        createdAt: new Date().toISOString()
       }
     ];
 
@@ -596,6 +618,187 @@ async function runSecuritySuite() {
         description: res.status === 200
           ? 'VULNERABILITY CONFIRMED: Server was able to delete order because isManagerOrOwner line 155 grants access if x-restaurant-id is present!'
           : 'Server role properly denied permission to delete order.'
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // SUITE 6: LEGITIMATE STAFF, POS DEVICE, AND SUPERVISOR PIN WORKFLOWS
+    // ─────────────────────────────────────────────────────────────────────────
+    console.log('\n--- Suite 6: Legitimate Staff, POS Device & Supervisor Workflows ---');
+
+    // Test 6.1: Ordinary Server Order Creation
+    {
+      const serverToken = AuthService.generateToken({
+        sub: 'usr_sec_server',
+        rid: cavalliId,
+        role: 'server',
+        rname: 'Cavalli Lounge'
+      });
+
+      const res = await fetch(`${baseUrl}/api/orders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${serverToken}`
+        },
+        body: JSON.stringify({
+          restaurant_id: cavalliId,
+          table: '1',
+          items: [{ name: 'Mint Hookah', price: 35.00, quantity: 1, category: 'hookah' }],
+          customer_name: 'VIP Guest'
+        })
+      });
+      recordResult({
+        suite: 'Operational Workflows',
+        name: 'Server placing order via POST /api/orders',
+        statusCode: res.status,
+        expectedSecureStatus: 201,
+        currentResult: res.status === 201 ? 'PASS' : 'FAIL',
+        description: res.status === 201
+          ? 'Legitimate server created order without disruption.'
+          : 'Server order creation failed.'
+      });
+    }
+
+    // Test 6.2: Ordinary Server Floor Table Listing
+    {
+      const serverToken = AuthService.generateToken({
+        sub: 'usr_sec_server',
+        rid: cavalliId,
+        role: 'server',
+        rname: 'Cavalli Lounge'
+      });
+
+      const res = await fetch(`${baseUrl}/api/tables?restaurant_id=${cavalliId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${serverToken}`
+        }
+      });
+      recordResult({
+        suite: 'Operational Workflows',
+        name: 'Server viewing floor tables via GET /api/tables',
+        statusCode: res.status,
+        expectedSecureStatus: 200,
+        currentResult: res.status === 200 ? 'PASS' : 'FAIL',
+        description: res.status === 200
+          ? 'Server successfully retrieved floor table layout.'
+          : 'Server floor table retrieval failed.'
+      });
+    }
+
+    // Test 6.3: Paired POS Tablet Device Ordering
+    {
+      const deviceToken = AuthService.generateToken({
+        sub: 'dev_sec_pos_01',
+        did: 'dev_sec_pos_01',
+        rid: cavalliId,
+        role: 'device',
+        rname: 'Cavalli Lounge'
+      });
+
+      const res = await fetch(`${baseUrl}/api/orders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${deviceToken}`
+        },
+        body: JSON.stringify({
+          restaurant_id: cavalliId,
+          table: '2',
+          items: [{ name: 'Double Apple Hookah', price: 40.00, quantity: 1, category: 'hookah' }],
+          customer_name: 'Table Guest'
+        })
+      });
+      recordResult({
+        suite: 'Operational Workflows',
+        name: 'Paired POS device submitting order via POST /api/orders',
+        statusCode: res.status,
+        expectedSecureStatus: 201,
+        currentResult: res.status === 201 ? 'PASS' : 'FAIL',
+        description: res.status === 201
+          ? 'Paired POS device placed table order successfully.'
+          : 'POS device order placement failed.'
+      });
+    }
+
+    // Test 6.4: Paired POS Tablet Device Floor Table Listing
+    {
+      const deviceToken = AuthService.generateToken({
+        sub: 'dev_sec_pos_01',
+        did: 'dev_sec_pos_01',
+        rid: cavalliId,
+        role: 'device',
+        rname: 'Cavalli Lounge'
+      });
+
+      const res = await fetch(`${baseUrl}/api/tables?restaurant_id=${cavalliId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${deviceToken}`
+        }
+      });
+      recordResult({
+        suite: 'Operational Workflows',
+        name: 'Paired POS device viewing floor tables via GET /api/tables',
+        statusCode: res.status,
+        expectedSecureStatus: 200,
+        currentResult: res.status === 200 ? 'PASS' : 'FAIL',
+        description: res.status === 200
+          ? 'POS terminal loaded floor map successfully.'
+          : 'POS terminal table retrieval failed.'
+      });
+    }
+
+    // Test 6.5: Supervisor In-Person PIN Override with Valid Manager PIN
+    {
+      const res = await fetch(`${baseUrl}/api/orders/ord_sec_cavalli_override_valid/void`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-restaurant-id': cavalliId
+        },
+        body: JSON.stringify({
+          authPin: '1234',
+          reason: 'Authorized supervisor void'
+        })
+      });
+      recordResult({
+        suite: 'Operational Workflows',
+        name: 'Supervisor in-person PIN override on terminal with VALID PIN',
+        statusCode: res.status,
+        expectedSecureStatus: 200,
+        currentResult: res.status === 200 ? 'PASS' : 'FAIL',
+        description: res.status === 200
+          ? 'Supervisor PIN override authorized void operation successfully.'
+          : 'Supervisor valid PIN override failed.'
+      });
+    }
+
+    // Test 6.6: Supervisor Override Rejection with INVALID PIN
+    {
+      const res = await fetch(`${baseUrl}/api/orders/ord_sec_cavalli_override_invalid/void`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-restaurant-id': cavalliId
+        },
+        body: JSON.stringify({
+          authPin: '9999',
+          reason: 'Unauthorized attempt with wrong PIN'
+        })
+      });
+      recordResult({
+        suite: 'Operational Workflows',
+        name: 'Supervisor in-person PIN override rejection with WRONG PIN',
+        statusCode: res.status,
+        expectedSecureStatus: 403,
+        currentResult: res.status === 403 ? 'PASS' : 'FAIL',
+        description: res.status === 403
+          ? 'Invalid PIN was rejected securely.'
+          : 'Invalid PIN was improperly accepted.'
       });
     }
 
