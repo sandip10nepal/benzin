@@ -16,23 +16,44 @@ async function resolveRestaurantId(req: any): Promise<string> {
 
 // Helper to check if caller is an authorized Manager or Owner
 async function isAuthorizedManagerOrOwner(authPin?: any, req?: any): Promise<boolean> {
-  if (req?.tenant && (req.tenant.role === 'owner' || req.tenant.role === 'manager' || req.tenant.role === 'platform_admin' || req.tenant.role === 'admin')) {
-    return true;
-  }
+  const restaurantId = await resolveRestaurantId(req);
+
+  // 1. Bearer token
   const token = req?.headers?.authorization ? req.headers.authorization.replace('Bearer ', '').trim() : '';
   if (token) {
-    const payload = AuthService.verifyToken(token);
-    const pRole = (payload?.role as string) || '';
-    if (payload && (pRole === 'owner' || pRole === 'manager' || pRole === 'platform_admin' || pRole === 'admin')) {
+    const payload: any = AuthService.verifyToken(token);
+    if (payload) {
+      const tokenRid = payload.rid;
+      const isTenantMatch = (tokenRid && restaurantId && tokenRid === restaurantId) || payload.role === 'platform_admin';
+      const pRole = (payload.role as string) || '';
+      if (isTenantMatch && (pRole === 'owner' || pRole === 'manager' || pRole === 'platform_admin' || pRole === 'admin')) {
+        if (payload.sub && MultiTenantDbService.isInitialized()) {
+          const user: any = await MultiTenantDbService.getUser(String(payload.sub));
+          if (user && (user.active === false || MultiTenantDbService.isAccountLocked(user))) {
+            return false;
+          }
+        }
+        return true;
+      }
+    }
+  }
+
+  // 2. Verified req.tenant
+  if (req?.tenant) {
+    const tRole = req.tenant.role;
+    const tRid = req.tenant.restaurant_id;
+    const isTenantMatch = (tRid && restaurantId && tRid === restaurantId) || tRole === 'platform_admin';
+    if (isTenantMatch && (tRole === 'owner' || tRole === 'manager' || tRole === 'platform_admin' || tRole === 'admin')) {
       return true;
     }
   }
+
+  // 3. Supervisor PIN
   const pinStr = authPin ? String(authPin).trim() : (req?.headers?.['x-admin-pin'] || req?.headers?.['x-staff-pin'] || '');
-  if (pinStr) {
-    const restaurantId = await resolveRestaurantId(req);
-    if (restaurantId && MultiTenantDbService.isInitialized()) {
-      const users = await UserRepository.listByRestaurant(restaurantId);
-      for (const u of users) {
+  if (pinStr && restaurantId && MultiTenantDbService.isInitialized()) {
+    const users = await UserRepository.listByRestaurant(restaurantId);
+    for (const u of users) {
+      if (u.active !== false && !MultiTenantDbService.isAccountLocked(u)) {
         const uRole = (u.role as string) || '';
         if ((uRole === 'owner' || uRole === 'manager' || uRole === 'platform_admin' || uRole === 'admin') && AuthService.verifyPin(String(pinStr).trim(), u.pin_hash)) {
           return true;
@@ -54,7 +75,7 @@ router.get('/', optionalAuth, async (req, res) => {
 
     const restaurantId = await resolveRestaurantId(req);
     if (!restaurantId) {
-      return res.json({ success: true, employees: [] });
+      return res.status(400).json({ success: false, message: 'Tenant restaurant ID is required' });
     }
 
     let employees: any[] = [];
@@ -74,7 +95,7 @@ router.get('/', optionalAuth, async (req, res) => {
             name: u.name,
             role: u.role,
             position: u.position || u.role,
-            hourly_rate: u.hourly_rate ?? null,
+            hourly_rate: isAuth ? (u.hourly_rate ?? null) : null,
             email: displayEmail,
             phone: u.phone,
             pin: '****',
@@ -99,6 +120,10 @@ router.get('/', optionalAuth, async (req, res) => {
 // GET /api/employees/payroll/summary — Get manager weekly payroll summary across all staff
 router.get('/payroll/summary', optionalAuth, async (req, res) => {
   try {
+    const isAuth = await isAuthorizedManagerOrOwner(req.query?.authPin || req.headers?.['x-admin-pin'], req);
+    if (!isAuth) {
+      return res.status(403).json({ success: false, message: 'Forbidden: Access to payroll summaries is restricted to Managers and Owners.' });
+    }
     const restaurantId = (await resolveRestaurantId(req)) || req.tenant?.restaurant_id;
     if (!restaurantId) {
       return res.status(400).json({ success: false, message: 'Tenant restaurant ID is required' });
@@ -229,33 +254,70 @@ router.post('/payroll/fulfill', optionalAuth, async (req, res) => {
   }
 });
 
-// POST /api/employees/verify-pin — verify a PIN and return employee profile + clock status
+// POST /api/employees/verify-pin — verify a PIN, issue scoped employee JWT, and return profile + clock status
 router.post('/verify-pin', optionalAuth, async (req, res) => {
   try {
     const { pin } = req.body;
     if (!pin) return res.status(400).json({ success: false, message: 'PIN required' });
     const pinStr = String(pin).trim();
 
+    // Tenant boundary check: If authenticated caller targets a different restaurant ID, forbid immediately
+    const targetRid = String(req.headers?.['x-restaurant-id'] || req.body?.restaurant_id || req.query?.restaurant_id || '').trim();
+    const callerRid = req.tenant?.restaurant_id;
+    if (targetRid && callerRid && targetRid !== callerRid && req.tenant?.role !== 'platform_admin') {
+      return res.status(403).json({ success: false, message: 'Cross-tenant PIN verification forbidden' });
+    }
+
     const restaurantId = await resolveRestaurantId(req);
+    if (!restaurantId) {
+      return res.status(400).json({ success: false, message: 'Tenant restaurant ID is required' });
+    }
 
     // 1. Search in MultiTenantDbService
     if (MultiTenantDbService.isInitialized()) {
       const users = await UserRepository.listByRestaurant(restaurantId);
       const user = users.find(u => u.active !== false && AuthService.verifyPin(pinStr, u.pin_hash));
       if (user) {
+        // Check account lock
+        if (MultiTenantDbService.isAccountLocked(user)) {
+          return res.status(423).json({
+            success: false,
+            message: 'User account is temporarily locked due to multiple failed login attempts. Please wait 15 minutes.'
+          });
+        }
+
+        // Reset failed login counter on success
+        await MultiTenantDbService.resetFailedLogins(user._id);
+
+        const restaurant = await MultiTenantDbService.getRestaurant(restaurantId);
+        const rName = restaurant?.name || 'Cavalli Lounge';
+
+        // Issue cryptographically signed scoped JWT token for the verified employee session
+        // Note: Identity, role, and restaurant are derived strictly from database records — never client-supplied fields
+        const token = AuthService.generateStaffToken(
+          user._id,
+          restaurantId,
+          user.role,
+          rName
+        );
+
         const activeShift = await MultiTenantDbService.getActiveTimecard(restaurantId, user._id);
+        const profile = {
+          id: user._id,
+          name: user.name,
+          role: user.role,
+          position: user.position || user.role,
+          hourly_rate: user.hourly_rate ?? null,
+          email: user.email,
+          is_clocked_in: !!activeShift,
+          active_shift: activeShift || null,
+        };
+
         return res.json({
           success: true,
-          employee: {
-            id: user._id,
-            name: user.name,
-            role: user.role,
-            position: user.position || user.role,
-            hourly_rate: user.hourly_rate ?? null,
-            email: user.email,
-            is_clocked_in: !!activeShift,
-            active_shift: activeShift || null,
-          }
+          token,
+          employee: profile,
+          user: profile
         });
       }
     }

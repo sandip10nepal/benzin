@@ -18,20 +18,41 @@ const router = Router();
 // GET /api/orders/live
 // Server-Sent Events stream for real-time dashboard updates (Tenant-Isolated & Customer-Scoped)
 router.get('/live', async (req, res) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache, no-transform');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.flushHeaders?.();
-
   let restaurantId = await resolveTenantRestaurantId(req);
-  if (!restaurantId || restaurantId === 'RES_001') {
-    restaurantId = 'RES_EED4E9D266DF';
+
+  // Check for customer tracking capability token & orderId
+  const trackingToken = (req.query.tracking_token as string) || (req.query.trackingToken as string) || (req.headers['x-tracking-token'] as string) || '';
+  const trackingOrderId = (req.query.order_id as string) || (req.query.orderId as string) || '';
+  let trackingExpiresAt: string | null = null;
+  let isCustomerTracking = false;
+
+  if (trackingToken && trackingOrderId) {
+    const orderRecord = await OrderRepository.findById(trackingOrderId, restaurantId || undefined);
+    if (!orderRecord) {
+      return res.status(404).json({ success: false, message: 'Order not found for tracking' });
+    }
+    const expTime = new Date(orderRecord.tracking_expires_at || orderRecord.trackingExpiresAt).getTime();
+    if (Date.now() > expTime) {
+      return res.status(410).json({ success: false, message: 'Tracking access expired (2-hour limit reached)', expired: true });
+    }
+    const tokenHash = crypto.createHash('sha256').update(trackingToken).digest('hex');
+    const storedHash = orderRecord.tracking_token_hash || orderRecord.trackingTokenHash;
+    if (!storedHash || storedHash !== tokenHash) {
+      return res.status(403).json({ success: false, message: 'Invalid tracking capability token' });
+    }
+    isCustomerTracking = true;
+    trackingExpiresAt = orderRecord.tracking_expires_at || orderRecord.trackingExpiresAt;
+    restaurantId = orderRecord.restaurant_id || orderRecord.restaurantId || restaurantId;
+  }
+
+  // Reject un-scoped requests without tenant context
+  if (!restaurantId) {
+    return res.status(400).json({ success: false, message: 'Tenant restaurant ID is required' });
   }
 
   const token = (req.query.token as string) || (req.headers.authorization ? req.headers.authorization.replace('Bearer ', '') : '');
   let userId: string | null = null;
-  let role = 'manager';
+  let role = isCustomerTracking ? 'customer_tracking' : 'manager';
 
   if (token) {
     const payload = AuthService.verifyToken(token);
@@ -42,36 +63,11 @@ router.get('/live', async (req, res) => {
     }
   }
 
-  // Check for customer tracking capability token & orderId
-  const trackingToken = (req.query.tracking_token as string) || (req.query.trackingToken as string) || (req.headers['x-tracking-token'] as string) || '';
-  const trackingOrderId = (req.query.order_id as string) || (req.query.orderId as string) || '';
-  let trackingExpiresAt: string | null = null;
-  let isCustomerTracking = false;
-
-  if (trackingToken && trackingOrderId) {
-    const orderRecord = await OrderRepository.findById(trackingOrderId, restaurantId);
-    if (!orderRecord) {
-      res.write(`data: ${JSON.stringify({ type: 'error', message: 'Order not found for tracking' })}\n\n`);
-      res.end();
-      return;
-    }
-    const expTime = new Date(orderRecord.tracking_expires_at || orderRecord.trackingExpiresAt).getTime();
-    if (Date.now() > expTime) {
-      res.write(`data: ${JSON.stringify({ type: 'tracking_expired', orderId: trackingOrderId, message: 'Tracking access expired (2-hour limit reached)', expired: true })}\n\n`);
-      res.end();
-      return;
-    }
-    const tokenHash = crypto.createHash('sha256').update(trackingToken).digest('hex');
-    const storedHash = orderRecord.tracking_token_hash || orderRecord.trackingTokenHash;
-    if (!storedHash || storedHash !== tokenHash) {
-      res.write(`data: ${JSON.stringify({ type: 'error', message: 'Invalid tracking capability token' })}\n\n`);
-      res.end();
-      return;
-    }
-    isCustomerTracking = true;
-    trackingExpiresAt = orderRecord.tracking_expires_at || orderRecord.trackingExpiresAt;
-    role = 'customer_tracking';
-  }
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders?.();
 
   const clientId = Date.now();
   sseService.addClient({
@@ -116,44 +112,53 @@ router.get('/live', async (req, res) => {
 
 // Helper to verify if request is from an authorized Manager or Owner
 async function isManagerOrOwner(req: any, authPin?: any): Promise<boolean> {
-  const role = String(req?.headers?.['x-user-role'] || req?.body?.role || req?.tenant?.role || req?.user?.role || '').toLowerCase();
-  if (role === 'owner' || role === 'manager' || role === 'platform_admin' || role === 'admin') {
-    return true;
-  }
+  const restaurantId = await resolveTenantRestaurantId(req);
 
+  // 1. Verify Cryptographic Bearer JWT Token
   const authHeader = req.headers?.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7);
     const payload: any = AuthService.verifyToken(token);
-    if (payload && (payload.role === 'owner' || payload.role === 'manager' || payload.role === 'platform_admin' || (payload.role as string) === 'admin')) {
-      return true;
-    }
-  }
-
-  const restaurantId = await resolveTenantRestaurantId(req);
-
-  const userId = req.headers?.['x-user-id'] || req.body?.userId;
-  if (userId && MultiTenantDbService.isInitialized()) {
-    const user: any = await MultiTenantDbService.getUser(String(userId));
-    if (user && (user.role === 'owner' || user.role === 'manager' || user.role === 'platform_admin' || (user.role as string) === 'admin')) {
-      return true;
-    }
-  }
-
-  const pin = authPin || req.body?.authPin || req.body?.pin || req.headers?.['x-admin-pin'] || req.query?.authPin;
-  if (pin && restaurantId && MultiTenantDbService.isInitialized()) {
-    const pinStr = String(pin).trim();
-    const users = await MultiTenantDbService.listUsers(restaurantId);
-    for (const u of users) {
-      if ((u.role === 'owner' || u.role === 'manager' || u.role === 'platform_admin' || (u.role as string) === 'admin') && AuthService.verifyPin(pinStr, u.pin_hash)) {
+    if (payload) {
+      const tokenRid = payload.rid;
+      const isTenantMatch = (tokenRid && restaurantId && tokenRid === restaurantId) || payload.role === 'platform_admin';
+      
+      if (isTenantMatch && (payload.role === 'owner' || payload.role === 'manager' || payload.role === 'platform_admin' || (payload.role as string) === 'admin')) {
+        if (payload.sub && MultiTenantDbService.isInitialized()) {
+          const user: any = await MultiTenantDbService.getUser(String(payload.sub));
+          if (user && (user.active === false || MultiTenantDbService.isAccountLocked(user))) {
+            return false;
+          }
+        }
         return true;
       }
     }
   }
 
-  // If in admin panel context with valid restaurant context
-  if (restaurantId && (req.headers?.['x-restaurant-code'] || req.headers?.['x-restaurant-id'])) {
-    return true;
+  // 2. Check verified tenant context attached by trusted auth middleware
+  if (req.tenant) {
+    const tRole = req.tenant.role;
+    const tRid = req.tenant.restaurant_id;
+    const isTenantMatch = (tRid && restaurantId && tRid === restaurantId) || tRole === 'platform_admin';
+    if (isTenantMatch && (tRole === 'owner' || tRole === 'manager' || tRole === 'platform_admin' || (tRole as string) === 'admin')) {
+      return true;
+    }
+  }
+
+  // 3. Manager/Owner PIN Verification (for supervisor override on POS terminals)
+  const pin = authPin || req.body?.authPin || req.body?.pin || req.headers?.['x-admin-pin'] || req.query?.authPin;
+  if (pin && restaurantId && MultiTenantDbService.isInitialized()) {
+    const pinStr = String(pin).trim();
+    if (pinStr.length > 0) {
+      const users = await MultiTenantDbService.listUsers(restaurantId);
+      for (const u of users) {
+        if (u.active !== false && !MultiTenantDbService.isAccountLocked(u)) {
+          if ((u.role === 'owner' || u.role === 'manager' || u.role === 'platform_admin' || (u.role as string) === 'admin') && AuthService.verifyPin(pinStr, u.pin_hash)) {
+            return true;
+          }
+        }
+      }
+    }
   }
 
   return false;
@@ -833,24 +838,28 @@ router.post('/:orderId/assign', async (req, res) => {
     let callerName: string | null = null;
     let callerRole: string = 'server';
 
+    let hasVerifiedToken = false;
     const authHeader = req.headers?.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
       const payload = AuthService.verifyToken(token);
       if (payload) {
+        hasVerifiedToken = true;
         callerId = payload.sub || null;
         callerName = (payload as any).name || null;
         if (payload.role) callerRole = payload.role;
       }
     }
 
-    // Header/body fallbacks
-    if (!callerId && req.headers['x-user-id']) callerId = String(req.headers['x-user-id']);
-    if (!callerName && req.headers['x-user-name']) callerName = String(req.headers['x-user-name']);
-    if (req.headers['x-user-role']) callerRole = String(req.headers['x-user-role']);
-    if (req.body.caller_id) callerId = req.body.caller_id;
-    if (req.body.caller_name) callerName = req.body.caller_name;
-    if (req.body.caller_role) callerRole = req.body.caller_role;
+    // Header/body fallbacks ONLY if unauthenticated
+    if (!hasVerifiedToken) {
+      if (!callerId && req.headers['x-user-id']) callerId = String(req.headers['x-user-id']);
+      if (!callerName && req.headers['x-user-name']) callerName = String(req.headers['x-user-name']);
+      if (req.headers['x-user-role']) callerRole = String(req.headers['x-user-role']);
+      if (req.body.caller_id) callerId = req.body.caller_id;
+      if (req.body.caller_name) callerName = req.body.caller_name;
+      if (req.body.caller_role) callerRole = req.body.caller_role;
+    }
 
     const canAssign = ['owner', 'manager', 'platform_admin', 'admin', 'host', 'server'].includes(callerRole.toLowerCase()) || (await isManagerOrOwner(req));
     if (!canAssign) {
@@ -946,22 +955,26 @@ router.post('/:orderId/unassign', async (req, res) => {
     let callerId: string | null = null;
     let callerRole: string = 'server';
 
+    let hasVerifiedToken = false;
     const authHeader = req.headers?.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
       const payload = AuthService.verifyToken(token);
       if (payload) {
+        hasVerifiedToken = true;
         callerId = payload.sub || null;
         if (payload.role) callerRole = payload.role;
       }
     }
 
-    if (!callerId && req.headers['x-user-id']) callerId = String(req.headers['x-user-id']);
-    if (req.headers['x-user-role']) callerRole = String(req.headers['x-user-role']);
-    if (req.body.caller_id) callerId = req.body.caller_id;
-    if (req.body.caller_role) callerRole = req.body.caller_role;
+    if (!hasVerifiedToken) {
+      if (!callerId && req.headers['x-user-id']) callerId = String(req.headers['x-user-id']);
+      if (req.headers['x-user-role']) callerRole = String(req.headers['x-user-role']);
+      if (req.body.caller_id) callerId = req.body.caller_id;
+      if (req.body.caller_role) callerRole = req.body.caller_role;
+    }
 
-    const isManager = ['owner', 'manager', 'platform_admin', 'admin'].includes(callerRole.toLowerCase()) || (await isManagerOrOwner(req));
+    const isManager = (hasVerifiedToken && ['owner', 'manager', 'platform_admin', 'admin'].includes(callerRole.toLowerCase())) || (await isManagerOrOwner(req));
 
     const found = await findUnifiedOrder(orderId, restaurantId);
     if (!found || !found.order) {
@@ -1325,22 +1338,26 @@ router.get('/tables/overview', async (req, res) => {
     let callerUserId: string | null = null;
     let callerUserName: string | null = null;
 
+    let hasVerifiedToken = false;
     const authHeader = req.headers?.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
       const payload = AuthService.verifyToken(token);
       if (payload) {
+        hasVerifiedToken = true;
         if (payload.role) callerRole = payload.role;
         callerUserId = payload.sub || null;
         callerUserName = (payload as any).name || null;
       }
     }
-    if (req.headers['x-user-role']) callerRole = String(req.headers['x-user-role']);
-    if (req.query.role) callerRole = String(req.query.role);
-    if (req.headers['x-user-id']) callerUserId = String(req.headers['x-user-id']);
-    if (req.query.user_id) callerUserId = String(req.query.user_id);
-    if (req.headers['x-user-name']) callerUserName = String(req.headers['x-user-name']);
-    if (req.query.user_name) callerUserName = String(req.query.user_name);
+    if (!hasVerifiedToken) {
+      if (req.headers['x-user-role']) callerRole = String(req.headers['x-user-role']);
+      if (req.query.role) callerRole = String(req.query.role);
+      if (req.headers['x-user-id']) callerUserId = String(req.headers['x-user-id']);
+      if (req.query.user_id) callerUserId = String(req.query.user_id);
+      if (req.headers['x-user-name']) callerUserName = String(req.headers['x-user-name']);
+      if (req.query.user_name) callerUserName = String(req.query.user_name);
+    }
 
     // Server account -> only assigned tables. Manager / Host / Owner -> all tables.
     let returnedTables = tableCards;
@@ -1375,12 +1392,45 @@ router.get('/', async (req, res) => {
   const rawOrders = await OrderRepository.listByRestaurant(restaurantId);
   const allOrders = rawOrders.map(mapOrderForClient);
 
-  // Detect caller role
+  // Detect caller role and validate credentials
   let callerRole: string = 'manager';
   const authHeader = req.headers?.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7);
     const payload = AuthService.verifyToken(token);
+    if (!payload) {
+      return res.status(401).json({ success: false, message: 'Invalid or expired authentication token' });
+    }
+
+    // Tenant check
+    if (payload.rid && payload.rid !== restaurantId && payload.role !== 'platform_admin') {
+      return res.status(403).json({ success: false, message: 'Forbidden: cross-tenant access denied' });
+    }
+
+    // Check device revocation
+    if (payload.role === 'device' || (payload as any).did) {
+      const deviceId = (payload as any).did || payload.sub;
+      if (deviceId && MultiTenantDbService.isInitialized()) {
+        const device = await MultiTenantDbService.getDevice(deviceId);
+        if (device && (device.status === 'REVOKED' || (device as any).revoked === true)) {
+          return res.status(403).json({ success: false, message: 'Device has been revoked by management.' });
+        }
+      }
+    }
+
+    // Check user deactivation / lockout
+    if (payload.sub && payload.role !== 'device' && MultiTenantDbService.isInitialized()) {
+      const user = await MultiTenantDbService.getUser(payload.sub);
+      if (user) {
+        if (user.active === false) {
+          return res.status(403).json({ success: false, message: 'User account has been deactivated.' });
+        }
+        if (MultiTenantDbService.isAccountLocked(user)) {
+          return res.status(423).json({ success: false, message: 'User account is locked.' });
+        }
+      }
+    }
+
     if (payload?.role) callerRole = payload.role;
   } else if (req.query.role) {
     callerRole = String(req.query.role);
@@ -1764,9 +1814,13 @@ router.post('/fulfill', handleFulfillOrder);
 router.post('/:id/fulfill', handleFulfillOrder);
 
 // GET /api/orders/sales/summary
-// Comprehensive Sales, Tax, Tips, YTD & Payment Logs Analytics Endpoint
+// Comprehensive Sales, Tax, Tips, YTD & Payment Logs Analytics Endpoint (Manager/Owner only)
 router.get('/sales/summary', async (req, res) => {
   try {
+    const isAuth = await isManagerOrOwner(req);
+    if (!isAuth) {
+      return res.status(403).json({ success: false, message: 'Forbidden: Access to sales analytics is restricted to Managers and Owners.' });
+    }
     const restaurantId = await resolveTenantRestaurantId(req);
     if (!restaurantId) {
       return res.status(400).json({ success: false, message: 'Tenant restaurant ID is required' });
@@ -1911,9 +1965,13 @@ router.get('/sales/summary', async (req, res) => {
 });
 
 // POST /api/orders/archive/clear
-// Clears all fulfilled orders permanently from MongoDB Atlas for the tenant
+// Clears all fulfilled orders permanently from MongoDB Atlas for the tenant (Manager/Owner only)
 router.post('/archive/clear', async (req, res) => {
   try {
+    const isAuth = await isManagerOrOwner(req, req.body?.authPin || req.body?.pin);
+    if (!isAuth) {
+      return res.status(403).json({ success: false, message: 'Forbidden: Clearing order archive is restricted to Managers and Owners.' });
+    }
     const restaurantId = await resolveTenantRestaurantId(req);
     if (!restaurantId) {
       return res.status(400).json({ success: false, message: 'Tenant restaurant ID is required' });

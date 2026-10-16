@@ -81,14 +81,42 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
  * Middleware that optionally extracts tenant context (does not reject unauthenticated requests).
  * Useful for public endpoints that behave differently for authenticated users.
  */
-export function optionalAuth(req: Request, res: Response, next: NextFunction): void {
+export async function optionalAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req?.headers?.authorization;
 
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7);
     const payload = AuthService.verifyToken(token);
     if (payload) {
-      req.tenant = AuthService.payloadToTenantContext(payload);
+      const tenantCtx = AuthService.payloadToTenantContext(payload);
+
+      // Check if device is revoked
+      if (tenantCtx.device_id) {
+        const { MultiTenantDbService } = require('../services/multi-tenant-db.service');
+        const device = await MultiTenantDbService.getDevice(tenantCtx.device_id);
+        if (device && (device.status === 'REVOKED' || (device as any).revoked === true)) {
+          res.status(403).json({ success: false, error: 'Device has been revoked by management.' });
+          return;
+        }
+      }
+
+      // Check if user is locked or deactivated
+      if (tenantCtx.user_id) {
+        const { MultiTenantDbService } = require('../services/multi-tenant-db.service');
+        const user = await MultiTenantDbService.getUser(tenantCtx.user_id);
+        if (user) {
+          if (user.active === false) {
+            res.status(403).json({ success: false, error: 'User account has been deactivated.' });
+            return;
+          }
+          if (MultiTenantDbService.isAccountLocked(user)) {
+            res.status(423).json({ success: false, error: 'User account is temporarily locked due to failed login attempts.' });
+            return;
+          }
+        }
+      }
+
+      req.tenant = tenantCtx;
     }
   }
 
@@ -186,68 +214,107 @@ export function validateTenantParam(paramName = 'restaurantId') {
 export async function resolveTenantRestaurantId(req: Request): Promise<string | null> {
   const { MultiTenantDbService } = require('../services/multi-tenant-db.service');
 
-  // 1. Authenticated JWT Context
-  if (req.tenant?.restaurant_id) return req.tenant.restaurant_id;
+  // 1. Authenticated JWT Context (Highest Priority & Trust Authority)
+  let verifiedRid: string | null = null;
+  let isPlatformAdmin = false;
 
-  const authHeader = req?.headers?.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.substring(7);
-    const payload = AuthService.verifyToken(token);
-    if (payload?.rid) return payload.rid;
+  if (req.tenant?.restaurant_id) {
+    verifiedRid = req.tenant.restaurant_id;
+    isPlatformAdmin = req.tenant.role === 'platform_admin';
+  } else {
+    const authHeader = req?.headers?.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      const payload = AuthService.verifyToken(token);
+      if (payload?.rid) {
+        verifiedRid = payload.rid;
+        isPlatformAdmin = payload.role === 'platform_admin';
+      }
+    }
   }
 
-  // 2. Custom Tenant Headers
+  // If request contains an authenticated JWT, enforce that the verified tenant ID takes precedence
+  if (verifiedRid) {
+    if (!isPlatformAdmin) {
+      // Check if client supplied a conflicting tenant identifier via headers, query, or body
+      const headerId = req.headers?.['x-restaurant-id'] || req.headers?.['x-tenant-id'];
+      const queryId = req.query?.restaurantId || req.query?.restaurant_id;
+      const bodyId = req.body?.restaurant_id || req.body?.restaurantId;
+      const requested = (headerId || queryId || bodyId) as string | undefined;
+
+      if (requested && requested !== 'undefined' && requested !== 'null') {
+        const rest = await MultiTenantDbService.getRestaurant(String(requested));
+        const targetId = rest ? rest._id : String(requested);
+        if (targetId !== verifiedRid) {
+          // Cross-tenant mismatch: authenticated principal is not authorized for requested tenant
+          return null;
+        }
+      }
+    } else {
+      // Platform admin can explicitly target another tenant via header or query
+      const headerId = req.headers?.['x-restaurant-id'] || req.headers?.['x-tenant-id'];
+      if (headerId && headerId !== 'undefined' && headerId !== 'null') {
+        const rest = await MultiTenantDbService.getRestaurant(String(headerId));
+        if (rest) return rest._id;
+      }
+      const queryId = (req.query?.restaurantId || req.query?.restaurant_id) as string;
+      if (queryId && queryId !== 'undefined' && queryId !== 'null') {
+        const rest = await MultiTenantDbService.getRestaurant(queryId);
+        if (rest) return rest._id;
+      }
+    }
+    return verifiedRid;
+  }
+
+  // 2. Custom Tenant Headers (for unauthenticated public workflows or device pairing)
   const headerId = req.headers?.['x-restaurant-id'] || req.headers?.['x-tenant-id'];
-  if (headerId) {
+  if (headerId && headerId !== 'undefined' && headerId !== 'null') {
     const rest = await MultiTenantDbService.getRestaurant(String(headerId));
     if (rest) return rest._id;
   }
 
   const headerCode = req.headers?.['x-restaurant-code'];
-  if (headerCode) {
+  if (headerCode && headerCode !== 'undefined' && headerCode !== 'null') {
     const rest = await MultiTenantDbService.getRestaurantByCode(String(headerCode));
     if (rest) return rest._id;
   }
 
-  // 3. Query Parameters
+  // 3. Query Parameters (for public guest menu, QR code scans, etc.)
   const queryId = (req.query?.restaurantId || req.query?.restaurant_id) as string;
-  if (queryId) {
+  if (queryId && queryId !== 'undefined' && queryId !== 'null') {
     const rest = await MultiTenantDbService.getRestaurant(queryId);
     if (rest) return rest._id;
   }
 
   const queryCode = (req.query?.restaurant_code || req.query?.code) as string;
-  if (queryCode) {
+  if (queryCode && queryCode !== 'undefined' && queryCode !== 'null') {
     const rest = await MultiTenantDbService.getRestaurantByCode(queryCode);
     if (rest) return rest._id;
   }
 
   const querySlug = (req.query?.restaurant_slug || req.query?.slug) as string;
-  if (querySlug) {
+  if (querySlug && querySlug !== 'undefined' && querySlug !== 'null') {
     const rest = await MultiTenantDbService.getRestaurantBySlug(querySlug);
     if (rest) return rest._id;
   }
 
-  // 4. Request Body Parameters
+  // 4. Request Body Parameters (e.g. public guest order placement)
   if (req.body) {
-    if (req.body.restaurant_id) {
+    if (req.body.restaurant_id && req.body.restaurant_id !== 'undefined' && req.body.restaurant_id !== 'null') {
       const rest = await MultiTenantDbService.getRestaurant(String(req.body.restaurant_id));
       if (rest) return rest._id;
     }
-    if (req.body.restaurant_code) {
+    if (req.body.restaurant_code && req.body.restaurant_code !== 'undefined' && req.body.restaurant_code !== 'null') {
       const rest = await MultiTenantDbService.getRestaurantByCode(String(req.body.restaurant_code));
       if (rest) return rest._id;
     }
-    if (req.body.restaurant_slug) {
+    if (req.body.restaurant_slug && req.body.restaurant_slug !== 'undefined' && req.body.restaurant_slug !== 'null') {
       const rest = await MultiTenantDbService.getRestaurantBySlug(String(req.body.restaurant_slug));
       if (rest) return rest._id;
     }
   }
 
-  // 5. Primary Default Fallback (Cavalli Lounge '4821') to prevent unauthenticated/disconnected load
-  const defaultRest = (await MultiTenantDbService.getRestaurantByCode('4821')) || (await MultiTenantDbService.getRestaurantBySlug('cavalli')) || (await MultiTenantDbService.getRestaurantBySlug('cavali'));
-  if (defaultRest) return defaultRest._id;
-
-  return 'RES_001';
+  // Strict Isolation: un-scoped requests without tenant context return null
+  return null;
 }
 

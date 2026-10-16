@@ -6,8 +6,59 @@ import {
   resolveTenantRestaurantId,
 } from '../middleware/tenant.middleware';
 import { VibeQuestService } from '../modules/vibe-quest/vibe-quest.service';
+import { AuthService } from '../services/auth.service';
+import { MultiTenantDbService } from '../services/multi-tenant-db.service';
 
 const router = Router();
+
+// Helper to check if caller is an authorized Manager or Admin
+async function isAuthorizedAdmin(req: any): Promise<boolean> {
+  const restaurantId = await resolveTenantRestaurantId(req);
+  const authHeader = req?.headers?.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    const payload: any = AuthService.verifyToken(token);
+    if (payload) {
+      const tokenRid = payload.rid;
+      const isTenantMatch = (tokenRid && restaurantId && tokenRid === restaurantId) || payload.role === 'platform_admin';
+      if (isTenantMatch && (payload.role === 'owner' || payload.role === 'manager' || payload.role === 'platform_admin' || (payload.role as string) === 'admin')) {
+        if (payload.sub && MultiTenantDbService.isInitialized()) {
+          const user: any = await MultiTenantDbService.getUser(String(payload.sub));
+          if (user && (user.active === false || MultiTenantDbService.isAccountLocked(user))) {
+            return false;
+          }
+        }
+        return true;
+      }
+    }
+  }
+
+  if (req?.tenant) {
+    const tRole = req.tenant.role;
+    const tRid = req.tenant.restaurant_id;
+    const isTenantMatch = (tRid && restaurantId && tRid === restaurantId) || tRole === 'platform_admin';
+    if (isTenantMatch && (tRole === 'owner' || tRole === 'manager' || tRole === 'platform_admin' || (tRole as string) === 'admin')) {
+      return true;
+    }
+  }
+
+  const pin = req?.body?.authPin || req?.headers?.['x-admin-pin'] || req?.query?.authPin;
+  if (pin && restaurantId && MultiTenantDbService.isInitialized()) {
+    const pinStr = String(pin).trim();
+    if (pinStr.length > 0) {
+      const users = await MultiTenantDbService.listUsers(restaurantId);
+      for (const u of users) {
+        if (u.active !== false && !MultiTenantDbService.isAccountLocked(u)) {
+          if ((u.role === 'owner' || u.role === 'manager' || u.role === 'platform_admin' || (u.role as string) === 'admin') && AuthService.verifyPin(pinStr, u.pin_hash)) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+
+  return false;
+}
 
 /* ── PUBLIC ENDPOINTS (CUSTOMER) ─────────────────────────────────────────── */
 
@@ -72,11 +123,13 @@ router.post('/events', async (req, res, next) => {
  */
 router.get('/admin/settings', optionalAuth, async (req, res, next) => {
   try {
-    const restaurantId = (await resolveTenantRestaurantId(req)) || 'RES_EED4E9D266DF';
+    const restaurantId = await resolveTenantRestaurantId(req);
+    if (!restaurantId) {
+      return res.status(400).json({ success: false, error: 'Tenant restaurant ID is required' });
+    }
 
-    // Verify tenant authorization match if non-platform_admin
-    if (req.tenant && req.tenant.role !== 'platform_admin' && req.tenant.restaurant_id !== restaurantId) {
-      return res.status(403).json({ success: false, error: 'Forbidden: cross-tenant access denied' });
+    if (!(await isAuthorizedAdmin(req))) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Restricted to Managers and Owners.' });
     }
 
     const settings = await VibeQuestService.getSettings(restaurantId);
@@ -98,10 +151,13 @@ router.get('/admin/settings', optionalAuth, async (req, res, next) => {
  */
 router.get('/admin/draft', optionalAuth, async (req, res, next) => {
   try {
-    const restaurantId = (await resolveTenantRestaurantId(req)) || 'RES_EED4E9D266DF';
+    const restaurantId = await resolveTenantRestaurantId(req);
+    if (!restaurantId) {
+      return res.status(400).json({ success: false, error: 'Tenant restaurant ID is required' });
+    }
 
-    if (req.tenant && req.tenant.role !== 'platform_admin' && req.tenant.restaurant_id !== restaurantId) {
-      return res.status(403).json({ success: false, error: 'Forbidden: cross-tenant access denied' });
+    if (!(await isAuthorizedAdmin(req))) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Restricted to Managers and Owners.' });
     }
 
     const settings = await VibeQuestService.getSettings(restaurantId);
@@ -123,10 +179,13 @@ router.get('/admin/draft', optionalAuth, async (req, res, next) => {
  */
 router.put('/admin/draft', optionalAuth, async (req, res, next) => {
   try {
-    const restaurantId = (await resolveTenantRestaurantId(req)) || 'RES_EED4E9D266DF';
+    const restaurantId = await resolveTenantRestaurantId(req);
+    if (!restaurantId) {
+      return res.status(400).json({ success: false, error: 'Tenant restaurant ID is required' });
+    }
 
-    if (req.tenant && req.tenant.role !== 'platform_admin' && req.tenant.restaurant_id !== restaurantId) {
-      return res.status(403).json({ success: false, error: 'Forbidden: cross-tenant access denied' });
+    if (!(await isAuthorizedAdmin(req))) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Restricted to Managers and Owners.' });
     }
 
     const { draft, questions, settings } = req.body;
@@ -148,10 +207,13 @@ router.put('/admin/draft', optionalAuth, async (req, res, next) => {
  */
 router.post('/admin/save-questions', optionalAuth, async (req, res, next) => {
   try {
-    const restaurantId = (await resolveTenantRestaurantId(req)) || 'RES_EED4E9D266DF';
+    const restaurantId = await resolveTenantRestaurantId(req);
+    if (!restaurantId) {
+      return res.status(400).json({ success: false, error: 'Tenant restaurant ID is required' });
+    }
 
-    if (req.tenant && req.tenant.role !== 'platform_admin' && req.tenant.restaurant_id !== restaurantId) {
-      return res.status(403).json({ success: false, error: 'Forbidden: cross-tenant access denied' });
+    if (!(await isAuthorizedAdmin(req))) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Restricted to Managers and Owners.' });
     }
 
     const { questions, settings } = req.body;
@@ -172,10 +234,13 @@ router.post('/admin/save-questions', optionalAuth, async (req, res, next) => {
  */
 router.post('/admin/validate', optionalAuth, async (req, res, next) => {
   try {
-    const restaurantId = (await resolveTenantRestaurantId(req)) || 'RES_EED4E9D266DF';
+    const restaurantId = await resolveTenantRestaurantId(req);
+    if (!restaurantId) {
+      return res.status(400).json({ success: false, error: 'Tenant restaurant ID is required' });
+    }
 
-    if (req.tenant && req.tenant.role !== 'platform_admin' && req.tenant.restaurant_id !== restaurantId) {
-      return res.status(403).json({ success: false, error: 'Forbidden: cross-tenant access denied' });
+    if (!(await isAuthorizedAdmin(req))) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Restricted to Managers and Owners.' });
     }
 
     const validation = await VibeQuestService.validateDraft(restaurantId);
@@ -191,10 +256,13 @@ router.post('/admin/validate', optionalAuth, async (req, res, next) => {
  */
 router.post('/admin/publish', optionalAuth, async (req, res, next) => {
   try {
-    const restaurantId = (await resolveTenantRestaurantId(req)) || 'RES_EED4E9D266DF';
+    const restaurantId = await resolveTenantRestaurantId(req);
+    if (!restaurantId) {
+      return res.status(400).json({ success: false, error: 'Tenant restaurant ID is required' });
+    }
 
-    if (req.tenant && req.tenant.role !== 'platform_admin' && req.tenant.restaurant_id !== restaurantId) {
-      return res.status(403).json({ success: false, error: 'Forbidden: cross-tenant access denied' });
+    if (!(await isAuthorizedAdmin(req))) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Restricted to Managers and Owners.' });
     }
 
     const result = await VibeQuestService.publishConfig(restaurantId);
@@ -224,10 +292,13 @@ router.post('/admin/publish', optionalAuth, async (req, res, next) => {
  */
 router.post('/admin/toggle', optionalAuth, async (req, res, next) => {
   try {
-    const restaurantId = (await resolveTenantRestaurantId(req)) || 'RES_EED4E9D266DF';
+    const restaurantId = await resolveTenantRestaurantId(req);
+    if (!restaurantId) {
+      return res.status(400).json({ success: false, error: 'Tenant restaurant ID is required' });
+    }
 
-    if (req.tenant && req.tenant.role !== 'platform_admin' && req.tenant.restaurant_id !== restaurantId) {
-      return res.status(403).json({ success: false, error: 'Forbidden: cross-tenant access denied' });
+    if (!(await isAuthorizedAdmin(req))) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Restricted to Managers and Owners.' });
     }
 
     const { enabled } = req.body;
@@ -244,10 +315,13 @@ router.post('/admin/toggle', optionalAuth, async (req, res, next) => {
  */
 router.get('/admin/analytics', optionalAuth, async (req, res, next) => {
   try {
-    const restaurantId = (await resolveTenantRestaurantId(req)) || 'RES_EED4E9D266DF';
+    const restaurantId = await resolveTenantRestaurantId(req);
+    if (!restaurantId) {
+      return res.status(400).json({ success: false, error: 'Tenant restaurant ID is required' });
+    }
 
-    if (req.tenant && req.tenant.role !== 'platform_admin' && req.tenant.restaurant_id !== restaurantId) {
-      return res.status(403).json({ success: false, error: 'Forbidden: cross-tenant access denied' });
+    if (!(await isAuthorizedAdmin(req))) {
+      return res.status(403).json({ success: false, error: 'Forbidden: Restricted to Managers and Owners.' });
     }
 
     const summary = await VibeQuestService.getAnalyticsSummary(restaurantId);
