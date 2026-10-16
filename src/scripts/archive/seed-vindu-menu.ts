@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import { MultiTenantDbService } from '../services/multi-tenant-db.service';
-import { MenuCategory, MenuItemModel, ModifierGroup } from '../models/types';
+import { MultiTenantDbService } from '../../services/multi-tenant-db.service';
+import { MenuCategory, MenuItemModel, ModifierGroup } from '../../models/types';
 
 const DB_FILE = path.join(__dirname, '../../multi_tenant_db.json');
 

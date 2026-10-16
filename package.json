@@ -9,6 +9,7 @@
     "test:persistence": "ts-node src/scripts/test-db-persistence.ts",
     "seed": "ts-node src/scripts/seed-cavali.ts",
     "migrate": "ts-node src/scripts/migrate-to-atlas.ts",
+    "prebuild": "rm -rf dist",
     "build": "tsc",
     "start": "node dist/server.js",
     "dev": "ts-node src/server.ts"

@@ -1,5 +1,5 @@
-import '../config/env';
-import { AuthService } from '../services/auth.service';
+import '../../config/env';
+import { AuthService } from '../../services/auth.service';
 
 async function main() {
   const restaurantId = 'RES_EED4E9D266DF';

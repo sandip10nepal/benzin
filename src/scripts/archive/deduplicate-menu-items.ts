@@ -1,4 +1,4 @@
-import { env } from '../config/env';
+import { env } from '../../config/env';
 import { MongoClient } from 'mongodb';
 
 const CAVALI_RESTAURANT_ID = 'RES_EED4E9D266DF';

@@ -1,4 +1,4 @@
-import { MultiTenantDbService } from '../services/multi-tenant-db.service';
+import { MultiTenantDbService } from '../../services/multi-tenant-db.service';
 
 async function main() {
   await MultiTenantDbService.ensureReady();

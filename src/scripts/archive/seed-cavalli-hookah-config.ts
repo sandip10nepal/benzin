@@ -1,5 +1,5 @@
-import { MultiTenantDbService } from '../services/multi-tenant-db.service';
-import { COLLECTIONS } from '../services/multi-tenant-db.service';
+import { MultiTenantDbService } from '../../services/multi-tenant-db.service';
+import { COLLECTIONS } from '../../services/multi-tenant-db.service';
 
 const CAVALLI_RESTAURANT_ID = 'RES_EED4E9D266DF'; // Cavalli Hookah Lounge
 

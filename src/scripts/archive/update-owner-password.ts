@@ -1,8 +1,8 @@
 /**
  * Update Manager / Owner Password to "1234abcD"
  */
-import { MultiTenantDbService } from '../services/multi-tenant-db.service';
-import { AuthService } from '../services/auth.service';
+import { MultiTenantDbService } from '../../services/multi-tenant-db.service';
+import { AuthService } from '../../services/auth.service';
 
 async function main() {
   console.log('Connecting to database...');

@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { MultiTenantDbService, COLLECTIONS } from '../services/multi-tenant-db.service';
+import { MultiTenantDbService, COLLECTIONS } from '../../services/multi-tenant-db.service';
 
 const HTML_PATH = '/Users/sandipnepal/Downloads/Cavalli_Menu_10Web_Button_Highlight_Fix-3.html';
 const OUTPUT_DIR = path.resolve(__dirname, '../../public/images/menu');
