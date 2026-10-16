@@ -16,23 +16,44 @@ async function resolveRestaurantId(req: any): Promise<string> {
 
 // Helper to check if caller is an authorized Manager or Owner
 async function isAuthorizedManagerOrOwner(authPin?: any, req?: any): Promise<boolean> {
-  if (req?.tenant && (req.tenant.role === 'owner' || req.tenant.role === 'manager' || req.tenant.role === 'platform_admin' || req.tenant.role === 'admin')) {
-    return true;
-  }
+  const restaurantId = await resolveRestaurantId(req);
+
+  // 1. Bearer token
   const token = req?.headers?.authorization ? req.headers.authorization.replace('Bearer ', '').trim() : '';
   if (token) {
-    const payload = AuthService.verifyToken(token);
-    const pRole = (payload?.role as string) || '';
-    if (payload && (pRole === 'owner' || pRole === 'manager' || pRole === 'platform_admin' || pRole === 'admin')) {
+    const payload: any = AuthService.verifyToken(token);
+    if (payload) {
+      const tokenRid = payload.rid;
+      const isTenantMatch = (tokenRid && restaurantId && tokenRid === restaurantId) || payload.role === 'platform_admin';
+      const pRole = (payload.role as string) || '';
+      if (isTenantMatch && (pRole === 'owner' || pRole === 'manager' || pRole === 'platform_admin' || pRole === 'admin')) {
+        if (payload.sub && MultiTenantDbService.isInitialized()) {
+          const user: any = await MultiTenantDbService.getUser(String(payload.sub));
+          if (user && (user.active === false || MultiTenantDbService.isAccountLocked(user))) {
+            return false;
+          }
+        }
+        return true;
+      }
+    }
+  }
+
+  // 2. Verified req.tenant
+  if (req?.tenant) {
+    const tRole = req.tenant.role;
+    const tRid = req.tenant.restaurant_id;
+    const isTenantMatch = (tRid && restaurantId && tRid === restaurantId) || tRole === 'platform_admin';
+    if (isTenantMatch && (tRole === 'owner' || tRole === 'manager' || tRole === 'platform_admin' || tRole === 'admin')) {
       return true;
     }
   }
+
+  // 3. Supervisor PIN
   const pinStr = authPin ? String(authPin).trim() : (req?.headers?.['x-admin-pin'] || req?.headers?.['x-staff-pin'] || '');
-  if (pinStr) {
-    const restaurantId = await resolveRestaurantId(req);
-    if (restaurantId && MultiTenantDbService.isInitialized()) {
-      const users = await UserRepository.listByRestaurant(restaurantId);
-      for (const u of users) {
+  if (pinStr && restaurantId && MultiTenantDbService.isInitialized()) {
+    const users = await UserRepository.listByRestaurant(restaurantId);
+    for (const u of users) {
+      if (u.active !== false && !MultiTenantDbService.isAccountLocked(u)) {
         const uRole = (u.role as string) || '';
         if ((uRole === 'owner' || uRole === 'manager' || uRole === 'platform_admin' || uRole === 'admin') && AuthService.verifyPin(String(pinStr).trim(), u.pin_hash)) {
           return true;
@@ -74,7 +95,7 @@ router.get('/', optionalAuth, async (req, res) => {
             name: u.name,
             role: u.role,
             position: u.position || u.role,
-            hourly_rate: u.hourly_rate ?? null,
+            hourly_rate: isAuth ? (u.hourly_rate ?? null) : null,
             email: displayEmail,
             phone: u.phone,
             pin: '****',
@@ -99,6 +120,10 @@ router.get('/', optionalAuth, async (req, res) => {
 // GET /api/employees/payroll/summary — Get manager weekly payroll summary across all staff
 router.get('/payroll/summary', optionalAuth, async (req, res) => {
   try {
+    const isAuth = await isAuthorizedManagerOrOwner(req.query?.authPin || req.headers?.['x-admin-pin'], req);
+    if (!isAuth) {
+      return res.status(403).json({ success: false, message: 'Forbidden: Access to payroll summaries is restricted to Managers and Owners.' });
+    }
     const restaurantId = (await resolveRestaurantId(req)) || req.tenant?.restaurant_id;
     if (!restaurantId) {
       return res.status(400).json({ success: false, message: 'Tenant restaurant ID is required' });

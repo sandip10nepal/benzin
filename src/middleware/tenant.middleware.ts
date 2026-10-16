@@ -81,14 +81,42 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
  * Middleware that optionally extracts tenant context (does not reject unauthenticated requests).
  * Useful for public endpoints that behave differently for authenticated users.
  */
-export function optionalAuth(req: Request, res: Response, next: NextFunction): void {
+export async function optionalAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req?.headers?.authorization;
 
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7);
     const payload = AuthService.verifyToken(token);
     if (payload) {
-      req.tenant = AuthService.payloadToTenantContext(payload);
+      const tenantCtx = AuthService.payloadToTenantContext(payload);
+
+      // Check if device is revoked
+      if (tenantCtx.device_id) {
+        const { MultiTenantDbService } = require('../services/multi-tenant-db.service');
+        const device = await MultiTenantDbService.getDevice(tenantCtx.device_id);
+        if (device && (device.status === 'REVOKED' || (device as any).revoked === true)) {
+          res.status(403).json({ success: false, error: 'Device has been revoked by management.' });
+          return;
+        }
+      }
+
+      // Check if user is locked or deactivated
+      if (tenantCtx.user_id) {
+        const { MultiTenantDbService } = require('../services/multi-tenant-db.service');
+        const user = await MultiTenantDbService.getUser(tenantCtx.user_id);
+        if (user) {
+          if (user.active === false) {
+            res.status(403).json({ success: false, error: 'User account has been deactivated.' });
+            return;
+          }
+          if (MultiTenantDbService.isAccountLocked(user)) {
+            res.status(423).json({ success: false, error: 'User account is temporarily locked due to failed login attempts.' });
+            return;
+          }
+        }
+      }
+
+      req.tenant = tenantCtx;
     }
   }
 

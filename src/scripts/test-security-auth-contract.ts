@@ -120,6 +120,15 @@ async function runSecuritySuite() {
         role: 'server',
         pin_hash: AuthService.hashPin('0000'),
         active: false
+      },
+      {
+        _id: 'usr_sec_tenantb_mgr',
+        restaurant_id: otherTenantId,
+        name: 'Tenant B Manager',
+        email: 'manager@tenantb.test',
+        role: 'manager',
+        pin_hash: AuthService.hashPin('2222'),
+        active: true
       }
     ];
 
@@ -242,6 +251,19 @@ async function runSecuritySuite() {
         total: 50.00,
         subtotal: 45.00,
         createdAt: new Date().toISOString()
+      },
+      {
+        _id: 'ord_sec_cavalli_unassign_srv',
+        id: 'ord_sec_cavalli_unassign_srv',
+        restaurant_id: cavalliId,
+        table: '9',
+        status: 'pending',
+        paymentStatus: 'unpaid',
+        assigned_server_id: 'usr_other_server',
+        assigned_server_name: 'Other Server',
+        total: 50.00,
+        subtotal: 45.00,
+        createdAt: new Date().toISOString()
       }
     ];
 
@@ -254,6 +276,30 @@ async function runSecuritySuite() {
         label: 'Table 1',
         capacity: 4,
         active: true
+      }
+    ];
+
+    // Seed test devices
+    const testDevices = [
+      {
+        _id: 'dev_sec_pos_active',
+        restaurant_id: cavalliId,
+        device_name: 'Active POS',
+        device_type: 'pos_terminal',
+        status: 'ACTIVE',
+        table_id: '1',
+        paired_at: new Date().toISOString(),
+        last_seen_at: new Date().toISOString(),
+      },
+      {
+        _id: 'dev_sec_pos_revoked',
+        restaurant_id: cavalliId,
+        device_name: 'Revoked POS',
+        device_type: 'pos_terminal',
+        status: 'REVOKED',
+        table_id: '1',
+        paired_at: new Date().toISOString(),
+        last_seen_at: new Date().toISOString(),
       }
     ];
 
@@ -298,6 +344,7 @@ async function runSecuritySuite() {
     MultiTenantDbService.saveCollection('users', testUsers as any);
     MultiTenantDbService.saveCollection('orders', testOrders as any);
     MultiTenantDbService.saveCollection('tables', testTables as any);
+    MultiTenantDbService.saveCollection('devices', testDevices as any);
     MultiTenantDbService.saveCollection('inventory_items', testInventory as any);
     MultiTenantDbService.saveCollection('menu_items', testMenuItems as any);
     MultiTenantDbService.saveCollection('menu_categories', testCategories as any);
@@ -1192,6 +1239,434 @@ async function runSecuritySuite() {
         description: res.status === 403
           ? 'Invalid PIN was rejected securely.'
           : 'Invalid PIN was improperly accepted.'
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // SUITE 7: COMPREHENSIVE AUTHORIZATION BOUNDARIES & ATTACK VECTORS
+    // ─────────────────────────────────────────────────────────────────────────
+    console.log('\n--- Suite 7: Comprehensive Authorization Boundaries & Boundary Attack Vectors ---');
+
+    const cavalliServerToken = AuthService.generateToken({
+      sub: 'usr_sec_server',
+      rid: cavalliId,
+      role: 'server',
+      rname: 'Cavalli Lounge'
+    });
+
+    const cavalliManagerToken = AuthService.generateToken({
+      sub: 'usr_sec_owner',
+      rid: cavalliId,
+      role: 'manager',
+      rname: 'Cavalli Lounge'
+    });
+
+    const tenantBManagerToken = AuthService.generateToken({
+      sub: 'usr_sec_tenantb_mgr',
+      rid: otherTenantId,
+      role: 'manager',
+      rname: 'Tenant B'
+    });
+
+    const deactivatedUserToken = AuthService.generateToken({
+      sub: 'usr_sec_inactive',
+      rid: cavalliId,
+      role: 'server',
+      rname: 'Cavalli Lounge'
+    });
+
+    const revokedDeviceToken = AuthService.generateDeviceToken(
+      'dev_sec_pos_revoked',
+      cavalliId,
+      '1',
+      'Cavalli Lounge'
+    );
+
+    // Test 7.1: Server role attempting GET /api/orders/sales/summary
+    {
+      const res = await fetch(`${baseUrl}/api/orders/sales/summary`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${cavalliServerToken}`,
+          'x-restaurant-id': cavalliId
+        }
+      });
+      recordResult({
+        suite: 'Authorization Boundaries',
+        name: 'Server role accessing GET /api/orders/sales/summary rejected with HTTP 403',
+        statusCode: res.status,
+        expectedSecureStatus: 403,
+        currentResult: res.status === 403 ? 'PASS' : 'FAIL',
+        description: res.status === 403
+          ? 'Financial sales summary securely denied to server role.'
+          : 'FINANCIAL DATA LEAK: Server role accessed sales summary analytics!'
+      });
+    }
+
+    // Test 7.2: Legitimate Manager accessing GET /api/orders/sales/summary
+    {
+      const res = await fetch(`${baseUrl}/api/orders/sales/summary`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${cavalliManagerToken}`,
+          'x-restaurant-id': cavalliId
+        }
+      });
+      const data: any = await res.json().catch(() => ({}));
+      const hasAnalytics = Boolean(data.success && data.analytics);
+      recordResult({
+        suite: 'Authorization Boundaries',
+        name: 'Manager accessing GET /api/orders/sales/summary succeeds with HTTP 200',
+        statusCode: res.status,
+        expectedSecureStatus: 200,
+        currentResult: (res.status === 200 && hasAnalytics) ? 'PASS' : 'FAIL',
+        description: (res.status === 200 && hasAnalytics)
+          ? 'Manager role authorized to view sales summary analytics.'
+          : 'Manager was unable to view sales summary.'
+      });
+    }
+
+    // Test 7.3: Server role attempting POST /api/orders/archive/clear
+    {
+      const res = await fetch(`${baseUrl}/api/orders/archive/clear`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${cavalliServerToken}`,
+          'x-restaurant-id': cavalliId,
+          'Content-Type': 'application/json'
+        }
+      });
+      recordResult({
+        suite: 'Authorization Boundaries',
+        name: 'Server role attempting POST /api/orders/archive/clear rejected with HTTP 403',
+        statusCode: res.status,
+        expectedSecureStatus: 403,
+        currentResult: res.status === 403 ? 'PASS' : 'FAIL',
+        description: res.status === 403
+          ? 'Archive clearing securely restricted from server role.'
+          : 'DATA LOSS HAZARD: Server role was allowed to clear order archive!'
+      });
+    }
+
+    // Test 7.4: Manager clearing archive with supervisor PIN
+    {
+      const res = await fetch(`${baseUrl}/api/orders/archive/clear`, {
+        method: 'POST',
+        headers: {
+          'x-restaurant-id': cavalliId,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ authPin: '1234' })
+      });
+      recordResult({
+        suite: 'Authorization Boundaries',
+        name: 'Manager clearing archive with supervisor PIN succeeds with HTTP 200',
+        statusCode: res.status,
+        expectedSecureStatus: 200,
+        currentResult: res.status === 200 ? 'PASS' : 'FAIL',
+        description: res.status === 200
+          ? 'Archive clearing authorized via supervisor PIN.'
+          : 'Manager supervisor PIN was not accepted.'
+      });
+    }
+
+    // Test 7.5: Server role attempting GET /api/employees/payroll/summary
+    {
+      const res = await fetch(`${baseUrl}/api/employees/payroll/summary`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${cavalliServerToken}`,
+          'x-restaurant-id': cavalliId
+        }
+      });
+      recordResult({
+        suite: 'Authorization Boundaries',
+        name: 'Server role attempting GET /api/employees/payroll/summary rejected with HTTP 403',
+        statusCode: res.status,
+        expectedSecureStatus: 403,
+        currentResult: res.status === 403 ? 'PASS' : 'FAIL',
+        description: res.status === 403
+          ? 'Payroll summary confidentiality preserved against unauthorized staff.'
+          : 'CONFIDENTIALITY LEAK: Server role accessed full staff payroll summary!'
+      });
+    }
+
+    // Test 7.6: Legitimate Manager accessing GET /api/employees/payroll/summary
+    {
+      const res = await fetch(`${baseUrl}/api/employees/payroll/summary`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${cavalliManagerToken}`,
+          'x-restaurant-id': cavalliId
+        }
+      });
+      const data: any = await res.json().catch(() => ({}));
+      const hasSummary = Boolean(data.success && data.summary);
+      recordResult({
+        suite: 'Authorization Boundaries',
+        name: 'Manager accessing GET /api/employees/payroll/summary succeeds with HTTP 200',
+        statusCode: res.status,
+        expectedSecureStatus: 200,
+        currentResult: (res.status === 200 && hasSummary) ? 'PASS' : 'FAIL',
+        description: (res.status === 200 && hasSummary)
+          ? 'Manager successfully accessed payroll summary.'
+          : 'Manager was unable to access payroll summary.'
+      });
+    }
+
+    // Test 7.7: Staff wage confidentiality: Server role GET /api/employees masks hourly_rate
+    {
+      const res = await fetch(`${baseUrl}/api/employees`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${cavalliServerToken}`,
+          'x-restaurant-id': cavalliId
+        }
+      });
+      const data: any = await res.json().catch(() => ({}));
+      const allMasked = Array.isArray(data.employees) && data.employees.every((e: any) => e.hourly_rate === null);
+      recordResult({
+        suite: 'Authorization Boundaries',
+        name: 'Server role GET /api/employees masks hourly_rate as null',
+        statusCode: res.status,
+        expectedSecureStatus: 200,
+        currentResult: (res.status === 200 && allMasked) ? 'PASS' : 'FAIL',
+        description: (res.status === 200 && allMasked)
+          ? 'Hourly wages securely masked as null for non-manager callers.'
+          : 'WAGE LEAK: Hourly rates exposed to non-manager caller!'
+      });
+    }
+
+    // Test 7.8: Staff wage disclosure: Manager role GET /api/employees receives hourly_rate
+    {
+      const res = await fetch(`${baseUrl}/api/employees`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${cavalliManagerToken}`,
+          'x-restaurant-id': cavalliId
+        }
+      });
+      const data: any = await res.json().catch(() => ({}));
+      const hasWages = Array.isArray(data.employees) && data.employees.length > 0;
+      recordResult({
+        suite: 'Authorization Boundaries',
+        name: 'Manager role GET /api/employees receives authorized employee list',
+        statusCode: res.status,
+        expectedSecureStatus: 200,
+        currentResult: (res.status === 200 && hasWages) ? 'PASS' : 'FAIL',
+        description: (res.status === 200 && hasWages)
+          ? 'Manager authorized to view full employee administration details.'
+          : 'Manager failed to load employee list.'
+      });
+    }
+
+    // Test 7.9: Server role attempting POST /api/menu to add menu item
+    {
+      const res = await fetch(`${baseUrl}/api/menu`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${cavalliServerToken}`,
+          'x-restaurant-id': cavalliId,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: 'Unauthorized Server Dish',
+          category: 'mains',
+          price: 25.00
+        })
+      });
+      recordResult({
+        suite: 'Authorization Boundaries',
+        name: 'Server role attempting POST /api/menu rejected with HTTP 403',
+        statusCode: res.status,
+        expectedSecureStatus: 403,
+        currentResult: res.status === 403 ? 'PASS' : 'FAIL',
+        description: res.status === 403
+          ? 'Menu creation securely restricted to managers and owners.'
+          : 'CATALOG CORRUPTION: Server role was allowed to create menu items!'
+      });
+    }
+
+    // Test 7.10: Legitimate Manager creating menu item via POST /api/menu
+    {
+      const res = await fetch(`${baseUrl}/api/menu`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${cavalliManagerToken}`,
+          'x-restaurant-id': cavalliId,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: 'Chef Special Hookah Blend',
+          category: 'hookah',
+          price: 45.00,
+          desc: 'Exclusive manager created blend'
+        })
+      });
+      recordResult({
+        suite: 'Authorization Boundaries',
+        name: 'Manager creating menu item via POST /api/menu succeeds with HTTP 201',
+        statusCode: res.status,
+        expectedSecureStatus: 201,
+        currentResult: res.status === 201 ? 'PASS' : 'FAIL',
+        description: res.status === 201
+          ? 'Manager successfully created new menu item.'
+          : 'Manager menu item creation failed.'
+      });
+    }
+
+    // Test 7.11: Server role attempting PUT /api/menu/hookah-config
+    {
+      const res = await fetch(`${baseUrl}/api/menu/hookah-config`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${cavalliServerToken}`,
+          'x-restaurant-id': cavalliId,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ basePrice: 99 })
+      });
+      recordResult({
+        suite: 'Authorization Boundaries',
+        name: 'Server role attempting PUT /api/menu/hookah-config rejected with HTTP 403',
+        statusCode: res.status,
+        expectedSecureStatus: 403,
+        currentResult: res.status === 403 ? 'PASS' : 'FAIL',
+        description: res.status === 403
+          ? 'Hookah configuration update securely restricted to managers.'
+          : 'CATALOG CORRUPTION: Server role modified hookah configuration!'
+      });
+    }
+
+    // Test 7.12: Server role attempting PUT /api/menu/specials
+    {
+      const res = await fetch(`${baseUrl}/api/menu/specials`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${cavalliServerToken}`,
+          'x-restaurant-id': cavalliId,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ specials: [{ id: 'spec-1', title: 'Free Hookah Night' }] })
+      });
+      recordResult({
+        suite: 'Authorization Boundaries',
+        name: 'Server role attempting PUT /api/menu/specials rejected with HTTP 403',
+        statusCode: res.status,
+        expectedSecureStatus: 403,
+        currentResult: res.status === 403 ? 'PASS' : 'FAIL',
+        description: res.status === 403
+          ? 'Specials update securely restricted to managers.'
+          : 'CATALOG CORRUPTION: Server role modified specials!'
+      });
+    }
+
+    // Test 7.13: Role spoofing resistance: Server passing x-user-role: manager to unassign order
+    {
+      const res = await fetch(`${baseUrl}/api/orders/ord_sec_cavalli_unassign_srv/unassign`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${cavalliServerToken}`,
+          'x-user-role': 'manager',
+          'x-restaurant-id': cavalliId,
+          'Content-Type': 'application/json'
+        }
+      });
+      recordResult({
+        suite: 'Device & Session Security',
+        name: 'Role header spoofing resistance on POST /api/orders/:orderId/unassign (HTTP 403)',
+        statusCode: res.status,
+        expectedSecureStatus: 403,
+        currentResult: res.status === 403 ? 'PASS' : 'FAIL',
+        description: res.status === 403
+          ? 'Server role spoofing via x-user-role header blocked: verified JWT role enforced.'
+          : 'VULNERABILITY: Server spoofed manager role via x-user-role header to unassign order!'
+      });
+    }
+
+    // Test 7.14: Role spoofing resistance: Server passing caller_role: manager in body to unassign order
+    {
+      const res = await fetch(`${baseUrl}/api/orders/ord_sec_cavalli_unassign_srv/unassign`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${cavalliServerToken}`,
+          'x-restaurant-id': cavalliId,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ caller_role: 'manager' })
+      });
+      recordResult({
+        suite: 'Device & Session Security',
+        name: 'Role body spoofing resistance on POST /api/orders/:orderId/unassign (HTTP 403)',
+        statusCode: res.status,
+        expectedSecureStatus: 403,
+        currentResult: res.status === 403 ? 'PASS' : 'FAIL',
+        description: res.status === 403
+          ? 'Server role spoofing via body caller_role blocked: verified JWT role enforced.'
+          : 'VULNERABILITY: Server spoofed manager role via body caller_role to unassign order!'
+      });
+    }
+
+    // Test 7.15: Revoked POS Device Token Rejection
+    {
+      const res = await fetch(`${baseUrl}/api/orders`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${revokedDeviceToken}`,
+          'x-restaurant-id': cavalliId
+        }
+      });
+      recordResult({
+        suite: 'Device & Session Security',
+        name: 'Revoked POS device token rejected with HTTP 403',
+        statusCode: res.status,
+        expectedSecureStatus: 403,
+        currentResult: res.status === 403 ? 'PASS' : 'FAIL',
+        description: res.status === 403
+          ? 'Revoked POS device token was rejected securely.'
+          : 'SECURITY FAILURE: Revoked POS device token accessed private orders!'
+      });
+    }
+
+    // Test 7.16: Deactivated employee token rejection
+    {
+      const res = await fetch(`${baseUrl}/api/employees`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${deactivatedUserToken}`,
+          'x-restaurant-id': cavalliId
+        }
+      });
+      recordResult({
+        suite: 'Device & Session Security',
+        name: 'Deactivated employee token rejected with HTTP 403',
+        statusCode: res.status,
+        expectedSecureStatus: 403,
+        currentResult: res.status === 403 ? 'PASS' : 'FAIL',
+        description: res.status === 403
+          ? 'Deactivated employee token was rejected securely.'
+          : 'SECURITY FAILURE: Deactivated employee token accessed system!'
+      });
+    }
+
+    // Test 7.17: Cross-tenant isolation: Tenant B Manager token rejected when accessing Cavalli private endpoints
+    {
+      const res = await fetch(`${baseUrl}/api/employees/payroll/summary`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${tenantBManagerToken}`,
+          'x-restaurant-id': cavalliId
+        }
+      });
+      recordResult({
+        suite: 'Tenant Isolation',
+        name: 'Cross-tenant manager token rejected when accessing Cavalli payroll summary (HTTP 403)',
+        statusCode: res.status,
+        expectedSecureStatus: 403,
+        currentResult: res.status === 403 ? 'PASS' : 'FAIL',
+        description: res.status === 403
+          ? 'Cross-tenant manager token rejected with HTTP 403; Cavalli payroll protected.'
+          : 'SECURITY FAILURE: Tenant B manager accessed Cavalli payroll summary!'
       });
     }
 

@@ -72,7 +72,86 @@ export async function preloadMenuCache(restaurantId?: string): Promise<any[]> {
 }
 
 async function isAuthorizedManager(authPin?: any, req?: any): Promise<boolean> {
-  return true;
+  const restaurantId = await resolveTenantRestaurantId(req);
+
+  // 1. Verify Cryptographic Bearer JWT Token
+  const authHeader = req?.headers?.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    const payload: any = AuthService.verifyToken(token);
+    if (payload) {
+      const tokenRid = payload.rid;
+      const isTenantMatch = (tokenRid && restaurantId && tokenRid === restaurantId) || payload.role === 'platform_admin';
+      if (isTenantMatch && (payload.role === 'owner' || payload.role === 'manager' || payload.role === 'platform_admin' || (payload.role as string) === 'admin')) {
+        if (payload.sub && MultiTenantDbService.isInitialized()) {
+          const user: any = await MultiTenantDbService.getUser(String(payload.sub));
+          if (user && (user.active === false || MultiTenantDbService.isAccountLocked(user))) {
+            return false;
+          }
+        }
+        return true;
+      }
+    }
+  }
+
+  // 2. Check verified tenant context attached by trusted auth middleware
+  if (req?.tenant) {
+    const tRole = req.tenant.role;
+    const tRid = req.tenant.restaurant_id;
+    const isTenantMatch = (tRid && restaurantId && tRid === restaurantId) || tRole === 'platform_admin';
+    if (isTenantMatch && (tRole === 'owner' || tRole === 'manager' || tRole === 'platform_admin' || (tRole as string) === 'admin')) {
+      return true;
+    }
+  }
+
+  // 3. Manager/Owner PIN Verification (for supervisor override on POS terminals)
+  const pin = authPin || req?.body?.authPin || req?.body?.pin || req?.headers?.['x-admin-pin'] || req?.query?.authPin;
+  if (pin && restaurantId && MultiTenantDbService.isInitialized()) {
+    const pinStr = String(pin).trim();
+    if (pinStr.length > 0) {
+      const users = await MultiTenantDbService.listUsers(restaurantId);
+      for (const u of users) {
+        if (u.active !== false && !MultiTenantDbService.isAccountLocked(u)) {
+          if ((u.role === 'owner' || u.role === 'manager' || u.role === 'platform_admin' || (u.role as string) === 'admin') && AuthService.verifyPin(pinStr, u.pin_hash)) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+async function isAuthorizedStaffOrManager(authPin?: any, req?: any): Promise<boolean> {
+  const restaurantId = await resolveTenantRestaurantId(req);
+  const authHeader = req?.headers?.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    const payload: any = AuthService.verifyToken(token);
+    if (payload) {
+      const tokenRid = payload.rid;
+      const isTenantMatch = (tokenRid && restaurantId && tokenRid === restaurantId) || payload.role === 'platform_admin';
+      if (isTenantMatch && ['owner', 'manager', 'platform_admin', 'admin', 'server', 'bartender', 'chef', 'hookah_maker'].includes(payload.role)) {
+        if (payload.sub && MultiTenantDbService.isInitialized()) {
+          const user: any = await MultiTenantDbService.getUser(String(payload.sub));
+          if (user && (user.active === false || MultiTenantDbService.isAccountLocked(user))) {
+            return false;
+          }
+        }
+        return true;
+      }
+    }
+  }
+  if (req?.tenant) {
+    const tRole = req.tenant.role;
+    const tRid = req.tenant.restaurant_id;
+    const isTenantMatch = (tRid && restaurantId && tRid === restaurantId) || tRole === 'platform_admin';
+    if (isTenantMatch && ['owner', 'manager', 'platform_admin', 'admin', 'server', 'bartender', 'chef', 'hookah_maker'].includes(tRole)) {
+      return true;
+    }
+  }
+  return isAuthorizedManager(authPin, req);
 }
 
 // GET /api/menu — list all menu items for the target tenant
@@ -135,6 +214,10 @@ router.get('/', async (req, res, next) => {
 // POST /api/menu/bulk-sync — bulk update menu item image URLs or details directly to DB
 router.post('/bulk-sync', optionalAuth, async (req, res) => {
   try {
+    const isAuth = await isAuthorizedManager(req.body?.authPin, req);
+    if (!isAuth) {
+      return res.status(403).json({ success: false, message: 'Manager or Owner authorization required for bulk sync' });
+    }
     const restaurantId = await resolveTenantRestaurantId(req);
     if (!restaurantId) {
       return res.status(400).json({ success: false, message: 'Tenant restaurant ID is required' });
@@ -185,6 +268,10 @@ router.get('/hookah-config', async (req, res, next) => {
 // PUT /api/menu/hookah-config — update restaurant hookah configuration
 router.put('/hookah-config', optionalAuth, async (req, res, next) => {
   try {
+    const isAuth = await isAuthorizedManager(req.body?.authPin, req);
+    if (!isAuth) {
+      return res.status(403).json({ success: false, message: 'Manager or Owner authorization required to update hookah configuration' });
+    }
     const restaurantId = await resolveTenantRestaurantId(req);
     if (!restaurantId) return res.status(400).json({ success: false, message: 'Tenant restaurant ID required' });
     const config = req.body;
@@ -207,6 +294,10 @@ router.get('/specials', async (req, res, next) => {
 // PUT /api/menu/specials — update restaurant specials
 router.put('/specials', optionalAuth, async (req, res, next) => {
   try {
+    const isAuth = await isAuthorizedManager(req.body?.authPin, req);
+    if (!isAuth) {
+      return res.status(403).json({ success: false, message: 'Manager or Owner authorization required to update specials' });
+    }
     const restaurantId = await resolveTenantRestaurantId(req);
     if (!restaurantId) return res.status(400).json({ success: false, message: 'Tenant restaurant ID required' });
     const { specials } = req.body;
@@ -415,6 +506,10 @@ router.put('/:id', optionalAuth, async (req, res, next) => {
 // PATCH /api/menu/:id/availability — dedicated fast toggle for item availability
 router.patch('/:id/availability', optionalAuth, async (req, res, next) => {
   try {
+    const isAuth = await isAuthorizedStaffOrManager(req.body?.authPin, req);
+    if (!isAuth) {
+      return res.status(403).json({ success: false, message: 'Staff or Manager authorization required to update item availability' });
+    }
     const id = String(req.params.id);
     const { available } = req.body;
     if (available === undefined) {
