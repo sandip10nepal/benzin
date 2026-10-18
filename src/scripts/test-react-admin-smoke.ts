@@ -77,7 +77,7 @@ async function runReactAdminSmokeTest() {
     assert(res.status === 200, `GET /admin_react/index.html returned HTTP 200 (Got: ${res.status})`);
 
     const html = await res.text();
-    assert(html.includes('Benzin OS'), 'HTML contains correct Benzin OS title and metadata');
+    assert(html.includes('Benzin Admin') || html.includes('Benzin OS'), 'HTML contains correct Benzin title and metadata');
     assert(html.includes('id="root"'), 'HTML contains React mount point root element');
 
     // Test asset HTTP responses

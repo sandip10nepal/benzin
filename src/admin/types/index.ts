@@ -1,15 +1,16 @@
 /**
  * Benzin Hospitality OS — React Admin Core Type Definitions
+ * Exact Parity with public/admin.html
  */
 
 export type AdminTabId =
-  | 'dashboard'
   | 'kds'
   | 'tables'
-  | 'menu'
+  | 'archive'
   | 'inventory'
-  | 'staff'
-  | 'sales';
+  | 'menu'
+  | 'sales'
+  | 'staff';
 
 export type UserRole =
   | 'owner'

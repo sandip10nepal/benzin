@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { MobileNavDrawer } from './MobileNavDrawer';
 import { AdminTabId, RestaurantVenue, StaffUser } from '../../types';
 
 interface MainLayoutProps {
@@ -22,39 +22,33 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   onToggleTheme,
   children,
 }) => {
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', width: '100%' }}>
-      {/* Sidebar */}
-      <Sidebar
+    <>
+      <Header
         activeTab={activeTab}
         onSelectTab={onSelectTab}
-        isMobileOpen={isMobileOpen}
-        onCloseMobile={() => setIsMobileOpen(false)}
+        venue={venue}
+        user={user}
+        theme={theme}
+        onToggleTheme={onToggleTheme}
+        onToggleMobileMenu={() => setIsMobileMenuOpen(true)}
       />
 
-      {/* Main Content Area */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <Header
-          venue={venue}
-          user={user}
-          theme={theme}
-          onToggleTheme={onToggleTheme}
-          onToggleMobileMenu={() => setIsMobileOpen(true)}
-        />
+      <MobileNavDrawer
+        isOpen={isMobileMenuOpen}
+        onClose={() => setIsMobileMenuOpen(false)}
+        activeTab={activeTab}
+        onSelectTab={onSelectTab}
+        user={user}
+        theme={theme}
+        onToggleTheme={onToggleTheme}
+      />
 
-        <main
-          style={{
-            flex: 1,
-            padding: '24px',
-            overflowY: 'auto',
-            backgroundColor: 'var(--bg-primary)',
-          }}
-        >
-          {children}
-        </main>
-      </div>
-    </div>
+      <main>
+        {children}
+      </main>
+    </>
   );
 };

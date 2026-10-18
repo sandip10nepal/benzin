@@ -1,20 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import './styles/tokens.css';
-import './styles/admin.css';
+import './styles/legacy-admin.css';
 import { MainLayout } from './components/layout/MainLayout';
-import { DashboardView } from './views/DashboardView';
-import { KdsPlaceholderView } from './views/KdsPlaceholderView';
-import { TablesPlaceholderView } from './views/TablesPlaceholderView';
-import { MenuPlaceholderView } from './views/MenuPlaceholderView';
-import { InventoryPlaceholderView } from './views/InventoryPlaceholderView';
-import { StaffPlaceholderView } from './views/StaffPlaceholderView';
-import { SalesPlaceholderView } from './views/SalesPlaceholderView';
+import { KdsView } from './views/KdsView';
+import { TablesView } from './views/TablesView';
+import { ArchiveView } from './views/ArchiveView';
+import { InventoryView } from './views/InventoryView';
+import { MenuView } from './views/MenuView';
+import { SalesView } from './views/SalesView';
+import { StaffView } from './views/StaffView';
 import { AdminTabId, RestaurantVenue, StaffUser } from './types';
 import { MOCK_VENUE, MOCK_STAFF } from './api/client';
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<AdminTabId>('dashboard');
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [activeTab, setActiveTab] = useState<AdminTabId>('kds');
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [venue] = useState<RestaurantVenue>(MOCK_VENUE);
   const [user] = useState<StaffUser>(MOCK_STAFF);
 
@@ -29,22 +28,22 @@ export const App: React.FC = () => {
 
   const renderActiveView = () => {
     switch (activeTab) {
-      case 'dashboard':
-        return <DashboardView venue={venue} user={user} onNavigateTab={setActiveTab} />;
       case 'kds':
-        return <KdsPlaceholderView />;
+        return <KdsView />;
       case 'tables':
-        return <TablesPlaceholderView />;
-      case 'menu':
-        return <MenuPlaceholderView />;
+        return <TablesView />;
+      case 'archive':
+        return <ArchiveView />;
       case 'inventory':
-        return <InventoryPlaceholderView />;
-      case 'staff':
-        return <StaffPlaceholderView />;
+        return <InventoryView />;
+      case 'menu':
+        return <MenuView />;
       case 'sales':
-        return <SalesPlaceholderView />;
+        return <SalesView />;
+      case 'staff':
+        return <StaffView currentUser={user} />;
       default:
-        return <DashboardView venue={venue} user={user} onNavigateTab={setActiveTab} />;
+        return <KdsView />;
     }
   };
 
