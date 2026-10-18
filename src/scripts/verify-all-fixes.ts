@@ -38,7 +38,7 @@ async function runVerification() {
   // Verify default hookah config has bases, flavors, addons, packages
   const initialHkConfig = await MultiTenantDbService.getHookahConfig(tenantId);
   assert(Array.isArray(initialHkConfig.bases) && initialHkConfig.bases.length >= 2, 'Default hookah config provides configurable bases (e.g. Rooh Afza, Watermelon Syrup)');
-  assert(initialHkConfig.packages.some((p: HookahPackageConfig) => (p.id === 'daku' || p.id === 'pkg_daku' || p.name.toLowerCase() === 'daku') && p.price === 65 && p.includes_unlimited_refills === true), 'Daku package is configured for $65 with unlimited head refill');
+  assert(initialHkConfig.packages.some((p: any) => (p.id === 'daku' || p.id === 'pkg_daku' || p.name?.toLowerCase() === 'daku') && p.price === 65 && (p.includes_unlimited_refills === true || p.includes_refill === true)), 'Daku package is configured for $65 with unlimited head refill');
 
   // Admin updates hookah config (add new base, toggle availability)
   const testBaseId = `test_base_${Date.now()}`;

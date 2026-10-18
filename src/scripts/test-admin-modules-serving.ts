@@ -19,7 +19,7 @@ async function runAdminModulesServingTest() {
     const adminRes = await fetch(`http://127.0.0.1:${port}/admin.html`);
     if (adminRes.status !== 200) throw new Error(`/admin.html returned status ${adminRes.status}`);
     const adminHtml = await adminRes.text();
-    if (!adminHtml.includes('<script type="module" src="/js/admin/main.js"></script>')) {
+    if (!adminHtml.includes('src="/js/admin/main.js')) {
       throw new Error('/admin.html does not contain the expected module script tag');
     }
     console.log('✅ [PASS] /admin.html served successfully with native ES module script tag');

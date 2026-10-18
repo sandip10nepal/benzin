@@ -12,7 +12,7 @@ async function runTests() {
   const rosterRes = await fetch(`${API_BASE}/api/auth/staff-roster`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ restaurant_code: '4821' }),
+    body: JSON.stringify({ restaurant_code: '4821', include_managers: false }),
   });
   const rosterData = await rosterRes.json();
   console.log(`Status: ${rosterRes.status}, Success: ${rosterData.success}`);
