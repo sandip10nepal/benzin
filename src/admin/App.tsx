@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './styles/legacy-admin.css';
-import { MainLayout } from './components/layout/MainLayout';
+import { AdminLayout } from './components/layout/AdminLayout';
 import { KdsView } from './views/KdsView';
 import { TablesView } from './views/TablesView';
 import { ArchiveView } from './views/ArchiveView';
@@ -13,13 +13,17 @@ import { MOCK_VENUE, MOCK_STAFF } from './api/client';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AdminTabId>('kds');
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const saved = localStorage.getItem('benzin_theme');
+    return saved === 'light' || saved === 'dark' ? saved : 'dark';
+  });
   const [venue] = useState<RestaurantVenue>(MOCK_VENUE);
   const [user] = useState<StaffUser>(MOCK_STAFF);
 
   // Sync theme attribute with document root
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('benzin_theme', theme);
   }, [theme]);
 
   const toggleTheme = () => {
@@ -48,7 +52,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <MainLayout
+    <AdminLayout
       activeTab={activeTab}
       onSelectTab={setActiveTab}
       venue={venue}
@@ -57,7 +61,7 @@ export const App: React.FC = () => {
       onToggleTheme={toggleTheme}
     >
       {renderActiveView()}
-    </MainLayout>
+    </AdminLayout>
   );
 };
 

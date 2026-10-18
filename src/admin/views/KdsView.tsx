@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Printer, CheckCircle2, XCircle } from 'lucide-react';
+import { Printer, CheckCircle2, XCircle, Inbox, PlusCircle } from 'lucide-react';
 
 interface MockTicket {
   id: string;
@@ -17,7 +17,7 @@ interface MockTicket {
   total: string;
 }
 
-const INITIAL_TICKETS: MockTicket[] = [
+const SAMPLE_TICKETS: MockTicket[] = [
   {
     id: 'ord_1',
     table: 'Table 4',
@@ -75,7 +75,9 @@ const INITIAL_TICKETS: MockTicket[] = [
 ];
 
 export const KdsView: React.FC = () => {
-  const [tickets, setTickets] = useState<MockTicket[]>(INITIAL_TICKETS);
+  const [tickets, setTickets] = useState<MockTicket[]>(SAMPLE_TICKETS);
+
+  const activeTickets = tickets.filter((t) => t.status !== 'fulfilled');
 
   const fulfillTicket = (id: string) => {
     setTickets((prev) =>
@@ -87,10 +89,18 @@ export const KdsView: React.FC = () => {
     setTickets((prev) => prev.filter((t) => t.id !== id));
   };
 
+  const resetSampleTickets = () => {
+    setTickets(SAMPLE_TICKETS);
+  };
+
+  const clearAllTickets = () => {
+    setTickets([]);
+  };
+
   return (
     <div className="kds-layout" id="kdsPageLayout">
       {/* Hookah Station Coal Refill Request Queue */}
-      <div id="hookahStationQueueSection" style={{ display: 'block', marginBottom: '24px' }}>
+      <div id="hookahStationQueueSection" style={{ display: 'none', marginBottom: '24px' }}>
         <div
           style={{
             display: 'flex',
@@ -128,96 +138,120 @@ export const KdsView: React.FC = () => {
             0 ACTIVE
           </div>
         </div>
+        <div className="tickets-grid" id="hookahRequestsGrid" />
       </div>
 
       <section className="tickets-section">
-        <h2 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--cream)' }}>Active Live KDS Tickets</span>
-            <span
-              style={{
-                fontSize: '11px',
-                fontWeight: 800,
-                padding: '2px 8px',
-                borderRadius: '6px',
-                backgroundColor: 'rgba(59,130,246,0.15)',
-                color: 'var(--ember)',
-                border: '1px solid var(--ember)',
-              }}
-            >
-              {tickets.filter((t) => t.status !== 'fulfilled').length} ACTIVE
-            </span>
+        <h2 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+          <div>
+            <span>Active Live KDS Tickets</span>
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {activeTickets.length === 0 ? (
+              <button
+                className="btn btn-primary"
+                onClick={resetSampleTickets}
+                style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 800 }}
+              >
+                <PlusCircle style={{ width: '13px', height: '13px' }} />
+                <span>Simulate Active Tickets</span>
+              </button>
+            ) : (
+              <button
+                className="btn"
+                onClick={clearAllTickets}
+                style={{ padding: '6px 12px', fontSize: '12px' }}
+                title="View empty state as in legacy admin"
+              >
+                <span>Clear to Empty State</span>
+              </button>
+            )}
           </div>
         </h2>
 
         <div className="tickets-grid" id="ticketsGrid">
-          {tickets.map((ticket) => (
+          {activeTickets.length === 0 ? (
             <div
-              key={ticket.id}
-              className={`ticket-card ${ticket.status === 'fulfilled' ? 'fulfilled' : ''}`}
+              style={{
+                gridColumn: '1 / -1',
+                padding: '60px',
+                textAlign: 'center',
+                color: 'var(--muted)',
+                fontSize: '16px',
+              }}
             >
-              <div className="ticket-header">
-                <div>
-                  <div className="ticket-title">
-                    {ticket.table} <span style={{ fontSize: '11px', color: 'var(--muted)' }}>({ticket.orderNumber})</span>
-                  </div>
-                  <div className="ticket-meta">
-                    {ticket.timeAgo} • Server: {ticket.server}
-                  </div>
-                </div>
-                <span
-                  className={`ticket-badge ${
-                    ticket.status === 'fulfilled' ? 'badge-fulfilled' : 'badge-pending'
-                  }`}
-                >
-                  {ticket.status.toUpperCase()}
-                </span>
-              </div>
-
-              <div className="ticket-items">
-                {ticket.items.map((item, idx) => (
-                  <div key={idx} style={{ marginBottom: '4px' }}>
-                    <div className="ticket-item-line">
-                      <span>{item.qty}x {item.name}</span>
-                      <span style={{ color: 'var(--muted)' }}>{item.price}</span>
-                    </div>
-                    {item.notes && <div className="ticket-item-note">Note: {item.notes}</div>}
-                  </div>
-                ))}
-              </div>
-
-              <div className="ticket-total-row">
-                <span>Total Due</span>
-                <span>{ticket.total}</span>
-              </div>
-
-              <div className="ticket-actions">
-                <button
-                  className="btn btn-primary"
-                  onClick={() => fulfillTicket(ticket.id)}
-                  disabled={ticket.status === 'fulfilled'}
-                >
-                  <CheckCircle2 style={{ width: '13px', height: '13px' }} />
-                  <span>{ticket.status === 'fulfilled' ? 'Done' : 'Fulfill'}</span>
-                </button>
-                <button
-                  className="btn"
-                  onClick={() => alert(`Printing ticket for ${ticket.table}`)}
-                  title="Print Kitchen Ticket"
-                >
-                  <Printer style={{ width: '13px', height: '13px' }} />
-                  <span>Print</span>
-                </button>
-                <button
-                  className="btn btn-danger"
-                  onClick={() => cancelTicket(ticket.id)}
-                  title="Cancel Order"
-                >
-                  <XCircle style={{ width: '13px', height: '13px' }} />
-                </button>
-              </div>
+              <Inbox style={{ width: '48px', height: '48px', marginBottom: '12px', opacity: 0.5, display: 'inline-block' }} />
+              <div>No active live tickets. New orders will appear here automatically in real time!</div>
             </div>
-          ))}
+          ) : (
+            activeTickets.map((ticket) => (
+              <div
+                key={ticket.id}
+                className={`ticket-card ${ticket.status === 'fulfilled' ? 'fulfilled' : ''}`}
+              >
+                <div className="ticket-header">
+                  <div>
+                    <div className="ticket-title">
+                      {ticket.table} <span style={{ fontSize: '11px', color: 'var(--muted)' }}>({ticket.orderNumber})</span>
+                    </div>
+                    <div className="ticket-meta">
+                      {ticket.timeAgo} • Server: {ticket.server}
+                    </div>
+                  </div>
+                  <span
+                    className={`ticket-badge ${
+                      ticket.status === 'fulfilled' ? 'badge-fulfilled' : 'badge-pending'
+                    }`}
+                  >
+                    {ticket.status.toUpperCase()}
+                  </span>
+                </div>
+
+                <div className="ticket-items">
+                  {ticket.items.map((item, idx) => (
+                    <div key={idx} style={{ marginBottom: '4px' }}>
+                      <div className="ticket-item-line">
+                        <span>{item.qty}x {item.name}</span>
+                        <span style={{ color: 'var(--muted)' }}>{item.price}</span>
+                      </div>
+                      {item.notes && <div className="ticket-item-note">Note: {item.notes}</div>}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="ticket-total-row">
+                  <span>Total Due</span>
+                  <span>{ticket.total}</span>
+                </div>
+
+                <div className="ticket-actions">
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => fulfillTicket(ticket.id)}
+                    disabled={ticket.status === 'fulfilled'}
+                  >
+                    <CheckCircle2 style={{ width: '13px', height: '13px' }} />
+                    <span>{ticket.status === 'fulfilled' ? 'Done' : 'Fulfill'}</span>
+                  </button>
+                  <button
+                    className="btn"
+                    onClick={() => alert(`Printing ticket for ${ticket.table}`)}
+                    title="Print Kitchen Ticket"
+                  >
+                    <Printer style={{ width: '13px', height: '13px' }} />
+                    <span>Print</span>
+                  </button>
+                  <button
+                    className="btn btn-danger"
+                    onClick={() => cancelTicket(ticket.id)}
+                    title="Cancel Order"
+                  >
+                    <XCircle style={{ width: '13px', height: '13px' }} />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </section>
     </div>

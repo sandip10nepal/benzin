@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Archive } from 'lucide-react';
 
 interface ArchivedTicket {
   id: string;
@@ -73,9 +73,7 @@ export const ArchiveView: React.FC = () => {
           }}
         >
           <div>
-            <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--cream)' }}>
-              Completed &amp; Cancelled Order Archive
-            </span>
+            <span>Completed &amp; Cancelled Order Archive</span>
           </div>
           <button
             className="btn btn-danger"
@@ -87,23 +85,22 @@ export const ArchiveView: React.FC = () => {
           </button>
         </h2>
 
-        {archivedTickets.length === 0 ? (
-          <div
-            style={{
-              padding: '60px 20px',
-              textAlign: 'center',
-              color: 'var(--muted)',
-              fontSize: '14px',
-              background: 'var(--card)',
-              borderRadius: '12px',
-              border: '1px solid var(--line)',
-            }}
-          >
-            No archived tickets found.
-          </div>
-        ) : (
-          <div className="tickets-grid" id="archiveTicketsGrid">
-            {archivedTickets.map((t) => (
+        <div className="tickets-grid" id="archiveTicketsGrid">
+          {archivedTickets.length === 0 ? (
+            <div
+              style={{
+                gridColumn: '1 / -1',
+                padding: '60px',
+                textAlign: 'center',
+                color: 'var(--muted)',
+                fontSize: '16px',
+              }}
+            >
+              <Archive style={{ width: '48px', height: '48px', marginBottom: '12px', opacity: 0.5, display: 'inline-block' }} />
+              <div>Archive is currently empty. Fulfilled tickets will be stored here.</div>
+            </div>
+          ) : (
+            archivedTickets.map((t) => (
               <div key={t.id} className="ticket-card fulfilled">
                 <div className="ticket-header">
                   <div>
@@ -137,9 +134,9 @@ export const ArchiveView: React.FC = () => {
                   <span>{t.total}</span>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+            ))
+          )}
+        </div>
       </section>
     </div>
   );
