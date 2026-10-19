@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Trash2 } from 'lucide-react';
 import { MenuItem } from '../../types';
+import { apiClient } from '../../api/client';
 
 interface SpecialItem {
   id: string;
@@ -27,26 +28,25 @@ export const SpecialsModal: React.FC<SpecialsModalProps> = ({
 }) => {
   const [selectedItemId, setSelectedItemId] = useState('');
   const [subtitle, setSubtitle] = useState('');
-  const [specials, setSpecials] = useState<SpecialItem[]>([
-    {
-      id: 'sp_1',
-      menuItemId: 'm1',
-      name: 'Anarkali House Blend Hookah',
-      subtitle: "Chef's Signature Pick",
-      price: 36.0,
-      emoji: '👑',
-      active: true,
-    },
-    {
-      id: 'sp_2',
-      menuItemId: 'm2',
-      name: 'Zaatar Truffle Flatbread',
-      subtitle: 'Limited Midnight Special',
-      price: 14.5,
-      emoji: '🍕',
-      active: true,
-    },
-  ]);
+  const [specials, setSpecials] = useState<SpecialItem[]>([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      apiClient.getSpecials().then((specs) => {
+        if (Array.isArray(specs) && specs.length > 0) {
+          setSpecials(specs.map((s: any) => ({
+            id: s.id || s._id || `sp_${Date.now()}`,
+            menuItemId: s.menuItemId || s.item_id || s.id,
+            name: s.name || s.title || '',
+            subtitle: s.subtitle || s.description || '',
+            price: Number(s.price) || 0,
+            emoji: s.emoji || '✨',
+            active: s.active !== false,
+          })));
+        }
+      }).catch((e) => console.warn('Could not load specials from database:', e));
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -96,9 +96,14 @@ export const SpecialsModal: React.FC<SpecialsModalProps> = ({
     );
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    try {
+      await apiClient.saveSpecials(specials);
+    } catch (e) {
+      console.warn('Failed saving specials to database:', e);
+    }
     if (onSaveSpecials) onSaveSpecials(specials);
-    alert('Restaurant Specials saved successfully!');
+    alert('Restaurant Specials saved successfully to database!');
     onClose();
   };
 

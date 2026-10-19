@@ -196,7 +196,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
               <input
                 type="email"
                 id="empEmail"
-                placeholder="name@cavalli.com"
+                placeholder="name@venue.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 style={{

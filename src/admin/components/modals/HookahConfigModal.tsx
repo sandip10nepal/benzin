@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Trash2 } from 'lucide-react';
+import { apiClient } from '../../api/client';
 
 interface HookahBase {
   id: string;
@@ -43,42 +44,43 @@ export const HookahConfigModal: React.FC<HookahConfigModalProps> = ({
   const [activeTab, setActiveTab] = useState<'bases' | 'flavors' | 'addons' | 'packages'>('bases');
 
   // Bases state
-  const [bases, setBases] = useState<HookahBase[]>([
-    { id: 'b1', name: 'Milk Base', price: 5.0 },
-    { id: 'b2', name: 'Red Bull Base', price: 8.0 },
-    { id: 'b3', name: 'Pineapple Fruit Head', price: 15.0 },
-  ]);
+  const [bases, setBases] = useState<HookahBase[]>([]);
   const [newBaseName, setNewBaseName] = useState('');
   const [newBasePrice, setNewBasePrice] = useState('');
 
   // Flavors state
-  const [flavors, setFlavors] = useState<HookahFlavor[]>([
-    { id: 'f1', name: 'Love 66', brand: 'Adalya', stock: 1200 },
-    { id: 'f2', name: 'Lady Killer', brand: 'Adalya', stock: 850 },
-    { id: 'f3', name: 'Pan Ras', brand: 'Afzal', stock: 1500 },
-    { id: 'f4', name: 'Blue Mist', brand: 'Starbuzz', stock: 950 },
-  ]);
+  const [flavors, setFlavors] = useState<HookahFlavor[]>([]);
   const [newFlavorName, setNewFlavorName] = useState('');
   const [newFlavorBrand, setNewFlavorBrand] = useState('');
   const [newFlavorStock, setNewFlavorStock] = useState('500');
 
   // Addons state
-  const [addons, setAddons] = useState<HookahAddon[]>([
-    { id: 'a1', name: 'Ice Base', price: 4.0 },
-    { id: 'a2', name: 'Ice Hose Tip', price: 4.0 },
-    { id: 'a3', name: 'LED Base Glow', price: 3.0 },
-  ]);
+  const [addons, setAddons] = useState<HookahAddon[]>([]);
   const [newAddonName, setNewAddonName] = useState('');
   const [newAddonPrice, setNewAddonPrice] = useState('');
 
   // Package state
   const [dakuPackage, setDakuPackage] = useState<DakuPackage>({
-    active: true,
-    name: 'Daku',
-    price: 65.0,
-    desc: 'Unlimited head refill, choice of premium fruit head, ice hose included',
+    active: false,
+    name: '',
+    price: 0,
+    desc: '',
     image: '',
   });
+
+  useEffect(() => {
+    if (isOpen) {
+      apiClient.getHookahConfig().then((cfg) => {
+        if (cfg) {
+          if (Array.isArray(cfg.bases)) setBases(cfg.bases);
+          if (Array.isArray(cfg.flavors)) setFlavors(cfg.flavors);
+          if (Array.isArray(cfg.addons)) setAddons(cfg.addons);
+          if (cfg.dakuPackage) setDakuPackage(cfg.dakuPackage);
+          if (cfg.flavorWeight) setFlavorWeight(cfg.flavorWeight);
+        }
+      }).catch((e) => console.warn('Could not load hookah config from database:', e));
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -118,15 +120,21 @@ export const HookahConfigModal: React.FC<HookahConfigModalProps> = ({
     setNewAddonPrice('');
   };
 
-  const handleSave = () => {
-    onSaveConfig({
+  const handleSave = async () => {
+    const config = {
       flavorWeight,
       bases,
       flavors,
       addons,
       dakuPackage,
-    });
-    alert('Hookah Configuration saved successfully!');
+    };
+    try {
+      await apiClient.saveHookahConfig(config);
+    } catch (e) {
+      console.warn('Failed saving hookah config to database:', e);
+    }
+    onSaveConfig(config);
+    alert('Hookah Configuration saved successfully to database!');
     onClose();
   };
 

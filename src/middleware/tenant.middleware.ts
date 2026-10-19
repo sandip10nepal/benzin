@@ -34,14 +34,17 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     const adminPin = (req.headers?.['x-admin-pin'] as string) || (req.body && req.body.authPin);
-    const restId = (req.headers?.['x-restaurant-id'] as string) || (req.query?.restaurant_id as string) || (req.body && req.body.restaurant_id) || 'RES_EED4E9D266DF';
+    const restId = (req.headers?.['x-restaurant-id'] as string) || (req.query?.restaurant_id as string) || (req.body && req.body.restaurant_id) || '';
     const userRole = (req.headers?.['x-user-role'] as UserRole) || 'owner';
-    if ((adminPin === '1234' || adminPin === '4821' || userRole === 'owner') && restId) {
+    const userId = (req.headers?.['x-user-id'] as string) || '';
+    if ((adminPin || userRole === 'owner') && restId) {
       req.tenant = {
         restaurant_id: restId,
-        user_id: (req.headers?.['x-user-id'] as string) || 'usr_owner',
+        user_id: userId || null,
+        device_id: null,
+        table_id: null,
         role: userRole,
-        permissions: ['*'],
+        restaurant_name: '',
       };
       next();
       return;
@@ -55,14 +58,17 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
   if (!payload) {
     const adminPin = (req.headers?.['x-admin-pin'] as string) || (req.body && req.body.authPin);
-    const restId = (req.headers?.['x-restaurant-id'] as string) || (req.query?.restaurant_id as string) || (req.body && req.body.restaurant_id) || 'RES_EED4E9D266DF';
+    const restId = (req.headers?.['x-restaurant-id'] as string) || (req.query?.restaurant_id as string) || (req.body && req.body.restaurant_id) || '';
     const userRole = (req.headers?.['x-user-role'] as UserRole) || 'owner';
-    if ((adminPin === '1234' || adminPin === '4821' || userRole === 'owner') && restId) {
+    const userId = (req.headers?.['x-user-id'] as string) || '';
+    if ((adminPin || userRole === 'owner') && restId) {
       req.tenant = {
         restaurant_id: restId,
-        user_id: (req.headers?.['x-user-id'] as string) || 'usr_owner',
+        user_id: userId || null,
+        device_id: null,
+        table_id: null,
         role: userRole,
-        permissions: ['*'],
+        restaurant_name: '',
       };
       next();
       return;

@@ -758,11 +758,11 @@ router.delete('/:id', optionalAuth, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Manager or Owner authorization required to remove employee' });
     }
 
-    if (id === 'emp-owner' || id === 'USR_OWNER') {
+    const restaurantId = await resolveRestaurantId(req);
+    const targetUser: any = await UserRepository.findById(id);
+    if (targetUser && targetUser.role === 'owner') {
       return res.status(400).json({ success: false, message: 'Cannot deactivate the primary Owner account' });
     }
-
-    const restaurantId = await resolveRestaurantId(req);
     const activeShift = await MultiTenantDbService.getActiveTimecard(restaurantId, id);
     if (activeShift) {
       await MultiTenantDbService.updateTimecard(activeShift._id, restaurantId, {

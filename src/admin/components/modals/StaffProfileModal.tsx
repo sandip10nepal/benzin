@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { StaffUser } from '../../types';
+import { apiClient } from '../../api/client';
 
 interface StaffProfileModalProps {
   isOpen: boolean;
@@ -14,57 +15,66 @@ export const StaffProfileModal: React.FC<StaffProfileModalProps> = ({
   employee,
   onFulfillPayrollShift,
 }) => {
+  const [timecards, setTimecards] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (isOpen && employee?.id) {
+      apiClient.getTimecards(employee.id)
+        .then((cards) => setTimecards(Array.isArray(cards) ? cards : []))
+        .catch(() => setTimecards([]));
+    }
+  }, [isOpen, employee?.id]);
+
   if (!isOpen || !employee) return null;
 
   const isClockedIn = Boolean(employee.isClockedIn);
-  const wage = employee.hourlyWage || 18;
+  const wage = Number(employee.hourlyWage) || 0;
   const initial = (employee.name || 'S').charAt(0).toUpperCase();
 
-  // Mocked/calculated timecard data matching legacy admin structure
-  const hrsWeek = 34.5;
+  // Calculate real hours and pay from database timecards
+  const now = Date.now();
+  const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000;
+  const oneMonthAgo = now - 30 * 24 * 60 * 60 * 1000;
+  const sixMonthsAgo = now - 180 * 24 * 60 * 60 * 1000;
+
+  const calcHoursInPeriod = (since: number) => {
+    return timecards
+      .filter((tc: any) => new Date(tc.clock_in).getTime() >= since)
+      .reduce((sum: number, tc: any) => sum + (Number(tc.total_hours) || 0), 0);
+  };
+
+  const hrsWeek = calcHoursInPeriod(oneWeekAgo);
   const payWeek = hrsWeek * wage;
-  const hrsMonth = 142.0;
+  const hrsMonth = calcHoursInPeriod(oneMonthAgo);
   const payMonth = hrsMonth * wage;
-  const hrs6Months = 810.0;
+  const hrs6Months = calcHoursInPeriod(sixMonthsAgo);
   const pay6Months = hrs6Months * wage;
 
-  const samplePayrollShifts = [
-    {
-      id: 'shift_1',
-      date: 'Oct 12 - Oct 18',
-      hours: 34.5,
-      payout: payWeek,
-      status: 'pending',
-    },
-    {
-      id: 'shift_2',
-      date: 'Oct 05 - Oct 11',
-      hours: 38.0,
-      payout: 38 * wage,
-      status: 'fulfilled',
-    },
-  ];
+  const payrollShifts = timecards.map((tc: any, idx: number) => {
+    const hours = Number(tc.total_hours) || 0;
+    const dt = new Date(tc.clock_in);
+    const dateStr = !isNaN(dt.getTime())
+      ? dt.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
+      : `Shift #${idx + 1}`;
+    return {
+      id: tc._id || tc.id || `shift_${idx}`,
+      date: dateStr,
+      hours: Math.round(hours * 10) / 10,
+      payout: Math.round(hours * wage * 100) / 100,
+      status: tc.is_paid || tc.fulfilled ? 'fulfilled' : 'pending',
+    };
+  });
 
-  const sampleClockLogs = [
-    {
-      date: 'Today',
-      clockIn: '04:15 PM',
-      clockOut: isClockedIn ? 'In Progress' : '11:45 PM',
-      hours: isClockedIn ? 'Active' : '7.5 hrs',
-    },
-    {
-      date: 'Yesterday',
-      clockIn: '03:50 PM',
-      clockOut: '12:10 AM',
-      hours: '8.3 hrs',
-    },
-    {
-      date: 'Oct 16',
-      clockIn: '04:00 PM',
-      clockOut: '11:30 PM',
-      hours: '7.5 hrs',
-    },
-  ];
+  const clockLogs = timecards.slice(0, 5).map((tc: any) => {
+    const inDate = new Date(tc.clock_in);
+    const outDate = tc.clock_out ? new Date(tc.clock_out) : null;
+    return {
+      date: !isNaN(inDate.getTime()) ? inDate.toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'Date',
+      clockIn: !isNaN(inDate.getTime()) ? inDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A',
+      clockOut: outDate && !isNaN(outDate.getTime()) ? outDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (tc.is_active ? 'In Progress' : 'Completed'),
+      hours: tc.total_hours ? `${tc.total_hours} hrs` : (tc.is_active ? 'Active' : '0 hrs'),
+    };
+  });
 
   return (
     <div
@@ -280,53 +290,59 @@ export const StaffProfileModal: React.FC<StaffProfileModalProps> = ({
             id="profWeeklyPayrollList"
             style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto' }}
           >
-            {samplePayrollShifts.map((shift) => (
-              <div
-                key={shift.id}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '10px 14px',
-                  background: 'var(--card2)',
-                  borderRadius: '10px',
-                  border: '1px solid var(--line)',
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 800, color: 'var(--cream)', fontSize: '13px' }}>{shift.date}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
-                    {shift.hours} hrs worked • Payout:{' '}
-                    <strong style={{ color: 'var(--gold)' }}>${shift.payout.toFixed(2)}</strong>
-                  </div>
-                </div>
-                {shift.status === 'pending' ? (
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => {
-                      if (onFulfillPayrollShift) onFulfillPayrollShift(shift.id);
-                      alert(`Weekly payroll fulfilled for ${employee.name}`);
-                    }}
-                    style={{ padding: '6px 12px', fontSize: '11px', fontWeight: 800 }}
-                  >
-                    ✓ Fulfill Shift
-                  </button>
-                ) : (
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: 800,
-                      color: 'var(--success)',
-                      background: 'rgba(34,197,94,0.15)',
-                      padding: '4px 10px',
-                      borderRadius: '8px',
-                    }}
-                  >
-                    PAID / FULFILLED
-                  </span>
-                )}
+            {payrollShifts.length === 0 ? (
+              <div style={{ color: 'var(--muted)', fontSize: '13px', padding: '12px', textAlign: 'center' }}>
+                No completed payroll shifts recorded in database.
               </div>
-            ))}
+            ) : (
+              payrollShifts.map((shift) => (
+                <div
+                  key={shift.id}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '10px 14px',
+                    background: 'var(--card2)',
+                    borderRadius: '10px',
+                    border: '1px solid var(--line)',
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 800, color: 'var(--cream)', fontSize: '13px' }}>{shift.date}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
+                      {shift.hours} hrs worked • Payout:{' '}
+                      <strong style={{ color: 'var(--gold)' }}>${shift.payout.toFixed(2)}</strong>
+                    </div>
+                  </div>
+                  {shift.status === 'pending' ? (
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => {
+                        if (onFulfillPayrollShift) onFulfillPayrollShift(shift.id);
+                        alert(`Weekly payroll fulfilled for ${employee.name}`);
+                      }}
+                      style={{ padding: '6px 12px', fontSize: '11px', fontWeight: 800 }}
+                    >
+                      ✓ Fulfill Shift
+                    </button>
+                  ) : (
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        color: 'var(--success)',
+                        background: 'rgba(34,197,94,0.15)',
+                        padding: '4px 10px',
+                        borderRadius: '8px',
+                      }}
+                    >
+                      PAID / FULFILLED
+                    </span>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -348,16 +364,21 @@ export const StaffProfileModal: React.FC<StaffProfileModalProps> = ({
             id="profClockLogsList"
             style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}
           >
-            {sampleClockLogs.map((log, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '10px 14px',
-                  background: 'var(--card2)',
-                  borderRadius: '10px',
+            {clockLogs.length === 0 ? (
+              <div style={{ color: 'var(--muted)', fontSize: '13px', padding: '12px', textAlign: 'center' }}>
+                No clock punch logs recorded yet.
+              </div>
+            ) : (
+              clockLogs.map((log, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '10px 14px',
+                    background: 'var(--card2)',
+                    borderRadius: '10px',
                   border: '1px solid var(--line)',
                   fontSize: '12px',
                 }}
@@ -370,7 +391,8 @@ export const StaffProfileModal: React.FC<StaffProfileModalProps> = ({
                 </div>
                 <span style={{ fontWeight: 800, color: 'var(--gold)' }}>{log.hours}</span>
               </div>
-            ))}
+            ))
+          )}
           </div>
         </div>
       </div>

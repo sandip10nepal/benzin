@@ -149,9 +149,6 @@ async function isManagerOrOwner(req: any, authPin?: any): Promise<boolean> {
   const pin = authPin || req.body?.authPin || req.body?.pin || req.headers?.['x-admin-pin'] || req.query?.authPin;
   if (pin && restaurantId && MultiTenantDbService.isInitialized()) {
     const pinStr = String(pin).trim();
-    if (pinStr === '1234' || pinStr === '4821') {
-      return true;
-    }
     if (pinStr.length > 0) {
       const users = await MultiTenantDbService.listUsers(restaurantId);
       for (const u of users) {

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32" fill="none">
+  <defs>
+    <linearGradient id="benzinGradFavicon" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0099FF" />
+      <stop offset="50%" stop-color="#38BDF8" />
+      <stop offset="100%" stop-color="#E5B13A" />
+    </linearGradient>
+  </defs>
+  <path d="M12 2.5 L20.22 7.25 V16.75 L12 21.5 L3.78 16.75 V7.25 Z" stroke="url(#benzinGradFavicon)" stroke-width="2.2" stroke-linejoin="round" fill="#0C0806" />
+  <circle cx="12" cy="12" r="5" stroke="url(#benzinGradFavicon)" stroke-width="1.8" fill="rgba(0,153,255,0.1)" />
+  <circle cx="20.22" cy="7.25" r="1.6" fill="#38BDF8" />
+  <circle cx="20.22" cy="16.75" r="1.6" fill="#38BDF8" />
+  <circle cx="12" cy="21.5" r="1.6" fill="#E5B13A" />
+  <circle cx="3.78" cy="16.75" r="1.6" fill="#E5B13A" />
+  <circle cx="3.78" cy="7.25" r="1.6" fill="#38BDF8" />
+</svg>

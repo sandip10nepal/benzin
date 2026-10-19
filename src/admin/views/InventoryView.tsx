@@ -35,12 +35,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [categories, setCategories] = useState<{ id: string; label: string; emoji: string }[]>([
     { id: 'all', label: 'All Items', emoji: '📋' },
-    { id: 'INVCAT_1862EED65A2E', label: 'Hookah', emoji: '💨' },
-    { id: 'INVCAT_RES_EED4E9D266DF_RAW', label: 'Food', emoji: '🍅' },
-    { id: 'INVCAT_0AB839BB0513', label: 'Drinks', emoji: '🧉' },
-    { id: 'INVCAT_B6EFBD60AE5B', label: 'Essentials', emoji: '📦' },
   ]);
-  const [activeCategory, setActiveCategory] = useState<string>('INVCAT_1862EED65A2E');
+  const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -51,40 +47,30 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       const data = await apiClient.getInventory();
       if (data && Array.isArray(data.categories) && data.categories.length > 0) {
         const catList = [
+          { id: 'all', label: 'All Items', emoji: '📋' },
           ...data.categories.map((c: any) => ({
             id: c._id || c.id,
-            label: c.title || 'Category',
+            label: c.title || c.name || 'Category',
             emoji: c.icon || '📦',
           })),
         ];
         setCategories(catList);
-        if (!activeCategory || activeCategory === 'all') {
-          setActiveCategory(catList[0].id);
-        }
       }
 
       if (data && data.inventory) {
         const rawList = Object.values(data.inventory);
         const mapped: InventoryItem[] = rawList.map((item: any) => {
-          let brand = item.brand ? String(item.brand).trim() : '';
-          if (!brand) {
-            const uName = String(item.name || '').toUpperCase();
-            if (uName.includes('AFZAL')) brand = 'AFZAL';
-            else if (uName.includes('AL FAKHER')) brand = 'AL FAKHER';
-            else if (uName.includes('ETERNAL SMOKE')) brand = 'ETERNAL SMOKE';
-            else if (uName.includes('ADALYA')) brand = 'ADALYA';
-            else brand = 'HOUSE';
-          }
-          const catId = item.category_id || item.category || 'INVCAT_1862EED65A2E';
+          const brand = item.brand ? String(item.brand).trim().toUpperCase() : '';
+          const catId = item.category_id || item.category || '';
           return {
             id: item._id || item.id,
             name: item.name || 'Inventory Item',
-            brand: brand.toUpperCase(),
+            brand: brand,
             category: catId,
             categoryId: catId,
             stock: Number(item.stock) || 0,
             unit: item.unit || 'g',
-            minThreshold: Number(item.reorder_threshold ?? item.minThreshold) || 100,
+            minThreshold: Number(item.reorder_threshold ?? item.minThreshold) || 0,
           };
         });
         setItems(mapped);

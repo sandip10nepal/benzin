@@ -34,7 +34,7 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           <div id="headerStaffName" style={{ fontSize: '12px', fontWeight: 800, color: 'var(--cream)' }}>
-            {user.name || 'Owner'}
+            {user?.name || ''}
           </div>
           <span
             id="headerSwitchIcon"

@@ -175,7 +175,7 @@ router.post('/onboard', async (req, res) => {
       owner_name,
       owner_email,
       manager_password,
-      staff_pin = '1234',
+      staff_pin,
       table_count = 10,
       business_type = 'hookah_lounge',
       branding,
@@ -201,11 +201,11 @@ router.post('/onboard', async (req, res) => {
       return;
     }
 
-    const cleanStaffPin = String(staff_pin).trim().replace(/[^0-9]/g, '');
+    const cleanStaffPin = staff_pin ? String(staff_pin).trim().replace(/[^0-9]/g, '') : Math.floor(1000 + Math.random() * 9000).toString();
     if (cleanStaffPin.length !== 4) {
       res.status(400).json({
         success: false,
-        error: 'Floor staff PIN must be exactly 4 digits (e.g. 1234).'
+        error: 'Floor staff PIN must be exactly 4 digits.'
       });
       return;
     }

@@ -12,23 +12,6 @@ import { AdminTabId, RestaurantVenue, StaffUser, MenuItem } from './types';
 import { apiClient } from './api/client';
 import { SubCategoryWithParent } from './components/modals/MenuItemModal';
 
-const DEFAULT_VENUE: RestaurantVenue = {
-  id: 'RES_EED4E9D266DF',
-  name: 'Cavalli',
-  slug: 'cavali',
-  code: 'CAVALI',
-  isDemo: false,
-};
-
-const DEFAULT_USER: StaffUser = {
-  id: 'usr_owner',
-  name: 'Sandip Nepal',
-  role: 'owner',
-  position: 'Owner',
-  isClockedIn: true,
-  hourlyWage: 0,
-};
-
 import {
   StaffSwitchModal,
   MenuItemModal,
@@ -53,47 +36,71 @@ export const App: React.FC = () => {
     const saved = localStorage.getItem('benzin_theme');
     return saved === 'light' || saved === 'dark' ? saved : 'dark';
   });
-  const [venue, setVenue] = useState<RestaurantVenue>(DEFAULT_VENUE);
-  const [user, setUser] = useState<StaffUser>(DEFAULT_USER);
-  const [staffList, setStaffList] = useState<StaffUser[]>([DEFAULT_USER]);
+  const [venue, setVenue] = useState<RestaurantVenue>(() => {
+    return {
+      id: typeof window !== 'undefined' ? localStorage.getItem('benzin_restaurant_id') || '' : '',
+      name: typeof window !== 'undefined' ? localStorage.getItem('benzin_restaurant_name') || '' : '',
+      slug: typeof window !== 'undefined' ? localStorage.getItem('benzin_selected_slug') || '' : '',
+      code: typeof window !== 'undefined' ? localStorage.getItem('benzin_restaurant_code') || '' : '',
+      isDemo: false,
+    };
+  });
+  const [user, setUser] = useState<StaffUser>(() => {
+    return {
+      id: typeof window !== 'undefined' ? localStorage.getItem('benzin_user_id') || '' : '',
+      name: typeof window !== 'undefined' ? localStorage.getItem('benzin_user_name') || '' : '',
+      role: (typeof window !== 'undefined' ? localStorage.getItem('benzin_user_role') || 'staff' : 'staff') as any,
+      position: typeof window !== 'undefined' ? localStorage.getItem('benzin_user_position') || '' : '',
+      isClockedIn: typeof window !== 'undefined' ? localStorage.getItem('benzin_user_clocked_in') === 'true' : false,
+      hourlyWage: 0,
+    };
+  });
+  const [staffList, setStaffList] = useState<StaffUser[]>([]);
+  const [liveMenuCatalog, setLiveMenuCatalog] = useState<MenuItem[]>([]);
   const [sessionKey, setSessionKey] = useState<number>(0);
   const [isLoginOverlayOpen, setIsLoginOverlayOpen] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     const token = localStorage.getItem('benzin_jwt_token');
-    const userName = localStorage.getItem('benzin_user_name');
-    return !token && !userName;
+    const uId = localStorage.getItem('benzin_user_id');
+    const rId = localStorage.getItem('benzin_restaurant_id');
+    return !token || !uId || !rId;
   });
 
   useEffect(() => {
     let mounted = true;
     const initSession = async () => {
       const token = typeof window !== 'undefined' ? localStorage.getItem('benzin_jwt_token') : null;
-      const userName = typeof window !== 'undefined' ? localStorage.getItem('benzin_user_name') : null;
+      const uId = typeof window !== 'undefined' ? localStorage.getItem('benzin_user_id') : null;
+      const rId = typeof window !== 'undefined' ? localStorage.getItem('benzin_restaurant_id') : null;
 
       // If user is not authenticated, show login overlay and wait
-      if (!token && !userName) {
+      if (!token || !uId || !rId) {
         setIsLoginOverlayOpen(true);
         return;
       }
 
       try {
-        const [vInfo, uInfo, emps] = await Promise.all([
+        const [vInfo, uInfo, emps, menuRes] = await Promise.all([
           apiClient.getVenueInfo(),
           apiClient.getCurrentUser(),
           apiClient.getEmployees(),
+          apiClient.getMenu().catch(() => ({ items: [], categories: [] })),
         ]);
 
         if (mounted) {
-          if (vInfo) setVenue(vInfo);
-          if (uInfo) setUser(uInfo);
+          if (vInfo && vInfo.id) setVenue(vInfo);
+          if (uInfo && uInfo.id) setUser(uInfo);
+          if (menuRes && Array.isArray(menuRes.items)) {
+            setLiveMenuCatalog(menuRes.items);
+          }
           if (Array.isArray(emps) && emps.length > 0) {
             const mappedStaff: StaffUser[] = emps.map((e: any) => ({
               id: e.id || e._id,
-              name: e.name || 'Staff Member',
-              role: e.role || 'server',
+              name: e.name || '',
+              role: e.role || 'staff',
               position: e.position,
               isClockedIn: !!e.is_clocked_in,
-              hourlyWage: Number(e.hourly_rate) || 18,
+              hourlyWage: Number(e.hourly_rate) || 0,
               email: e.email,
               pin: e.pin,
             }));
@@ -101,10 +108,9 @@ export const App: React.FC = () => {
           }
         }
       } catch (err) {
-        console.error('Failed to init venue/user session from MongoDB:', err);
+        console.error('Failed to initialize session from MongoDB:', err);
       }
     };
-
     initSession();
     return () => {
       mounted = false;
@@ -403,24 +409,31 @@ export const App: React.FC = () => {
   const handleLoginSuccess = (userData: any, restaurantData: any) => {
     if (restaurantData) {
       setVenue({
-        id: restaurantData.id || restaurantData._id || 'RES_EED4E9D266DF',
-        name: restaurantData.name || 'Cavalli',
-        slug: restaurantData.slug || 'cavali',
-        code: restaurantData.restaurant_code || '4821',
-        isDemo: false,
+        id: restaurantData.id || restaurantData._id || '',
+        name: restaurantData.name || '',
+        slug: restaurantData.slug || '',
+        code: restaurantData.restaurant_code || restaurantData.code || '',
+        isDemo: Boolean(restaurantData.isDemo),
       });
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('benzin_restaurant_name', restaurantData.name || '');
+        localStorage.setItem('benzin_restaurant_code', restaurantData.restaurant_code || restaurantData.code || '');
+      }
     }
     if (userData) {
       setUser({
-        id: userData.id || userData._id || 'usr_owner',
-        name: userData.name || 'Staff Member',
-        role: userData.role || 'server',
+        id: userData.id || userData._id || '',
+        name: userData.name || '',
+        role: userData.role || 'staff',
         position: userData.position || (userData.role ? userData.role.toUpperCase() : 'Staff'),
-        isClockedIn: !!userData.is_clocked_in,
-        hourlyWage: Number(userData.hourly_rate) || 18,
+        isClockedIn: Boolean(userData.is_clocked_in),
+        hourlyWage: Number(userData.hourly_rate) || 0,
         email: userData.email,
         pin: userData.pin,
       });
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('benzin_user_position', userData.position || (userData.role ? userData.role.toUpperCase() : 'Staff'));
+      }
     }
     setIsLoginOverlayOpen(false);
     setSessionKey((prev) => prev + 1);
@@ -700,13 +713,7 @@ export const App: React.FC = () => {
       <SpecialsModal
         isOpen={isSpecialsOpen}
         onClose={() => setIsSpecialsOpen(false)}
-        menuCatalog={[
-          { id: 'm1', name: 'Anarkali House Blend', price: 36.0, emoji: '👑', category: 'Hookah' },
-          { id: 'm2', name: 'Blue Mist Premium', price: 34.0, emoji: '🫐', category: 'Hookah' },
-          { id: 'm3', name: 'Love 66', price: 34.0, emoji: '❤️', category: 'Hookah' },
-          { id: 'm4', name: 'Zaatar Truffle Flatbread', price: 14.5, emoji: '🍕', category: 'Food' },
-          { id: 'm5', name: 'Authentic Turkish Coffee', price: 5.5, emoji: '☕', category: 'Drinks' },
-        ]}
+        menuCatalog={liveMenuCatalog}
       />
 
       {/* 15. Staff Login Overlay (#benzinLoginOverlay) */}

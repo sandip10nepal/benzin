@@ -69,7 +69,7 @@ export class MongoSyncService {
             const doc = change.fullDocument;
             if (!doc) return;
             const mapped = mapOrderForClient(doc);
-            const restId = doc.restaurant_id || doc.restaurantId || 'RES_EED4E9D266DF';
+            const restId = doc.restaurant_id || doc.restaurantId || '';
 
             console.log(`📡 [MongoSync] 🔔 New Order from Atlas: ${mapped.id} (Table: ${mapped.table}, Customer: ${mapped.customerName || 'Guest'})`);
 
@@ -86,7 +86,7 @@ export class MongoSyncService {
             const doc = change.fullDocument;
             if (!doc) return;
             const mapped = mapOrderForClient(doc);
-            const restId = doc.restaurant_id || doc.restaurantId || 'RES_EED4E9D266DF';
+            const restId = doc.restaurant_id || doc.restaurantId || '';
 
             console.log(`📡 [MongoSync] 🔄 Order Updated in Atlas: ${mapped.id} (Status: ${mapped.status})`);
 
@@ -157,7 +157,7 @@ export class MongoSyncService {
           const doc = change.fullDocument;
           if (!doc) return;
 
-          const restId = doc.restaurant_id || doc.restaurantId || 'RES_EED4E9D266DF';
+          const restId = doc.restaurant_id || doc.restaurantId || '';
           const isCoal = doc.type === 'COAL_REFILL' || doc.request_type === 'COAL_REFILL';
 
           if (opType === 'insert') {
@@ -229,7 +229,7 @@ export class MongoSyncService {
         try {
           const doc = change.fullDocument;
           if (!doc) return;
-          const restId = doc.restaurant_id || doc.restaurantId || 'RES_EED4E9D266DF';
+          const restId = doc.restaurant_id || doc.restaurantId || '';
           sseService.broadcast({
             type: 'table_updated',
             table: doc,

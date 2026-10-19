@@ -44,8 +44,8 @@ export const TablesView: React.FC<TablesViewProps> = ({
   onOpenCollectCash,
   onOpenReassignServer,
   onSelectTab,
-  currentUserId = 'u1',
-  currentUserName = 'Suwasna Gorkhali',
+  currentUserId = '',
+  currentUserName = '',
 }) => {
   const [tables, setTables] = useState<FloorTable[]>([]);
   const [loading, setLoading] = useState<boolean>(true);

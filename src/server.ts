@@ -28,9 +28,9 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Ensure admin modules and admin.html are never stale cached by browser
+// Ensure admin assets and routes are never stale cached by browser
 app.use((req, res, next) => {
-  if (req.path.startsWith('/js/admin') || req.path === '/admin.html' || req.path === '/admin' || req.path === '/staff') {
+  if (req.path.startsWith('/admin') || req.path.startsWith('/staff')) {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
@@ -62,42 +62,35 @@ app.use('/api/restaurants', restaurantsRouter);
 app.use('/api/devices', devicesRouter);
 app.use('/api/v2/menu', menuV2Router);
 
-// Serve Admin Dashboard
+// Serve Admin Dashboard (React Admin Command Suite)
 const publicPath = path.resolve(process.cwd(), 'public');
-const adminDistPath = path.resolve(publicPath, 'admin_dist');
-const adminAssetsPath = path.resolve(adminDistPath, 'assets');
+const adminReactPath = path.resolve(publicPath, 'admin_react');
 
-// Static asset mounts FIRST
-app.use('/admin_dist', express.static(adminDistPath));
+// Mount React Admin Static Assets & Public Root
+app.use('/admin_react', express.static(adminReactPath));
 app.use(express.static(publicPath));
 
-// Serve Admin Dashboard (Cavalli Admin & Staff Management Portal)
+// Route /admin, /admin/, and /staff to the modern Benzin React Admin Dashboard
 app.use((req, res, next) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') return next();
 
   const isAdminHost = req.hostname && req.hostname.toLowerCase().startsWith('admin.');
-  const isAdminPath = req.path === '/admin' || req.path.startsWith('/admin/') || req.path === '/staff' || req.path === '/admin.html';
+  const isAdminPath = req.path === '/admin' || req.path.startsWith('/admin/') || req.path === '/staff';
 
   if (isAdminHost || isAdminPath) {
-    return res.sendFile('admin.html', { root: publicPath });
+    return res.sendFile('index.html', { root: adminReactPath });
   }
   next();
 });
 
-// Serve Standalone Dark Staff Clock-in Portal
+// Serve Standalone Staff Clock-in Portal via React Admin
 app.get('/staff', (req, res) => {
-  res.sendFile('admin.html', { root: publicPath });
-});
-app.get('/admin.html', (req, res) => {
-  res.sendFile('admin.html', { root: publicPath });
+  res.sendFile('index.html', { root: adminReactPath });
 });
 
-// Serve iPhone Payment Device web app (supports both URLs)
-app.get('/payment-device', (req, res) => {
-  res.sendFile('payment-device.html', { root: publicPath });
-});
-app.get('/payment', (req, res) => {
-  res.sendFile('payment-device.html', { root: publicPath });
+// Redirect any legacy /admin.html requests to /admin
+app.get('/admin.html', (req, res) => {
+  res.redirect(301, '/admin');
 });
 
 // Liveness probe (indicates Node process is functioning)

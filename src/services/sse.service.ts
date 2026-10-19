@@ -63,9 +63,7 @@ class SSEService {
       // 3. Multi-tenant isolation — only deliver if matching client restaurant
       if (targetRestaurantId && client.restaurantId) {
         const isMatch = client.restaurantId === targetRestaurantId ||
-          client.role === 'platform_admin' ||
-          (client.restaurantId === 'RES_EED4E9D266DF' && (targetRestaurantId === 'cavali' || targetRestaurantId === 'cavalli' || targetRestaurantId === '4821')) ||
-          (targetRestaurantId === 'RES_EED4E9D266DF' && (client.restaurantId === 'cavali' || client.restaurantId === 'cavalli' || client.restaurantId === '4821'));
+          client.role === 'platform_admin';
 
         if (!isMatch) {
           return; // Tenant isolation — skip other restaurants

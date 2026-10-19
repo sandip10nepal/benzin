@@ -93,13 +93,13 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
             <User style={{ width: '22px', height: '22px', color: 'var(--gold)' }} />
             <div>
               <div id="mobileDrawerStaffName" style={{ fontSize: '15px', fontWeight: 800, color: 'var(--cream)' }}>
-                {user.name || 'Owner'}
+                {user?.name || ''}
               </div>
               <div
                 id="mobileDrawerStaffRole"
                 style={{ fontSize: '11px', color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}
               >
-                {user.position || user.role.toUpperCase() || 'OWNER'}
+                {user?.position || user?.role?.toUpperCase() || ''}
               </div>
             </div>
           </div>

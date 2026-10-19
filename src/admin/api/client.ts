@@ -24,9 +24,9 @@ export class AdminApiClient {
    * Resolve current tenant parameters from URL query or localStorage
    */
   public getTenantParams(): { restaurantId: string; restaurantCode: string; restaurantSlug: string } {
-    let restaurantId = 'RES_EED4E9D266DF';
-    let restaurantCode = '4821';
-    let restaurantSlug = 'cavali';
+    let restaurantId = '';
+    let restaurantCode = '';
+    let restaurantSlug = '';
 
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -61,22 +61,23 @@ export class AdminApiClient {
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'x-restaurant-id': restaurantId,
-      'x-restaurant-code': restaurantCode,
     };
+
+    if (restaurantId) headers['x-restaurant-id'] = restaurantId;
+    if (restaurantCode) headers['x-restaurant-code'] = restaurantCode;
 
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('benzin_jwt_token');
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const uId = localStorage.getItem('benzin_user_id') || 'usr_owner';
-      const uName = localStorage.getItem('benzin_user_name') || 'Owner';
-      const uRole = localStorage.getItem('benzin_user_role') || 'owner';
-      headers['x-user-id'] = uId;
-      headers['x-user-name'] = uName;
-      headers['x-user-role'] = uRole;
+      const uId = localStorage.getItem('benzin_user_id');
+      const uName = localStorage.getItem('benzin_user_name');
+      const uRole = localStorage.getItem('benzin_user_role');
+      if (uId) headers['x-user-id'] = uId;
+      if (uName) headers['x-user-name'] = uName;
+      if (uRole) headers['x-user-role'] = uRole;
 
-      const uPin = localStorage.getItem('benzin_user_pin') || localStorage.getItem('benzin_admin_pin') || '1234';
+      const uPin = localStorage.getItem('benzin_user_pin') || localStorage.getItem('benzin_admin_pin');
       if (uPin) headers['x-admin-pin'] = uPin;
     }
 
@@ -89,6 +90,9 @@ export class AdminApiClient {
 
   async getVenueInfo(): Promise<RestaurantVenue> {
     const { restaurantId, restaurantCode, restaurantSlug } = this.getTenantParams();
+    if (!restaurantId) {
+      return { id: '', name: '', slug: '', code: '', isDemo: false };
+    }
     try {
       const res = await fetch(`${this.baseUrl}/api/restaurants/${restaurantId}`, {
         headers: this.getHeaders(),
@@ -96,18 +100,18 @@ export class AdminApiClient {
       const data = await res.json();
       if (data.success && data.restaurant) {
         return {
-          id: data.restaurant._id,
-          name: data.restaurant.name || 'Cavalli Lounge',
+          id: data.restaurant._id || data.restaurant.id || restaurantId,
+          name: data.restaurant.name || '',
           slug: data.restaurant.slug || restaurantSlug,
           code: data.restaurant.restaurant_code || restaurantCode,
-          isDemo: false,
+          isDemo: Boolean(data.restaurant.isDemo),
         };
       }
     } catch (_) {}
 
     return {
       id: restaurantId,
-      name: 'Cavalli',
+      name: typeof window !== 'undefined' ? localStorage.getItem('benzin_restaurant_name') || '' : '',
       slug: restaurantSlug,
       code: restaurantCode,
       isDemo: false,
@@ -115,23 +119,29 @@ export class AdminApiClient {
   }
 
   async getCurrentUser(): Promise<StaffUser> {
-    let name = 'Sandip Nepal';
-    let role = 'owner';
-    let id = 'usr_owner';
+    let name = '';
+    let role = 'staff';
+    let id = '';
+    let position = '';
+    let email = '';
+    let isClockedIn = false;
 
     if (typeof window !== 'undefined') {
-      name = localStorage.getItem('benzin_user_name') || name;
-      role = localStorage.getItem('benzin_user_role') || role;
-      id = localStorage.getItem('benzin_user_id') || id;
+      name = localStorage.getItem('benzin_user_name') || '';
+      role = localStorage.getItem('benzin_user_role') || 'staff';
+      id = localStorage.getItem('benzin_user_id') || '';
+      position = localStorage.getItem('benzin_user_position') || (role ? role.toUpperCase() : 'Staff');
+      email = localStorage.getItem('benzin_user_email') || '';
+      isClockedIn = localStorage.getItem('benzin_user_clocked_in') === 'true';
     }
 
     return {
       id,
       name,
-      role,
-      position: role.toUpperCase(),
-      email: 'owner@cavalli.com',
-      isClockedIn: true,
+      role: role as any,
+      position: position || (role ? role.toUpperCase() : 'Staff'),
+      email,
+      isClockedIn,
     };
   }
 
@@ -153,6 +163,18 @@ export class AdminApiClient {
     const res = await fetch(url, { headers: this.getHeaders() });
     const data = await res.json();
     return data.success && data.summary ? data.summary : null;
+  }
+
+  async getTimecards(userId?: string): Promise<any[]> {
+    const { restaurantSlug, restaurantId } = this.getTenantParams();
+    let url = `${this.baseUrl}/api/employees/timecards?restaurant_slug=${encodeURIComponent(restaurantSlug)}&restaurant_id=${encodeURIComponent(restaurantId)}`;
+    if (userId) url += `&userId=${encodeURIComponent(userId)}`;
+    try {
+      const res = await fetch(url, { headers: this.getHeaders() });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.timecards)) return data.timecards;
+    } catch (_) {}
+    return [];
   }
 
   async fulfillWeeklyPayroll(): Promise<{ success: boolean; message: string }> {
@@ -258,7 +280,7 @@ export class AdminApiClient {
 
   async saveInventoryCategory(cat: { id?: string; title: string; icon: string }): Promise<any> {
     const { restaurantSlug, restaurantId } = this.getTenantParams();
-    const pin = typeof window !== 'undefined' ? (localStorage.getItem('benzin_user_pin') || localStorage.getItem('benzin_admin_pin') || '1234') : '1234';
+    const pin = typeof window !== 'undefined' ? (localStorage.getItem('benzin_user_pin') || localStorage.getItem('benzin_admin_pin') || '') : '';
     const url = cat.id
       ? `${this.baseUrl}/api/orders/inventory/categories/update?restaurant_slug=${encodeURIComponent(restaurantSlug)}&restaurant_id=${encodeURIComponent(restaurantId)}`
       : `${this.baseUrl}/api/orders/inventory/categories?restaurant_slug=${encodeURIComponent(restaurantSlug)}&restaurant_id=${encodeURIComponent(restaurantId)}`;
@@ -275,7 +297,7 @@ export class AdminApiClient {
 
   async deleteInventoryCategory(id: string): Promise<any> {
     const { restaurantSlug, restaurantId } = this.getTenantParams();
-    const pin = typeof window !== 'undefined' ? (localStorage.getItem('benzin_user_pin') || localStorage.getItem('benzin_admin_pin') || '1234') : '1234';
+    const pin = typeof window !== 'undefined' ? (localStorage.getItem('benzin_user_pin') || localStorage.getItem('benzin_admin_pin') || '') : '';
     const res = await fetch(`${this.baseUrl}/api/orders/inventory/categories/delete?restaurant_slug=${encodeURIComponent(restaurantSlug)}&restaurant_id=${encodeURIComponent(restaurantId)}`, {
       method: 'POST',
       headers: this.getHeaders(),
@@ -365,14 +387,62 @@ export class AdminApiClient {
     return await res.json();
   }
 
+  async getSpecials(): Promise<any[]> {
+    const { restaurantSlug, restaurantId } = this.getTenantParams();
+    try {
+      const res = await fetch(`${this.baseUrl}/api/menu/specials?restaurant_slug=${encodeURIComponent(restaurantSlug)}&restaurant_id=${encodeURIComponent(restaurantId)}`, {
+        headers: this.getHeaders(),
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.specials)) return data.specials;
+    } catch (_) {}
+    return [];
+  }
+
+  async saveSpecials(specials: any[]): Promise<any> {
+    const { restaurantSlug, restaurantId } = this.getTenantParams();
+    const res = await fetch(`${this.baseUrl}/api/menu/specials?restaurant_slug=${encodeURIComponent(restaurantSlug)}&restaurant_id=${encodeURIComponent(restaurantId)}`, {
+      method: 'PUT',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ specials }),
+    });
+    return await res.json();
+  }
+
+  async getHookahConfig(): Promise<any> {
+    const { restaurantSlug, restaurantId } = this.getTenantParams();
+    try {
+      const res = await fetch(`${this.baseUrl}/api/menu/hookah-config?restaurant_slug=${encodeURIComponent(restaurantSlug)}&restaurant_id=${encodeURIComponent(restaurantId)}`, {
+        headers: this.getHeaders(),
+      });
+      const data = await res.json();
+      if (data.success && data.hookah_config) return data.hookah_config;
+    } catch (_) {}
+    return null;
+  }
+
+  async saveHookahConfig(config: any): Promise<any> {
+    const { restaurantSlug, restaurantId } = this.getTenantParams();
+    const res = await fetch(`${this.baseUrl}/api/menu/hookah-config?restaurant_slug=${encodeURIComponent(restaurantSlug)}&restaurant_id=${encodeURIComponent(restaurantId)}`, {
+      method: 'PUT',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ hookah_config: config }),
+    });
+    return await res.json();
+  }
+
   /* ═══════════════════════════════════════════════════════════════════════════ */
   /*                         SALES & TAX LEDGER                                  */
   /* ═══════════════════════════════════════════════════════════════════════════ */
 
   async getSalesSummary(): Promise<{ daily: any; weekly: any; monthly: any; yearly: any; payment_logs: any[] } | null> {
     const { restaurantSlug, restaurantId } = this.getTenantParams();
+    const pin = typeof window !== 'undefined' ? (localStorage.getItem('benzin_user_pin') || localStorage.getItem('benzin_admin_pin') || '') : '';
+    let url = `${this.baseUrl}/api/orders/sales/summary?restaurant_slug=${encodeURIComponent(restaurantSlug)}&restaurant_id=${encodeURIComponent(restaurantId)}`;
+    if (pin) url += `&authPin=${encodeURIComponent(pin)}`;
+
     try {
-      const res = await fetch(`${this.baseUrl}/api/orders/sales/summary?restaurant_slug=${encodeURIComponent(restaurantSlug)}&restaurant_id=${encodeURIComponent(restaurantId)}&authPin=1234`, {
+      const res = await fetch(url, {
         headers: this.getHeaders(),
       });
       const data = await res.json();

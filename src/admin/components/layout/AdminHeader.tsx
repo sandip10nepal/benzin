@@ -75,7 +75,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
           </svg>
           <div>
             <h1>BENZIN</h1>
-            <p id="currentRestaurantName">{venue.name || 'Cavalli'}</p>
+            <p id="currentRestaurantName">{venue?.name || ''}</p>
           </div>
         </a>
 

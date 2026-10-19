@@ -66,9 +66,9 @@ const SAMPLE_SERVER_CALLS: ServerCallRequest[] = [];
 export const KdsView: React.FC<KdsViewProps> = ({
   onOpenCollectCash,
   onOpenReassignServer,
-  currentUserRole = 'manager',
-  currentUserId = 'u1',
-  currentUserName = 'Suwasna Gorkhali',
+  currentUserRole = 'staff',
+  currentUserId = '',
+  currentUserName = '',
 }) => {
   const [tickets, setTickets] = useState<KdsTicket[]>([]);
   const [serverCalls, setServerCalls] = useState<ServerCallRequest[]>([]);
@@ -209,7 +209,7 @@ export const KdsView: React.FC<KdsViewProps> = ({
     if (printArea) {
       printArea.innerHTML = `
         <div style="font-family: monospace; padding: 10px; max-width: 300px;">
-          <h2 style="text-align: center; margin: 0;">BENZIN - CAVALLI</h2>
+          <h2 style="text-align: center; margin: 0;">BENZIN TICKET</h2>
           <div style="text-align: center; border-bottom: 1px dashed #000; padding-bottom: 5px; margin-bottom: 10px;">
             TABLE ${ticket.table} - ORDER ${ticket.orderNumber}
           </div>

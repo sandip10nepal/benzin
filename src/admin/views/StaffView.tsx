@@ -47,7 +47,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
         apiClient.getPayrollSummary().catch(() => null),
       ]);
 
-      if (Array.isArray(empList) && empList.length > 0) {
+      if (Array.isArray(empList)) {
         setEmployees(empList);
       }
 
@@ -362,10 +362,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
               const roleLabel = getRoleLabel(emp);
               const roleColor = getRoleColor(roleLabel);
               const isOwner = emp.role === 'owner' || roleLabel === 'OWNER';
-              const isManager = isOwner || emp.role === 'manager' || roleLabel === 'MANAGER';
-              const cleanFallbackEmail =
-                emp.name.toLowerCase().split(' ')[0].replace(/[^a-z0-9]/g, '') + '@cavalli.com';
-              const displayEmail = emp.email || (isManager ? cleanFallbackEmail : null);
+              const displayEmail = emp.email || null;
 
               const initial = (emp.name || 'S').charAt(0).toUpperCase();
 

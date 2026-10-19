@@ -476,8 +476,8 @@ router.post('/manager-login', async (req, res) => {
       return;
     }
 
-    // 3. Verify Password / PIN / Verification Code
-    const isValid = secret === '2448' || AuthService.verifyPassword(secret, user.pin_hash) || AuthService.verifyPin(secret, user.pin_hash) || (user.role === 'owner' && secret === '1234');
+    // 3. Verify Password / PIN / Verification Code strictly against database hash
+    const isValid = AuthService.verifyPassword(secret, user.pin_hash) || AuthService.verifyPin(secret, user.pin_hash);
     if (!isValid) {
       await MultiTenantDbService.recordFailedLogin(user._id);
       res.status(401).json({ success: false, error: 'Invalid password or verification PIN.' });
@@ -658,10 +658,19 @@ router.post('/device/configure-table', async (req, res) => {
       rCode = cleanPin.slice(0, 4);
       sPin = cleanPin.slice(4, 8);
     } else if (cleanPin.length === 4) {
-      rCode = cleanPin;
-      if (!sPin) sPin = '1234';
-    } else if (!sPin) {
-      sPin = '1234';
+      if (!rCode) {
+        rCode = cleanPin;
+      } else if (!sPin) {
+        sPin = cleanPin;
+      }
+    }
+
+    if (!sPin) {
+      res.status(400).json({
+        success: false,
+        error: 'Staff PIN is required to configure floor device.'
+      });
+      return;
     }
 
     if (!table_number) {
@@ -1043,17 +1052,8 @@ router.post('/device/pair', async (req, res) => {
       }
     }
 
-    // Fallback for default demo PINs
     if (!authenticated) {
-      if (((restaurant.slug === 'cavali' || restaurant.slug === 'cavalli') && admin_pin === '1234') ||
-          (restaurant.slug === 'sakura' && admin_pin === '9999') ||
-          admin_pin === '1234' || admin_pin === '9999') {
-        authenticated = true;
-      }
-    }
-
-    if (!authenticated) {
-      res.status(401).json({ success: false, error: 'Invalid admin PIN. Use 1234 for Cavalli or 9999 for Sakura.' });
+      res.status(401).json({ success: false, error: 'Invalid admin PIN.' });
       return;
     }
 

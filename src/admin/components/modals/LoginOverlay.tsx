@@ -17,7 +17,7 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({
     return (
       localStorage.getItem('benzin_restaurant_code') ||
       localStorage.getItem('benzin_selected_slug') ||
-      '4821'
+      ''
     );
   });
   const [venueVerified, setVenueVerified] = useState(false);
@@ -75,9 +75,11 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({
         venueCode ||
         localStorage.getItem('benzin_restaurant_code') ||
         localStorage.getItem('benzin_selected_slug') ||
-        '4821';
+        '';
       setVenueCode(code);
-      doVerifyVenue(code);
+      if (code) {
+        doVerifyVenue(code);
+      }
     }
   }, [isOpen]);
 
@@ -467,7 +469,7 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({
               <input
                 type="email"
                 id="loginManagerEmailInput"
-                placeholder="sandip@cavalli.com"
+                placeholder="owner@domain.com"
                 value={managerEmail}
                 onChange={(e) => setManagerEmail(e.target.value)}
                 style={{
@@ -512,7 +514,7 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({
               <input
                 type="text"
                 id="loginManagerVenueCode"
-                placeholder="e.g. 4821 or cavali"
+                placeholder="Enter Venue Code or Slug"
                 value={managerVenueCode}
                 onChange={(e) => setManagerVenueCode(e.target.value)}
                 style={{
