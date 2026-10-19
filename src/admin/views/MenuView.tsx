@@ -49,14 +49,27 @@ interface MenuViewProps {
 
 const INITIAL_MENU: MenuItem[] = [
   {
+    id: 'm_hummus',
+    name: 'Hummus',
+    price: 10.0,
+    category: 'Appetizers',
+    superCategory: 'Food',
+    emoji: '🥗',
+    imageUrl: 'https://images.unsplash.com/photo-1577906096429-f73c2c312435?w=300&auto=format&fit=crop&q=80',
+    description: 'Creamy chickpea puree with tahini, olive oil, and warm pita.',
+    available: true,
+  },
+  {
     id: 'm1',
     name: 'Anarkali House Blend',
     price: 36.0,
     category: 'Signature Mixes',
     superCategory: 'Hookah',
     emoji: '👑',
+    imageUrl: 'https://images.unsplash.com/photo-1527661591475-527312dd65f5?w=300&auto=format&fit=crop&q=80',
     description: 'Our house-crafted blend of Pan Ras, Lady Killer & Bagdadi with iced base.',
     isSpecial: true,
+    available: true,
     recipeIngredientsCount: 3,
     modifierGroupsCount: 1,
   },
@@ -68,6 +81,7 @@ const INITIAL_MENU: MenuItem[] = [
     superCategory: 'Hookah',
     emoji: '🫐',
     description: 'Sweet blueberry flavor with a cool, refined mint finish.',
+    available: true,
     recipeIngredientsCount: 2,
     modifierGroupsCount: 1,
   },
@@ -79,6 +93,7 @@ const INITIAL_MENU: MenuItem[] = [
     superCategory: 'Hookah',
     emoji: '❤️',
     description: 'Passion fruit, honeydew melon, watermelon with gentle cool menthol.',
+    available: false,
     recipeIngredientsCount: 2,
   },
   {
@@ -88,7 +103,9 @@ const INITIAL_MENU: MenuItem[] = [
     category: 'Warm Appetizers',
     superCategory: 'Food',
     emoji: '🫓',
+    imageUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=300&auto=format&fit=crop&q=80',
     description: 'Stone-baked artisan flatbread with wild thyme zaatar and melted akkawi cheese.',
+    available: true,
     recipeIngredientsCount: 4,
     modifierGroupsCount: 1,
   },
@@ -99,7 +116,9 @@ const INITIAL_MENU: MenuItem[] = [
     category: 'Warm Appetizers',
     superCategory: 'Food',
     emoji: '🧆',
+    imageUrl: 'https://images.unsplash.com/photo-1593560708920-61dd98c46a4e?w=300&auto=format&fit=crop&q=80',
     description: 'Six house-ground crispy falafels served with tahini sauce and pickled turnips.',
+    available: true,
     recipeIngredientsCount: 3,
   },
   {
@@ -110,6 +129,7 @@ const INITIAL_MENU: MenuItem[] = [
     superCategory: 'Drinks',
     emoji: '☕',
     description: 'Traditionally prepared in cezve sand with crushed green cardamom pods.',
+    available: true,
     recipeIngredientsCount: 2,
     modifierGroupsCount: 1,
   },
@@ -121,6 +141,7 @@ const INITIAL_MENU: MenuItem[] = [
     superCategory: 'Drinks',
     emoji: '🍋',
     description: 'Freshly squeezed lemon juice blended with garden mint and simple syrup.',
+    available: true,
     recipeIngredientsCount: 3,
   },
 ];
@@ -128,6 +149,7 @@ const INITIAL_MENU: MenuItem[] = [
 const SUB_CATEGORIES_BY_SUPER: Record<string, string[]> = {
   All: [
     'All Sub-Categories',
+    'Appetizers',
     'Signature Mixes',
     'Classic Flavors',
     'Exotic Flavors',
@@ -136,7 +158,7 @@ const SUB_CATEGORIES_BY_SUPER: Record<string, string[]> = {
     'Mocktails & Sodas',
   ],
   Hookah: ['All Hookah', 'Signature Mixes', 'Classic Flavors', 'Exotic Flavors'],
-  Food: ['All Food', 'Warm Appetizers', 'Cold Mezze', 'Desserts'],
+  Food: ['All Food', 'Appetizers', 'Warm Appetizers', 'Cold Mezze', 'Desserts'],
   Drinks: ['All Drinks', 'Hot Beverages', 'Mocktails & Sodas', 'Cocktails'],
 };
 
@@ -287,9 +309,25 @@ export const MenuView: React.FC<MenuViewProps> = ({
   const [superCat, setSuperCat] = useState<'All' | 'Hookah' | 'Food' | 'Drinks'>('All');
   const [subCat, setSubCat] = useState<string>('All Sub-Categories');
   const [searchTerm, setSearchTerm] = useState('');
-  const [items] = useState<MenuItem[]>(INITIAL_MENU);
+  const [items, setItems] = useState<MenuItem[]>(INITIAL_MENU);
   const [questions, setQuestions] = useState<VibeQuestQuestion[]>(INITIAL_QUESTIONS);
   const [saveToast, setSaveToast] = useState(false);
+
+  const handleToggleItemStatus = (itemId: string) => {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === itemId
+          ? { ...item, available: item.available === false ? true : false }
+          : item
+      )
+    );
+  };
+
+  const handleDeleteItem = (itemId: string) => {
+    if (confirm('Are you sure you want to delete this menu item?')) {
+      setItems((prev) => prev.filter((item) => item.id !== itemId));
+    }
+  };
 
   const availableSubCats = SUB_CATEGORIES_BY_SUPER[superCat] || SUB_CATEGORIES_BY_SUPER.All;
 
@@ -723,103 +761,294 @@ export const MenuView: React.FC<MenuViewProps> = ({
             id="menuGridContainer"
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-              gap: '16px',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+              gap: '20px',
             }}
           >
-            {filteredItems.map((item) => (
-              <div
-                key={item.id}
-                className="menu-card"
-                style={{
-                  background: 'var(--card)',
-                  border: '1px solid var(--line)',
-                  borderRadius: '14px',
-                  padding: '16px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-                  transition: 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '26px' }}>{item.emoji}</span>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <h4 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--cream)', margin: 0 }}>
-                            {item.name}
-                          </h4>
-                          {item.isSpecial && (
-                            <span style={{ fontSize: '10px', background: 'rgba(168,85,247,0.18)', color: '#c084fc', border: '1px solid #a855f7', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
-                              ⭐ Special
-                            </span>
+            {filteredItems.map((item) => {
+              const isAvail = item.available !== false;
+              return (
+                <div
+                  key={item.id}
+                  className="menu-card"
+                  style={{
+                    background: '#151D2A',
+                    border: isAvail ? '1.5px solid #233044' : '1.5px solid rgba(239, 68, 68, 0.5)',
+                    borderRadius: '24px',
+                    padding: '24px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                    opacity: isAvail ? 1 : 0.65,
+                    transition: 'all 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
+                  }}
+                >
+                  <div>
+                    {/* Top Row: Thumbnail + Title + Price */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', marginBottom: '14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', minWidth: 0, flex: 1 }}>
+                        <div
+                          style={{
+                            width: '72px',
+                            height: '72px',
+                            borderRadius: '18px',
+                            overflow: 'hidden',
+                            border: '2.5px solid #38BDF8',
+                            flexShrink: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: '#0B0F19',
+                          }}
+                        >
+                          {item.imageUrl ? (
+                            <img
+                              src={item.imageUrl}
+                              alt={item.name}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                          ) : (
+                            <span style={{ fontSize: '36px' }}>{item.emoji}</span>
                           )}
                         </div>
-                        <div style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 700, marginTop: '2px' }}>
-                          {item.superCategory} • {item.category}
+
+                        <div style={{ minWidth: 0 }}>
+                          <h3
+                            style={{
+                              fontFamily: "'Outfit', 'Inter', system-ui, sans-serif",
+                              fontSize: '22px',
+                              fontWeight: 900,
+                              color: '#FFFFFF',
+                              margin: 0,
+                              lineHeight: 1.2,
+                              letterSpacing: '-0.2px',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}
+                          >
+                            {item.name}
+                          </h3>
                         </div>
                       </div>
+
+                      <div
+                        style={{
+                          fontFamily: "'Outfit', 'Inter', system-ui, sans-serif",
+                          fontSize: '26px',
+                          fontWeight: 900,
+                          color: '#38BDF8',
+                          whiteSpace: 'nowrap',
+                          alignSelf: 'flex-start',
+                          paddingTop: '2px',
+                        }}
+                      >
+                        ${item.price.toFixed(2)}
+                      </div>
                     </div>
-                    <div style={{ fontSize: '16px', fontWeight: 900, color: 'var(--gold)' }}>
-                      ${item.price.toFixed(2)}
+
+                    {/* Description */}
+                    <p
+                      style={{
+                        fontSize: '14px',
+                        fontWeight: 500,
+                        color: '#94a3b8',
+                        lineHeight: 1.45,
+                        margin: '14px 0 16px 0',
+                      }}
+                    >
+                      {item.description}
+                    </p>
+
+                    {/* Pill Badges Row */}
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '20px' }}>
+                      {/* Category Pill */}
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '5px 14px',
+                          borderRadius: '9999px',
+                          background: 'rgba(20, 26, 36, 0.85)',
+                          border: '1.5px solid #ca8a04',
+                          color: '#38BDF8',
+                          fontSize: '12px',
+                          fontWeight: 900,
+                          letterSpacing: '0.6px',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        <span>{item.emoji}</span>
+                        <span>{item.category.toUpperCase()}</span>
+                      </span>
+
+                      {/* Status Pill */}
+                      {isAvail ? (
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            padding: '5px 14px',
+                            borderRadius: '9999px',
+                            background: 'rgba(16, 185, 129, 0.08)',
+                            border: '1.5px solid #10B981',
+                            color: '#10B981',
+                            fontSize: '12px',
+                            fontWeight: 900,
+                            letterSpacing: '0.6px',
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          ACTIVE
+                        </span>
+                      ) : (
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            padding: '5px 14px',
+                            borderRadius: '9999px',
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            border: '1.5px solid #ef4444',
+                            color: '#ef4444',
+                            fontSize: '12px',
+                            fontWeight: 900,
+                            letterSpacing: '0.6px',
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          DISABLED
+                        </span>
+                      )}
+
+                      {item.isSpecial && (
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            padding: '5px 12px',
+                            borderRadius: '9999px',
+                            background: 'rgba(168,85,247,0.18)',
+                            color: '#c084fc',
+                            border: '1.5px solid #a855f7',
+                            fontSize: '11px',
+                            fontWeight: 900,
+                            letterSpacing: '0.5px',
+                          }}
+                        >
+                          ⭐ SPECIAL
+                        </span>
+                      )}
+
+                      {item.recipeIngredientsCount && item.recipeIngredientsCount > 0 ? (
+                        <span
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            background: 'rgba(229,177,58,0.12)',
+                            color: 'var(--gold)',
+                            border: '1px dashed var(--gold)',
+                            padding: '4px 8px',
+                            borderRadius: '6px',
+                          }}
+                        >
+                          📦 {item.recipeIngredientsCount} Ingredients
+                        </span>
+                      ) : null}
+
+                      {item.modifierGroupsCount && item.modifierGroupsCount > 0 ? (
+                        <span
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            background: 'rgba(16,185,129,0.12)',
+                            color: '#10B981',
+                            border: '1px dashed #10B981',
+                            padding: '4px 8px',
+                            borderRadius: '6px',
+                          }}
+                        >
+                          ⚡ {item.modifierGroupsCount} Choice Groups
+                        </span>
+                      ) : null}
                     </div>
                   </div>
 
-                  <p style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: '1.4', margin: '8px 0' }}>
-                    {item.description}
-                  </p>
+                  {/* Bottom Action Row: Edit, Disable/Enable, Delete */}
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: 'auto' }}>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => onOpenEditItem && onOpenEditItem(item)}
+                      style={{
+                        flex: 1,
+                        height: '44px',
+                        borderRadius: '12px',
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        border: '1.5px solid #2b394e',
+                        color: '#FFFFFF',
+                        fontWeight: 800,
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Edit2 style={{ width: '15px', height: '15px' }} />
+                      Edit
+                    </button>
 
-                  {/* Feature Badges (Recipe Inventory & Choice Modifiers) */}
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '10px' }}>
-                    {item.recipeIngredientsCount && item.recipeIngredientsCount > 0 ? (
-                      <span
-                        style={{
-                          fontSize: '10px',
-                          fontWeight: 700,
-                          background: 'rgba(229,177,58,0.12)',
-                          color: 'var(--gold)',
-                          border: '1px dashed var(--gold)',
-                          padding: '2px 8px',
-                          borderRadius: '6px',
-                        }}
-                      >
-                        📦 {item.recipeIngredientsCount} Ingredients Deducted
-                      </span>
-                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => handleToggleItemStatus(item.id)}
+                      style={{
+                        height: '44px',
+                        padding: '0 16px',
+                        borderRadius: '12px',
+                        background: isAvail ? 'rgba(239, 68, 68, 0.12)' : 'rgba(34, 197, 94, 0.12)',
+                        border: isAvail ? '1.5px solid rgba(248, 113, 113, 0.65)' : '1.5px solid rgba(34, 197, 94, 0.65)',
+                        color: isAvail ? '#f87171' : '#34d399',
+                        fontWeight: 800,
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <span>{isAvail ? '🚫' : '🟢'}</span>
+                      <span>{isAvail ? 'Disable' : 'Enable'}</span>
+                    </button>
 
-                    {item.modifierGroupsCount && item.modifierGroupsCount > 0 ? (
-                      <span
-                        style={{
-                          fontSize: '10px',
-                          fontWeight: 700,
-                          background: 'rgba(16,185,129,0.12)',
-                          color: '#10B981',
-                          border: '1px dashed #10B981',
-                          padding: '2px 8px',
-                          borderRadius: '6px',
-                        }}
-                      >
-                        ⚡ {item.modifierGroupsCount} Choice Group{item.modifierGroupsCount > 1 ? 's' : ''}
-                      </span>
-                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteItem(item.id)}
+                      style={{
+                        width: '46px',
+                        height: '44px',
+                        borderRadius: '12px',
+                        background: 'rgba(239, 68, 68, 0.08)',
+                        border: '1.5px solid rgba(248, 113, 113, 0.35)',
+                        color: '#f87171',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                      }}
+                      title="Delete Item"
+                    >
+                      <Trash2 style={{ width: '16px', height: '16px' }} />
+                    </button>
                   </div>
                 </div>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '14px', paddingTop: '10px', borderTop: '1px dashed var(--line)' }}>
-                  <button
-                    className="btn"
-                    onClick={() => onOpenEditItem && onOpenEditItem(item)}
-                    style={{ padding: '6px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}
-                  >
-                    <Edit2 style={{ width: '12px', height: '12px' }} />
-                    Edit Item
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ) : (

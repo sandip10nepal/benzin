@@ -61,6 +61,7 @@ export interface MenuItem {
   description?: string;
   imageUrl?: string;
   isSpecial?: boolean;
+  available?: boolean;
   recipeIngredientsCount?: number;
   modifierGroupsCount?: number;
 }
