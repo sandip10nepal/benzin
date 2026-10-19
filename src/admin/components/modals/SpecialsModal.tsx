@@ -1,0 +1,266 @@
+import React, { useState } from 'react';
+import { Trash2 } from 'lucide-react';
+import { MenuItem } from '../../types';
+
+interface SpecialItem {
+  id: string;
+  menuItemId: string;
+  name: string;
+  subtitle: string;
+  price: number;
+  emoji?: string;
+}
+
+interface SpecialsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  menuCatalog: MenuItem[];
+  onSaveSpecials?: (specials: SpecialItem[]) => void;
+}
+
+export const SpecialsModal: React.FC<SpecialsModalProps> = ({
+  isOpen,
+  onClose,
+  menuCatalog,
+  onSaveSpecials,
+}) => {
+  const [selectedItemId, setSelectedItemId] = useState('');
+  const [subtitle, setSubtitle] = useState('');
+  const [specials, setSpecials] = useState<SpecialItem[]>([
+    {
+      id: 'sp_1',
+      menuItemId: 'm1',
+      name: 'Anarkali House Blend Hookah',
+      subtitle: "Chef's Signature Pick",
+      price: 36.0,
+      emoji: '👑',
+    },
+    {
+      id: 'sp_2',
+      menuItemId: 'm2',
+      name: 'Zaatar Truffle Flatbread',
+      subtitle: 'Limited Midnight Special',
+      price: 14.5,
+      emoji: '🍕',
+    },
+  ]);
+
+  if (!isOpen) return null;
+
+  const handleAddSpecial = () => {
+    if (!selectedItemId) {
+      alert('Please select an item from the menu catalog');
+      return;
+    }
+    const menuItem = menuCatalog.find((m) => m.id === selectedItemId);
+    if (!menuItem) return;
+
+    setSpecials((prev) => [
+      ...prev,
+      {
+        id: `spec_${Date.now()}`,
+        menuItemId: menuItem.id,
+        name: menuItem.name,
+        subtitle: subtitle.trim() || 'Featured Special',
+        price: menuItem.price,
+        emoji: menuItem.emoji,
+      },
+    ]);
+    setSelectedItemId('');
+    setSubtitle('');
+  };
+
+  const handleDeleteSpecial = (id: string) => {
+    setSpecials((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  const handleSave = () => {
+    if (onSaveSpecials) onSaveSpecials(specials);
+    alert('Restaurant Specials saved successfully!');
+    onClose();
+  };
+
+  return (
+    <div
+      id="specialsModal"
+      style={{
+        display: 'flex',
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(14,10,8,0.92)',
+        backdropFilter: 'blur(16px)',
+        zIndex: 100000,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px',
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        style={{
+          background: 'var(--card)',
+          border: '1.5px solid #a855f7',
+          borderRadius: '20px',
+          padding: '24px',
+          width: '100%',
+          maxWidth: '600px',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.9)',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+          <div>
+            <h3
+              style={{
+                color: '#c084fc',
+                fontSize: '20px',
+                fontWeight: 800,
+                margin: '0 0 4px 0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
+              <span>⭐</span> Restaurant Specials
+            </h3>
+            <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
+              Choose existing menu items to feature as restaurant specials.
+            </div>
+          </div>
+          <button className="btn" onClick={onClose} style={{ padding: '6px 10px', fontSize: '12px', borderRadius: '8px' }}>
+            ✕
+          </button>
+        </div>
+
+        {/* Add Existing Menu Item as Special */}
+        <div
+          style={{
+            background: 'rgba(168,85,247,0.08)',
+            border: '1px dashed rgba(168,85,247,0.35)',
+            borderRadius: '12px',
+            padding: '14px',
+            marginBottom: '16px',
+          }}
+        >
+          <div style={{ fontSize: '12px', fontWeight: 800, color: '#c084fc', marginBottom: '8px' }}>
+            ➕ FEATURE AN EXISTING ITEM IN SPECIALS
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <select
+              id="specialsCatalogSelect"
+              value={selectedItemId}
+              onChange={(e) => setSelectedItemId(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '9px 12px',
+                background: 'var(--card2)',
+                border: '1px solid var(--line)',
+                borderRadius: '8px',
+                color: 'var(--cream)',
+                fontSize: '13px',
+                fontWeight: 600,
+              }}
+            >
+              <option value="">-- Select an item from Menu Catalog --</option>
+              {menuCatalog.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.emoji || '🍴'} {item.name} (${item.price.toFixed(2)})
+                </option>
+              ))}
+            </select>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="text"
+                id="specialSubtitleInput"
+                placeholder="Badge subtitle (e.g. Chef's Pick, Limited)"
+                value={subtitle}
+                onChange={(e) => setSubtitle(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  background: 'var(--card2)',
+                  border: '1px solid var(--line)',
+                  borderRadius: '8px',
+                  color: 'var(--cream)',
+                  fontSize: '12px',
+                }}
+              />
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleAddSpecial}
+                style={{
+                  background: '#a855f7',
+                  color: '#fff',
+                  fontWeight: 800,
+                  padding: '8px 16px',
+                  fontSize: '12px',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                + Feature in Specials
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Specials List Container */}
+        <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '8px' }}>
+          Currently Featured Specials
+        </div>
+        <div id="specialsListContainer" style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '320px', overflowY: 'auto' }}>
+          {specials.map((s) => (
+            <div
+              key={s.id}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '10px 14px',
+                background: 'var(--card2)',
+                borderRadius: '10px',
+                border: '1px solid var(--line)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '20px' }}>{s.emoji || '⭐'}</span>
+                <div>
+                  <div style={{ fontWeight: 800, color: 'var(--cream)', fontSize: '13px' }}>{s.name}</div>
+                  <div style={{ fontSize: '11px', color: '#c084fc', fontWeight: 700 }}>{s.subtitle}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontWeight: 800, color: 'var(--gold)', fontSize: '13px' }}>${s.price.toFixed(2)}</span>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={() => handleDeleteSpecial(s.id)}
+                  style={{ padding: '4px 8px', fontSize: '11px' }}
+                >
+                  <Trash2 style={{ width: '12px', height: '12px' }} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Action Buttons */}
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '20px', borderTop: '1.5px solid var(--line)', paddingTop: '16px' }}>
+          <button className="btn" onClick={onClose} style={{ padding: '10px 16px' }}>
+            Cancel
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={handleSave}
+            style={{ background: '#a855f7', color: '#fff', fontWeight: 800, padding: '10px 20px' }}
+          >
+            Save Specials
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};

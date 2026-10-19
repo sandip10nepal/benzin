@@ -1,35 +1,47 @@
 import React, { useState } from 'react';
 import { FolderPlus, PlusCircle } from 'lucide-react';
 
-interface InventoryItem {
+export interface InventoryItem {
   id: string;
   name: string;
+  brand?: string;
   category: string;
   stock: number;
   unit: string;
   minThreshold: number;
 }
 
+interface InventoryViewProps {
+  onOpenAddCategory?: () => void;
+  onOpenAddItem?: () => void;
+  onOpenEditItem?: (item: InventoryItem) => void;
+}
+
 const INITIAL_INVENTORY: InventoryItem[] = [
-  { id: 'i1', name: 'Al Fakher Two Apples', category: 'Hookah Tobacco', stock: 12, unit: 'tins', minThreshold: 3 },
-  { id: 'i2', name: 'Starbuzz Blue Mist', category: 'Hookah Tobacco', stock: 8, unit: 'tins', minThreshold: 2 },
-  { id: 'i3', name: 'Adalya Love 66', category: 'Hookah Tobacco', stock: 15, unit: 'tins', minThreshold: 4 },
-  { id: 'i4', name: 'Coconut Charcoal 1kg', category: 'Coals & Heads', stock: 42, unit: 'boxes', minThreshold: 10 },
-  { id: 'i5', name: 'Clay Phunnel Bowls', category: 'Coals & Heads', stock: 18, unit: 'units', minThreshold: 5 },
-  { id: 'i6', name: 'Disposable Iced Hoses', category: 'Coals & Heads', stock: 65, unit: 'units', minThreshold: 20 },
-  { id: 'i7', name: 'Red Bull Energy Drink', category: 'Beverages', stock: 38, unit: 'cans', minThreshold: 12 },
-  { id: 'i8', name: 'Perrier Sparkling 330ml', category: 'Beverages', stock: 24, unit: 'bottles', minThreshold: 8 },
-  { id: 'i9', name: 'Authentic Turkish Coffee', category: 'Beverages', stock: 5, unit: 'kg', minThreshold: 2 },
+  { id: 'i1', name: 'Al Fakher Two Apples', brand: 'Al Fakher', category: 'Hookah Tobacco', stock: 12, unit: 'tins', minThreshold: 3 },
+  { id: 'i2', name: 'Starbuzz Blue Mist', brand: 'Starbuzz', category: 'Hookah Tobacco', stock: 8, unit: 'tins', minThreshold: 2 },
+  { id: 'i3', name: 'Adalya Love 66', brand: 'Adalya', category: 'Hookah Tobacco', stock: 15, unit: 'tins', minThreshold: 4 },
+  { id: 'i4', name: 'Coconut Charcoal 1kg', brand: 'CocoUrth', category: 'Coals & Heads', stock: 42, unit: 'boxes', minThreshold: 10 },
+  { id: 'i5', name: 'Clay Phunnel Bowls', brand: 'Alpaca', category: 'Coals & Heads', stock: 18, unit: 'units', minThreshold: 5 },
+  { id: 'i6', name: 'Disposable Iced Hoses', brand: 'Benzin', category: 'Coals & Heads', stock: 65, unit: 'units', minThreshold: 20 },
+  { id: 'i7', name: 'Red Bull Energy Drink', brand: 'Red Bull', category: 'Beverages', stock: 38, unit: 'cans', minThreshold: 12 },
+  { id: 'i8', name: 'Perrier Sparkling 330ml', brand: 'Perrier', category: 'Beverages', stock: 24, unit: 'bottles', minThreshold: 8 },
+  { id: 'i9', name: 'Authentic Turkish Coffee', brand: 'Kurukahveci', category: 'Beverages', stock: 5, unit: 'kg', minThreshold: 2 },
 ];
 
-export const InventoryView: React.FC = () => {
+export const InventoryView: React.FC<InventoryViewProps> = ({
+  onOpenAddCategory,
+  onOpenAddItem,
+  onOpenEditItem,
+}) => {
   const [items, setItems] = useState<InventoryItem[]>(INITIAL_INVENTORY);
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
 
   const categories = ['all', 'Hookah Tobacco', 'Coals & Heads', 'Beverages'];
 
-  const adjustStock = (id: string, delta: number) => {
+  const adjustStock = (e: React.MouseEvent, id: string, delta: number) => {
+    e.stopPropagation();
     setItems((prev) =>
       prev.map((item) =>
         item.id === id ? { ...item, stock: Math.max(0, item.stock + delta) } : item
@@ -108,6 +120,7 @@ export const InventoryView: React.FC = () => {
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'nowrap' }}>
             <button
               className="btn touch-target"
+              onClick={onOpenAddCategory}
               style={{
                 background: 'var(--card2)',
                 color: 'var(--gold)',
@@ -126,6 +139,7 @@ export const InventoryView: React.FC = () => {
             </button>
             <button
               className="btn btn-primary touch-target"
+              onClick={onOpenAddItem}
               style={{
                 fontWeight: 800,
                 padding: '6px 12px',
@@ -168,7 +182,13 @@ export const InventoryView: React.FC = () => {
       {/* Grid of square inventory boxes */}
       <div className="inventory-grid-square" id="inventoryGridSquare">
         {filteredItems.map((item) => (
-          <div key={item.id} className="inventory-box">
+          <div
+            key={item.id}
+            className="inventory-box"
+            onClick={() => onOpenEditItem && onOpenEditItem(item)}
+            style={{ cursor: 'pointer' }}
+            title="Click to edit stock item"
+          >
             <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--muted)' }}>
               <span>{item.category}</span>
               {item.stock <= item.minThreshold && (
@@ -190,14 +210,14 @@ export const InventoryView: React.FC = () => {
             <div className="inventory-box-controls">
               <button
                 className="inventory-box-btn"
-                onClick={() => adjustStock(item.id, -1)}
+                onClick={(e) => adjustStock(e, item.id, -1)}
                 title="Decrease Stock"
               >
                 -
               </button>
               <button
                 className="inventory-box-btn"
-                onClick={() => adjustStock(item.id, 1)}
+                onClick={(e) => adjustStock(e, item.id, 1)}
                 title="Increase Stock"
               >
                 +

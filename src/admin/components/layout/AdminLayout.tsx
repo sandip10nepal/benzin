@@ -10,6 +10,9 @@ interface AdminLayoutProps {
   user: StaffUser;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
+  onProfileClick?: () => void;
+  onSwitchAccountClick?: () => void;
+  onLogout?: () => void;
   children: React.ReactNode;
 }
 
@@ -20,6 +23,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   user,
   theme,
   onToggleTheme,
+  onProfileClick,
+  onSwitchAccountClick,
+  onLogout,
   children,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -34,6 +40,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         theme={theme}
         onToggleTheme={onToggleTheme}
         onToggleMobileMenu={() => setIsMobileMenuOpen(true)}
+        onProfileClick={onProfileClick}
+        onSwitchAccountClick={onSwitchAccountClick}
+        onLogout={onLogout}
       />
 
       <MobileNavigationDrawer
@@ -44,6 +53,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         user={user}
         theme={theme}
         onToggleTheme={onToggleTheme}
+        onLogout={onLogout}
+        onSwitchAccount={onSwitchAccountClick}
       />
 
       <main>

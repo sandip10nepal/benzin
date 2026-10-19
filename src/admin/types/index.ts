@@ -21,7 +21,8 @@ export type UserRole =
   | 'chef'
   | 'hookah_maker'
   | 'cashier'
-  | 'kitchen';
+  | 'kitchen'
+  | string;
 
 export interface StaffUser {
   id: string;
@@ -29,6 +30,8 @@ export interface StaffUser {
   role: UserRole;
   position?: string;
   email?: string | null;
+  pin?: string;
+  hourlyWage?: number;
   isClockedIn?: boolean;
 }
 
@@ -46,4 +49,16 @@ export interface MetricSummary {
   change?: string;
   isPositive?: boolean;
   iconName: string;
+}
+
+export interface MenuItem {
+  id: string;
+  name: string;
+  price: number;
+  category: string;
+  superCategory?: 'Hookah' | 'Food' | 'Drinks' | string;
+  emoji: string;
+  description?: string;
+  imageUrl?: string;
+  isSpecial?: boolean;
 }

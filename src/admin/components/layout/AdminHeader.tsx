@@ -16,6 +16,7 @@ interface AdminHeaderProps {
   onToggleMobileMenu: () => void;
   onLogout?: () => void;
   onProfileClick?: () => void;
+  onSwitchAccountClick?: () => void;
 }
 
 export const AdminHeader: React.FC<AdminHeaderProps> = ({
@@ -28,6 +29,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   onToggleMobileMenu,
   onLogout,
   onProfileClick,
+  onSwitchAccountClick,
 }) => {
   return (
     <header>
@@ -110,7 +112,11 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
       {/* Right Controls: Active Shift Timer, Profile Badge, Theme Switcher & Logout */}
       <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
         <TimeclockControl initialClockedIn={user.isClockedIn} />
-        <EmployeeProfile user={user} onClick={onProfileClick} />
+        <EmployeeProfile
+          user={user}
+          onClickProfile={onProfileClick}
+          onClickSwitch={onSwitchAccountClick}
+        />
         <ThemeToggle theme={theme} onToggleTheme={onToggleTheme} />
 
         {/* Logout */}

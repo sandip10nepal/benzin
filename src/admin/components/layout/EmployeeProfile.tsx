@@ -4,14 +4,19 @@ import { StaffUser } from '../../types';
 
 interface EmployeeProfileProps {
   user: StaffUser;
-  onClick?: () => void;
+  onClickProfile?: () => void;
+  onClickSwitch?: () => void;
 }
 
-export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ user, onClick }) => {
+export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({
+  user,
+  onClickProfile,
+  onClickSwitch,
+}) => {
   return (
     <div
       id="loggedInUserBox"
-      onClick={onClick}
+      onClick={onClickProfile}
       style={{
         background: 'var(--card)',
         border: '1.5px solid var(--gold)',
@@ -33,11 +38,17 @@ export const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ user, onClick 
           </div>
           <span
             id="headerSwitchIcon"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onClickSwitch) onClickSwitch();
+            }}
+            title="Switch staff account"
             style={{
-              fontSize: '10px',
+              fontSize: '11px',
               color: 'var(--gold)',
-              fontWeight: 800,
-              display: 'inline',
+              fontWeight: 900,
+              display: 'inline-block',
+              padding: '0 2px',
               transition: 'transform 0.2s ease',
             }}
           >

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { UserPlus, CheckCircle } from 'lucide-react';
 import { StaffUser } from '../types';
 
@@ -7,25 +7,47 @@ interface StaffMember {
   name: string;
   role: string;
   hourlyRate: string;
+  hourlyWage?: number;
   isClockedIn: boolean;
   weeklyHours: string;
+  email?: string;
+  pin?: string;
 }
 
-const STAFF_MEMBERS: StaffMember[] = [
-  { id: 'st_1', name: 'Farhan Cavalli', role: 'OWNER / GENERAL MANAGER', hourlyRate: 'Salary', isClockedIn: true, weeklyHours: '42.5 hrs' },
-  { id: 'st_2', name: 'Alex Morales', role: 'FLOOR MANAGER & HOOKAH MASTER', hourlyRate: '$22.00/hr', isClockedIn: true, weeklyHours: '36.0 hrs' },
-  { id: 'st_3', name: 'Sarah Khan', role: 'SENIOR SERVER & CASHIER', hourlyRate: '$16.50/hr', isClockedIn: true, weeklyHours: '28.0 hrs' },
-  { id: 'st_4', name: 'David Ramirez', role: 'SERVER & BARISTA', hourlyRate: '$15.00/hr', isClockedIn: false, weeklyHours: '24.5 hrs' },
-  { id: 'st_5', name: 'Tariq Al-Mansoor', role: 'HOOKAH PREPARATION SPECIALIST', hourlyRate: '$18.00/hr', isClockedIn: false, weeklyHours: '31.0 hrs' },
+const INITIAL_STAFF: StaffMember[] = [
+  { id: 'st_1', name: 'Farhan Cavalli', role: 'OWNER / GENERAL MANAGER', hourlyRate: 'Salary', hourlyWage: 35, isClockedIn: true, weeklyHours: '42.5 hrs', email: 'owner@cavalli.com', pin: '2448' },
+  { id: 'st_2', name: 'Alex Morales', role: 'FLOOR MANAGER & HOOKAH MASTER', hourlyRate: '$22.00/hr', hourlyWage: 22, isClockedIn: true, weeklyHours: '36.0 hrs', email: 'alex@cavalli.com', pin: '1111' },
+  { id: 'st_3', name: 'Suwasna Gorkhali', role: 'SENIOR SERVER & CASHIER', hourlyRate: '$18.00/hr', hourlyWage: 18, isClockedIn: true, weeklyHours: '34.5 hrs', pin: '1234' },
+  { id: 'st_4', name: 'Sarah Khan', role: 'SERVER & CASHIER', hourlyRate: '$16.50/hr', hourlyWage: 16.5, isClockedIn: true, weeklyHours: '28.0 hrs', pin: '2222' },
+  { id: 'st_5', name: 'David Ramirez', role: 'SERVER & BARISTA', hourlyRate: '$15.00/hr', hourlyWage: 15, isClockedIn: false, weeklyHours: '24.5 hrs', pin: '3333' },
+  { id: 'st_6', name: 'Tariq Al-Mansoor', role: 'HOOKAH PREPARATION SPECIALIST', hourlyRate: '$18.00/hr', hourlyWage: 18, isClockedIn: false, weeklyHours: '31.0 hrs', pin: '4444' },
 ];
 
 interface StaffViewProps {
   currentUser?: StaffUser;
+  onOpenAddEmployee?: () => void;
+  onOpenStaffProfile?: (employee: StaffUser) => void;
+  onFulfillWeeklyPayroll?: () => void;
 }
 
-export const StaffView: React.FC<StaffViewProps> = () => {
-  const totalEmployees = STAFF_MEMBERS.length;
-  const clockedIn = STAFF_MEMBERS.filter((s) => s.isClockedIn).length;
+export const StaffView: React.FC<StaffViewProps> = ({
+  onOpenAddEmployee,
+  onOpenStaffProfile,
+  onFulfillWeeklyPayroll,
+}) => {
+  const [staffList] = useState<StaffMember[]>(INITIAL_STAFF);
+  const [payrollPendingText, setPayrollPendingText] = useState('$2,860.00 (162 hrs)');
+
+  const totalEmployees = staffList.length;
+  const clockedIn = staffList.filter((s) => s.isClockedIn).length;
+
+  const handleFulfill = () => {
+    if (confirm('Fulfill weekly payroll and mark shifts as paid?')) {
+      if (onFulfillWeeklyPayroll) onFulfillWeeklyPayroll();
+      setPayrollPendingText('$0.00 (0 shifts)');
+      alert('✓ Weekly payroll fulfilled successfully!');
+    }
+  };
 
   return (
     <div id="staffPageLayout" style={{ display: 'block' }}>
@@ -89,7 +111,7 @@ export const StaffView: React.FC<StaffViewProps> = () => {
               💰 UNFULFILLED WEEKLY PAYROLL
             </div>
             <div id="weeklyPayrollPendingText" style={{ fontSize: '20px', fontWeight: 900, color: 'var(--cream)', marginTop: '2px' }}>
-              $2,860.00 (162 hrs)
+              {payrollPendingText}
             </div>
           </div>
           <button
@@ -104,7 +126,7 @@ export const StaffView: React.FC<StaffViewProps> = () => {
               alignItems: 'center',
               gap: '6px',
             }}
-            onClick={() => alert('Payroll fulfillment processed!')}
+            onClick={handleFulfill}
             title="Mark weekly shift timecards as fulfilled and process payout"
           >
             <CheckCircle style={{ width: '16px', height: '16px' }} />
@@ -125,13 +147,18 @@ export const StaffView: React.FC<StaffViewProps> = () => {
           <h3 style={{ color: 'var(--gold)', fontSize: '16px', letterSpacing: '1px', textTransform: 'uppercase', margin: 0 }}>
             Employee Roster
           </h3>
-          <button className="btn btn-primary" style={{ padding: '8px 14px', fontSize: '12px', fontWeight: 800 }}>
-            <UserPlus style={{ width: '14px', height: '14px' }} /> Add Staff
+          <button
+            className="btn btn-primary"
+            onClick={onOpenAddEmployee}
+            style={{ padding: '8px 14px', fontSize: '12px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            <UserPlus style={{ width: '14px', height: '14px' }} />
+            <span>+ Add Staff</span>
           </button>
         </div>
 
         <div id="employeeListBody" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {STAFF_MEMBERS.map((s) => (
+          {staffList.map((s) => (
             <div
               key={s.id}
               style={{
@@ -163,13 +190,28 @@ export const StaffView: React.FC<StaffViewProps> = () => {
                   </span>
                 </div>
                 <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
-                  {s.role} &bull; {s.hourlyRate}
+                  {s.role} • {s.hourlyRate}
                 </div>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                 <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--gold)' }}>{s.weeklyHours}</span>
-                <button className="btn" style={{ padding: '6px 12px', fontSize: '12px' }}>
+                <button
+                  className="btn"
+                  onClick={() =>
+                    onOpenStaffProfile &&
+                    onOpenStaffProfile({
+                      id: s.id,
+                      name: s.name,
+                      role: s.role,
+                      isClockedIn: s.isClockedIn,
+                      hourlyWage: s.hourlyWage,
+                      email: s.email,
+                      pin: s.pin,
+                    })
+                  }
+                  style={{ padding: '6px 12px', fontSize: '12px' }}
+                >
                   View Timecard
                 </button>
               </div>

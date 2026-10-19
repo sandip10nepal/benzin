@@ -1,156 +1,462 @@
 import React, { useState } from 'react';
-import { Printer, CheckCircle2, XCircle, Inbox, PlusCircle } from 'lucide-react';
+import {
+  Printer,
+  CheckCircle,
+  Inbox,
+  PlusCircle,
+  Flame,
+  XCircle,
+} from 'lucide-react';
 
-interface MockTicket {
+export interface TicketItem {
+  name: string;
+  qty: number;
+  price?: number;
+  category?: 'kitchen' | 'bar' | 'hookah';
+  notes?: string;
+  hasIceBase?: boolean;
+  hasIceHose?: boolean;
+}
+
+export interface KdsTicket {
   id: string;
   table: string;
   orderNumber: string;
+  timestamp: string;
   timeAgo: string;
-  server: string;
-  status: 'pending' | 'in_progress' | 'fulfilled';
-  items: Array<{
-    name: string;
-    qty: number;
-    price: string;
-    notes?: string;
-  }>;
-  total: string;
+  customerName?: string;
+  assignedServerName?: string;
+  assignedServerId?: string;
+  status: 'pending' | 'preparing' | 'ready' | 'fulfilled';
+  foodDone?: boolean;
+  barDone?: boolean;
+  hookahDone?: boolean;
+  items: TicketItem[];
+  customerNotes?: string;
+  subtotal: number;
+  tax: number;
+  tips: number;
+  grandTotal: number;
+  totalPaid: number;
 }
 
-const SAMPLE_TICKETS: MockTicket[] = [
+export interface ServerCallRequest {
+  id: string;
+  table: string;
+  orderNumber: string;
+  type: 'server' | 'coals' | 'water' | 'utensils' | 'check';
+  title: string;
+  timeAgo: string;
+  assignedServerName?: string;
+  status: 'active' | 'dismissed';
+}
+
+interface KdsViewProps {
+  onOpenCollectCash?: (orderId: string, grandTotal: number, totalPaid: number, totalDue: number) => void;
+  onOpenReassignServer?: (orderId: string, tableLabel: string, currentServerId?: string, currentServerName?: string) => void;
+  currentUserRole?: string;
+  currentUserId?: string;
+  currentUserName?: string;
+}
+
+const SAMPLE_TICKETS: KdsTicket[] = [
   {
-    id: 'ord_1',
-    table: 'Table 4',
+    id: 'ord_104',
+    table: '4',
     orderNumber: '#104',
+    timestamp: '10:42 PM',
     timeAgo: '4m ago',
-    server: 'Alex M.',
+    customerName: 'Aarav Patel',
+    assignedServerName: 'Suwasna Gorkhali',
+    assignedServerId: 'u1',
     status: 'pending',
+    foodDone: false,
+    barDone: true,
+    hookahDone: false,
     items: [
-      { name: '👑 Anarkali House Blend Hookah', qty: 1, price: '$36.00', notes: 'Ice base, Lady Killer + Pan Ras' },
-      { name: 'Mint Lemonade', qty: 2, price: '$14.00' },
-      { name: 'Zaatar Flatbread', qty: 1, price: '$12.50' },
+      {
+        name: '👑 Anarkali House Blend Hookah',
+        qty: 1,
+        price: 36.0,
+        category: 'hookah',
+        notes: 'Lady Killer + Pan Ras 50/50',
+        hasIceBase: true,
+        hasIceHose: true,
+      },
+      {
+        name: 'Mint Lemonade Spritzer',
+        qty: 2,
+        price: 14.0,
+        category: 'bar',
+        notes: 'Extra fresh crushed mint',
+      },
+      {
+        name: 'Zaatar Truffle Flatbread',
+        qty: 1,
+        price: 12.5,
+        category: 'kitchen',
+        notes: 'Crispy well-done crust',
+      },
     ],
-    total: '$62.50',
+    customerNotes: 'Celebrating birthday at table! Extra napkins please.',
+    subtotal: 62.5,
+    tax: 5.16,
+    tips: 11.25,
+    grandTotal: 78.91,
+    totalPaid: 0.0,
   },
   {
-    id: 'ord_2',
-    table: 'Table 12',
+    id: 'ord_105',
+    table: '12',
     orderNumber: '#105',
+    timestamp: '10:37 PM',
     timeAgo: '9m ago',
-    server: 'Sarah K.',
-    status: 'in_progress',
+    customerName: 'Priya Sharma',
+    assignedServerName: 'Suwasna Gorkhali',
+    assignedServerId: 'u1',
+    status: 'preparing',
+    foodDone: true,
+    barDone: true,
+    hookahDone: false,
     items: [
-      { name: 'Blue Mist Premium Hookah', qty: 1, price: '$34.00', notes: 'Refill coals in 20m' },
-      { name: 'Turkish Coffee', qty: 2, price: '$10.00' },
+      {
+        name: 'Blue Mist Premium Hookah',
+        qty: 1,
+        price: 34.0,
+        category: 'hookah',
+        notes: 'Refill coals in 20m',
+        hasIceBase: true,
+      },
+      {
+        name: 'Traditional Turkish Coffee',
+        qty: 2,
+        price: 10.0,
+        category: 'bar',
+        notes: 'Medium sweet with cardamom',
+      },
     ],
-    total: '$44.00',
+    subtotal: 44.0,
+    tax: 3.63,
+    tips: 8.0,
+    grandTotal: 55.63,
+    totalPaid: 55.63,
   },
   {
-    id: 'ord_3',
-    table: 'Table 7',
+    id: 'ord_106',
+    table: 'VIP 1',
     orderNumber: '#106',
-    timeAgo: '14m ago',
-    server: 'David R.',
-    status: 'pending',
-    items: [
-      { name: 'Double Apple Hookah', qty: 1, price: '$32.00' },
-      { name: 'Hummus & Warm Pita', qty: 1, price: '$11.00' },
-      { name: 'Iced Chai Latte', qty: 2, price: '$12.00' },
-    ],
-    total: '$55.00',
-  },
-  {
-    id: 'ord_4',
-    table: 'VIP Lounge 1',
-    orderNumber: '#107',
+    timestamp: '10:28 PM',
     timeAgo: '18m ago',
-    server: 'Alex M.',
-    status: 'in_progress',
+    customerName: 'Samir Khan',
+    assignedServerName: undefined,
+    status: 'pending',
+    foodDone: false,
+    barDone: false,
+    hookahDone: false,
     items: [
-      { name: '👑 Daku VIP Unlimited Package', qty: 1, price: '$65.00', notes: 'Head refill requested, Fruit head' },
-      { name: 'Sparkling Mineral Water', qty: 3, price: '$15.00' },
+      {
+        name: '👑 Make It Daku VIP Hookah Package',
+        qty: 1,
+        price: 65.0,
+        category: 'hookah',
+        notes: 'Unlimited head refill, Pineapple fruit head',
+        hasIceBase: true,
+        hasIceHose: true,
+      },
+      {
+        name: 'Sparkling Mineral Water',
+        qty: 3,
+        price: 15.0,
+        category: 'bar',
+      },
+      {
+        name: 'Classic Hummus & Warm Pita',
+        qty: 2,
+        price: 18.0,
+        category: 'kitchen',
+      },
     ],
-    total: '$80.00',
+    customerNotes: 'VIP guest booth, prioritize coal warm-up.',
+    subtotal: 98.0,
+    tax: 8.09,
+    tips: 20.0,
+    grandTotal: 126.09,
+    totalPaid: 50.0, // partial payment
   },
 ];
 
-export const KdsView: React.FC = () => {
-  const [tickets, setTickets] = useState<MockTicket[]>(SAMPLE_TICKETS);
+const SAMPLE_SERVER_CALLS: ServerCallRequest[] = [
+  {
+    id: 'req_1',
+    table: '8',
+    orderNumber: '#REQ8',
+    type: 'coals',
+    title: 'Hookah Coal Refill 🔥',
+    timeAgo: '2m ago',
+    assignedServerName: 'Suwasna Gorkhali',
+    status: 'active',
+  },
+  {
+    id: 'req_2',
+    table: '14',
+    orderNumber: '#REQ14',
+    type: 'server',
+    title: 'Server Assistance Needed 🛎️',
+    timeAgo: '5m ago',
+    assignedServerName: undefined,
+    status: 'active',
+  },
+];
+
+export const KdsView: React.FC<KdsViewProps> = ({
+  onOpenCollectCash,
+  onOpenReassignServer,
+  currentUserRole = 'manager',
+  currentUserId = 'u1',
+  currentUserName = 'Suwasna Gorkhali',
+}) => {
+  const [tickets, setTickets] = useState<KdsTicket[]>(SAMPLE_TICKETS);
+  const [serverCalls, setServerCalls] = useState<ServerCallRequest[]>(SAMPLE_SERVER_CALLS);
+  const [showCoalQueue, setShowCoalQueue] = useState(true);
+
+  const isHookahOrManager =
+    currentUserRole === 'hookah_maker' ||
+    currentUserRole === 'manager' ||
+    currentUserRole === 'owner' ||
+    currentUserRole === 'admin';
 
   const activeTickets = tickets.filter((t) => t.status !== 'fulfilled');
+  const activeCoalRequests = serverCalls.filter(
+    (c) => c.status === 'active' && c.type === 'coals'
+  );
 
-  const fulfillTicket = (id: string) => {
+  const updateTicketStatus = (
+    id: string,
+    newStatus: 'pending' | 'preparing' | 'ready' | 'fulfilled'
+  ) => {
     setTickets((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, status: 'fulfilled' } : t))
+      prev.map((t) => (t.id === id ? { ...t, status: newStatus } : t))
     );
   };
 
   const cancelTicket = (id: string) => {
-    setTickets((prev) => prev.filter((t) => t.id !== id));
+    if (confirm('Cancel this ticket order?')) {
+      setTickets((prev) => prev.filter((t) => t.id !== id));
+    }
   };
 
-  const resetSampleTickets = () => {
-    setTickets(SAMPLE_TICKETS);
+  const dismissServerCall = (id: string) => {
+    setServerCalls((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, status: 'dismissed' } : c))
+    );
   };
 
-  const clearAllTickets = () => {
-    setTickets([]);
+  const handlePrintTicket = (ticket: KdsTicket) => {
+    const printArea = document.getElementById('print-area');
+    if (printArea) {
+      printArea.innerHTML = `
+        <div style="font-family: monospace; padding: 10px; max-width: 300px;">
+          <h2 style="text-align: center; margin: 0;">BENZIN - CAVALLI</h2>
+          <div style="text-align: center; border-bottom: 1px dashed #000; padding-bottom: 5px; margin-bottom: 10px;">
+            TABLE ${ticket.table} - ORDER ${ticket.orderNumber}
+          </div>
+          <div>Time: ${ticket.timestamp}</div>
+          <div>Server: ${ticket.assignedServerName || 'Unassigned'}</div>
+          <div>Guest: ${ticket.customerName || 'Guest'}</div>
+          <div style="border-bottom: 1px dashed #000; margin: 8px 0;"></div>
+          ${ticket.items
+            .map(
+              (i) =>
+                `<div style="display:flex; justify-content:space-between;"><span>${i.qty}x ${i.name}</span><span>$${((i.price || 0) * i.qty).toFixed(2)}</span></div>${i.notes ? `<div style="font-size:10px; padding-left:10px;">* ${i.notes}</div>` : ''}`
+            )
+            .join('')}
+          <div style="border-bottom: 1px dashed #000; margin: 8px 0;"></div>
+          <div style="display:flex; justify-content:space-between;"><span>Subtotal:</span><span>$${ticket.subtotal.toFixed(2)}</span></div>
+          <div style="display:flex; justify-content:space-between;"><span>Tax:</span><span>$${ticket.tax.toFixed(2)}</span></div>
+          <div style="display:flex; justify-content:space-between;"><span>Tips:</span><span>$${ticket.tips.toFixed(2)}</span></div>
+          <div style="display:flex; justify-content:space-between; font-weight:bold; font-size:14px; margin-top:4px;"><span>GRAND TOTAL:</span><span>$${ticket.grandTotal.toFixed(2)}</span></div>
+        </div>
+      `;
+      window.print();
+    }
   };
 
   return (
     <div className="kds-layout" id="kdsPageLayout">
-      {/* Hookah Station Coal Refill Request Queue */}
-      <div id="hookahStationQueueSection" style={{ display: 'none', marginBottom: '24px' }}>
+      {/* Hookah Station Coal Refill Request Queue (Visible for Hookah Maker & Managers) */}
+      {isHookahOrManager && (
         <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            background: 'linear-gradient(135deg, rgba(255,90,31,0.18) 0%, rgba(229,177,58,0.12) 100%)',
-            border: '1.5px solid rgba(255,90,31,0.45)',
-            borderRadius: '12px',
-            padding: '14px 18px',
-            marginBottom: '14px',
-          }}
+          id="hookahStationQueueSection"
+          style={{ display: showCoalQueue ? 'block' : 'none', marginBottom: '24px' }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '24px' }}>🔥</span>
-            <div>
-              <div style={{ color: 'var(--cream)', fontWeight: 900, fontSize: '16px', letterSpacing: '0.5px' }}>
-                Hookah Station — Coal Refill Queue
-              </div>
-              <div style={{ color: 'var(--muted)', fontSize: '12px' }}>
-                Customer table requests routed exclusively to the Hookah Maker
-              </div>
-            </div>
-          </div>
           <div
-            id="hookahQueueBadge"
             style={{
-              background: '#ff5a1f',
-              color: '#fff',
-              fontWeight: 900,
-              fontSize: '12px',
-              padding: '4px 10px',
-              borderRadius: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background:
+                'linear-gradient(135deg, rgba(255,90,31,0.18) 0%, rgba(229,177,58,0.12) 100%)',
+              border: '1.5px solid rgba(255,90,31,0.45)',
+              borderRadius: '12px',
+              padding: '14px 18px',
+              marginBottom: '14px',
             }}
           >
-            0 ACTIVE
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '24px' }}>🔥</span>
+              <div>
+                <div
+                  style={{
+                    color: '#fff',
+                    fontWeight: 900,
+                    fontSize: '16px',
+                    letterSpacing: '0.5px',
+                  }}
+                >
+                  Hookah Station — Coal Refill Queue
+                </div>
+                <div style={{ color: 'var(--muted)', fontSize: '12px' }}>
+                  Customer table requests routed exclusively to the Hookah Maker
+                </div>
+              </div>
+            </div>
+            <div
+              id="hookahQueueBadge"
+              style={{
+                background: '#ff5a1f',
+                color: '#fff',
+                fontWeight: 900,
+                fontSize: '12px',
+                padding: '4px 10px',
+                borderRadius: '20px',
+              }}
+            >
+              {activeCoalRequests.length} ACTIVE
+            </div>
+          </div>
+
+          <div className="tickets-grid" id="hookahRequestsGrid">
+            {activeCoalRequests.map((req) => (
+              <div
+                key={req.id}
+                className="ticket-card server-call-ticket"
+                style={{
+                  border: '2px solid #ff5a1f',
+                  boxShadow: '0 0 24px rgba(255,90,31,0.28)',
+                }}
+              >
+                <div
+                  className="ticket-header"
+                  style={{
+                    background: 'rgba(255,90,31,0.12)',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    marginBottom: '12px',
+                  }}
+                >
+                  <div>
+                    <div
+                      className="ticket-title"
+                      style={{
+                        color: '#ff5a1f',
+                        fontSize: '19px',
+                        fontWeight: 900,
+                      }}
+                    >
+                      🔥 Table {req.table}{' '}
+                      <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                        {req.orderNumber}
+                      </span>
+                    </div>
+                    <div className="ticket-meta">
+                      🕒 {req.timeAgo} • Hookah Coal Refresh
+                    </div>
+                  </div>
+                  <span
+                    className="ticket-badge"
+                    style={{
+                      background: '#ff5a1f',
+                      color: '#fff',
+                      fontWeight: 900,
+                    }}
+                  >
+                    COAL REFILL
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1.5px solid rgba(255,90,31,0.3)',
+                    borderRadius: '12px',
+                    padding: '16px 14px',
+                    textAlign: 'center',
+                    marginBottom: '14px',
+                  }}
+                >
+                  <div style={{ fontSize: '18px', fontWeight: 900, color: '#fff', marginBottom: '4px' }}>
+                    Fresh Coconut Coals Needed
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--gold)', fontWeight: 700 }}>
+                    Customer at Table {req.table} is ready for hot coals
+                  </div>
+                </div>
+
+                <div className="ticket-actions">
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => dismissServerCall(req.id)}
+                    style={{
+                      background: '#10b981',
+                      borderColor: '#10b981',
+                      fontWeight: 900,
+                      flex: 1,
+                      padding: '10px',
+                      fontSize: '13px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                    }}
+                  >
+                    <CheckCircle style={{ width: '16px', height: '16px' }} />
+                    <span>Coals Refilled / Dismiss</span>
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-        <div className="tickets-grid" id="hookahRequestsGrid" />
-      </div>
+      )}
 
+      {/* Main KDS Tickets Section */}
       <section className="tickets-section">
-        <h2 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+        <h2
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '16px',
+            flexWrap: 'wrap',
+            gap: '10px',
+          }}
+        >
           <div>
             <span>Active Live KDS Tickets</span>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              className="btn"
+              onClick={() => setShowCoalQueue(!showCoalQueue)}
+              style={{ padding: '6px 12px', fontSize: '12px' }}
+            >
+              <Flame style={{ width: '13px', height: '13px' }} />
+              <span>{showCoalQueue ? 'Hide Coal Queue' : 'Show Coal Queue'}</span>
+            </button>
             {activeTickets.length === 0 ? (
               <button
                 className="btn btn-primary"
-                onClick={resetSampleTickets}
+                onClick={() => setTickets(SAMPLE_TICKETS)}
                 style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 800 }}
               >
                 <PlusCircle style={{ width: '13px', height: '13px' }} />
@@ -159,9 +465,8 @@ export const KdsView: React.FC = () => {
             ) : (
               <button
                 className="btn"
-                onClick={clearAllTickets}
+                onClick={() => setTickets([])}
                 style={{ padding: '6px 12px', fontSize: '12px' }}
-                title="View empty state as in legacy admin"
               >
                 <span>Clear to Empty State</span>
               </button>
@@ -170,7 +475,108 @@ export const KdsView: React.FC = () => {
         </h2>
 
         <div className="tickets-grid" id="ticketsGrid">
-          {activeTickets.length === 0 ? (
+          {/* Render active customer assistance call tickets (non-coal) */}
+          {serverCalls
+            .filter((c) => c.status === 'active' && c.type !== 'coals')
+            .map((req) => (
+              <div
+                key={req.id}
+                className="ticket-card server-call-ticket"
+                style={{
+                  border: '2px solid #e11d48',
+                  boxShadow: '0 0 24px rgba(225,29,72,0.28)',
+                }}
+              >
+                <div
+                  className="ticket-header"
+                  style={{
+                    background: 'rgba(225,29,72,0.12)',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    marginBottom: '12px',
+                  }}
+                >
+                  <div>
+                    <div
+                      className="ticket-title"
+                      style={{
+                        color: '#f43f5e',
+                        fontSize: '19px',
+                        fontWeight: 900,
+                      }}
+                    >
+                      🛎️ Table {req.table}{' '}
+                      <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                        {req.orderNumber}
+                      </span>
+                    </div>
+                    <div className="ticket-meta">
+                      🕒 {req.timeAgo} • 🍽️ Served by:{' '}
+                      <strong style={{ color: 'var(--cream)' }}>
+                        {req.assignedServerName || 'Staff'}
+                      </strong>
+                    </div>
+                  </div>
+                  <span
+                    className="ticket-badge"
+                    style={{
+                      background: '#e11d48',
+                      color: '#fff',
+                      fontWeight: 900,
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                    }}
+                  >
+                    CALL SERVER
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1.5px solid rgba(225,29,72,0.3)',
+                    borderRadius: '12px',
+                    padding: '18px 14px',
+                    textAlign: 'center',
+                    marginBottom: '14px',
+                  }}
+                >
+                  <div style={{ fontSize: '20px', fontWeight: 900, color: '#fff', marginBottom: '6px' }}>
+                    {req.title}
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--gold)', fontWeight: 700 }}>
+                    Customer at Table {req.table} is waiting for staff assistance
+                  </div>
+                </div>
+
+                <div className="ticket-actions">
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => dismissServerCall(req.id)}
+                    style={{
+                      background: '#10b981',
+                      borderColor: '#10b981',
+                      fontWeight: 900,
+                      flex: 1,
+                      padding: '12px',
+                      fontSize: '14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                    }}
+                  >
+                    <CheckCircle style={{ width: '18px', height: '18px' }} />
+                    <span>Complete / Dismiss</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+
+          {/* Render standard tickets or empty state */}
+          {activeTickets.length === 0 &&
+          serverCalls.filter((c) => c.status === 'active').length === 0 ? (
             <div
               style={{
                 gridColumn: '1 / -1',
@@ -180,77 +586,572 @@ export const KdsView: React.FC = () => {
                 fontSize: '16px',
               }}
             >
-              <Inbox style={{ width: '48px', height: '48px', marginBottom: '12px', opacity: 0.5, display: 'inline-block' }} />
-              <div>No active live tickets. New orders will appear here automatically in real time!</div>
+              <Inbox
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  marginBottom: '12px',
+                  opacity: 0.5,
+                  display: 'inline-block',
+                }}
+              />
+              <div>
+                No active live tickets. New orders will appear here automatically in real time!
+              </div>
             </div>
           ) : (
-            activeTickets.map((ticket) => (
-              <div
-                key={ticket.id}
-                className={`ticket-card ${ticket.status === 'fulfilled' ? 'fulfilled' : ''}`}
-              >
-                <div className="ticket-header">
-                  <div>
-                    <div className="ticket-title">
-                      {ticket.table} <span style={{ fontSize: '11px', color: 'var(--muted)' }}>({ticket.orderNumber})</span>
+            activeTickets.map((ticket) => {
+              const totalDue = Math.max(0, ticket.grandTotal - ticket.totalPaid);
+              const isPaid = totalDue <= 0.01;
+              const isPartial = ticket.totalPaid > 0 && !isPaid;
+
+              const kitchenItems = ticket.items.filter((i) => i.category === 'kitchen');
+              const barItems = ticket.items.filter((i) => i.category === 'bar');
+              const hookahItems = ticket.items.filter((i) => i.category === 'hookah');
+
+              const isAssignedToMe =
+                ticket.assignedServerId === currentUserId ||
+                ticket.assignedServerName === currentUserName;
+
+              return (
+                <div key={ticket.id} className="ticket-card">
+                  {/* Ticket Header */}
+                  <div className="ticket-header">
+                    <div>
+                      <div className="ticket-title">
+                        Table {ticket.table}{' '}
+                        <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                          {ticket.orderNumber}
+                        </span>
+                      </div>
+                      <div className="ticket-meta">
+                        👤 {ticket.customerName || 'Guest'} • 🕒 {ticket.timestamp} (
+                        {ticket.timeAgo})
+                        {ticket.assignedServerName && (
+                          <span>
+                            {' '}
+                            • 🍽️ Served by:{' '}
+                            <strong style={{ color: 'var(--cream)' }}>
+                              {ticket.assignedServerName}
+                            </strong>
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="ticket-meta">
-                      {ticket.timeAgo} • Server: {ticket.server}
+                    <span
+                      className={`ticket-badge ${
+                        ticket.status === 'ready'
+                          ? 'badge-ready'
+                          : ticket.status === 'preparing'
+                          ? 'badge-preparing'
+                          : 'badge-pending'
+                      }`}
+                    >
+                      {ticket.status.toUpperCase()}
+                    </span>
+                  </div>
+
+                  {/* Server Assignment Badge Pill */}
+                  <div style={{ marginBottom: '8px' }}>
+                    {!ticket.assignedServerName ? (
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          background: 'rgba(245,158,11,0.12)',
+                          border: '1px dashed #f59e0b',
+                          borderRadius: '8px',
+                          padding: '4px 10px',
+                          fontSize: '11px',
+                        }}
+                      >
+                        <span style={{ color: '#f59e0b', fontWeight: 800 }}>
+                          👤 Server: <em>Unassigned</em>
+                        </span>
+                        <button
+                          className="btn btn-primary"
+                          onClick={() => {
+                            if (onOpenReassignServer) {
+                              onOpenReassignServer(ticket.id, `Table ${ticket.table}`, '', 'Unassigned');
+                            }
+                          }}
+                          style={{
+                            background: '#0066FF',
+                            padding: '3px 9px',
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            borderRadius: '6px',
+                            minHeight: 'unset',
+                          }}
+                        >
+                          Assign Server
+                        </button>
+                      </div>
+                    ) : isAssignedToMe ? (
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          background: 'rgba(16,185,129,0.15)',
+                          border: '1px solid #10B981',
+                          borderRadius: '8px',
+                          padding: '4px 10px',
+                          fontSize: '11px',
+                        }}
+                      >
+                        <span style={{ color: '#10B981', fontWeight: 800 }}>
+                          ✓ Assigned to me ({ticket.assignedServerName})
+                        </span>
+                        <button
+                          className="btn"
+                          onClick={() => {
+                            if (onOpenReassignServer) {
+                              onOpenReassignServer(
+                                ticket.id,
+                                `Table ${ticket.table}`,
+                                ticket.assignedServerId,
+                                ticket.assignedServerName
+                              );
+                            }
+                          }}
+                          style={{
+                            padding: '2px 8px',
+                            fontSize: '11px',
+                            color: 'var(--muted)',
+                            minHeight: 'unset',
+                          }}
+                        >
+                          Reassign
+                        </button>
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          background: 'var(--card2)',
+                          border: '1px solid var(--line)',
+                          borderRadius: '8px',
+                          padding: '4px 10px',
+                          fontSize: '11px',
+                        }}
+                      >
+                        <span style={{ color: 'var(--cream)', fontWeight: 800 }}>
+                          👤 Server: <strong>{ticket.assignedServerName}</strong>
+                        </span>
+                        <button
+                          className="btn"
+                          onClick={() => {
+                            if (onOpenReassignServer) {
+                              onOpenReassignServer(
+                                ticket.id,
+                                `Table ${ticket.table}`,
+                                ticket.assignedServerId,
+                                ticket.assignedServerName
+                              );
+                            }
+                          }}
+                          style={{
+                            padding: '2px 8px',
+                            fontSize: '11px',
+                            color: '#60a5fa',
+                            minHeight: 'unset',
+                          }}
+                        >
+                          Reassign
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Readiness and Billing Status Badges */}
+                  <div
+                    style={{
+                      marginBottom: '6px',
+                      display: 'flex',
+                      gap: '4px',
+                      flexWrap: 'wrap',
+                      alignItems: 'center',
+                    }}
+                  >
+                    {kitchenItems.length > 0 && (
+                      <span
+                        style={{
+                          background: ticket.foodDone
+                            ? 'rgba(34,197,94,0.15)'
+                            : 'rgba(239,68,68,0.15)',
+                          color: ticket.foodDone ? 'var(--success)' : 'var(--danger)',
+                          border: `1px solid ${
+                            ticket.foodDone ? 'var(--success)' : 'var(--danger)'
+                          }`,
+                          borderRadius: '4px',
+                          padding: '1px 5px',
+                          fontSize: '9px',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {ticket.foodDone ? '✅ Food Ready' : '⏳ Food Pending'}
+                      </span>
+                    )}
+
+                    {barItems.length > 0 && (
+                      <span
+                        style={{
+                          background: ticket.barDone
+                            ? 'rgba(34,197,94,0.15)'
+                            : 'rgba(239,68,68,0.15)',
+                          color: ticket.barDone ? 'var(--success)' : 'var(--danger)',
+                          border: `1px solid ${
+                            ticket.barDone ? 'var(--success)' : 'var(--danger)'
+                          }`,
+                          borderRadius: '4px',
+                          padding: '1px 5px',
+                          fontSize: '9px',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {ticket.barDone ? '✅ Bar Ready' : '⏳ Bar Pending'}
+                      </span>
+                    )}
+
+                    {hookahItems.length > 0 && (
+                      <span
+                        style={{
+                          background: ticket.hookahDone
+                            ? 'rgba(34,197,94,0.15)'
+                            : 'rgba(239,68,68,0.15)',
+                          color: ticket.hookahDone ? 'var(--success)' : 'var(--danger)',
+                          border: `1px solid ${
+                            ticket.hookahDone ? 'var(--success)' : 'var(--danger)'
+                          }`,
+                          borderRadius: '4px',
+                          padding: '1px 5px',
+                          fontSize: '9px',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {ticket.hookahDone ? '✅ Hookah Ready' : '⏳ Hookah Pending'}
+                      </span>
+                    )}
+
+                    {/* Billing Status Badge */}
+                    {isPaid ? (
+                      <span
+                        style={{
+                          background: 'rgba(34,197,94,0.15)',
+                          color: 'var(--success)',
+                          border: '1px solid var(--success)',
+                          borderRadius: '4px',
+                          padding: '1px 5px',
+                          fontSize: '9px',
+                          fontWeight: 800,
+                        }}
+                      >
+                        💵 PAID IN FULL (${ticket.grandTotal.toFixed(2)})
+                      </span>
+                    ) : isPartial ? (
+                      <span
+                        style={{
+                          background: 'rgba(229,177,58,0.15)',
+                          color: 'var(--gold)',
+                          border: '1px solid var(--gold)',
+                          borderRadius: '4px',
+                          padding: '1px 5px',
+                          fontSize: '9px',
+                          fontWeight: 800,
+                        }}
+                      >
+                        💳 PARTIAL (Paid: ${ticket.totalPaid.toFixed(2)}, Due: $
+                        {totalDue.toFixed(2)})
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          background: 'rgba(239,68,68,0.15)',
+                          color: 'var(--danger)',
+                          border: '1px solid var(--danger)',
+                          borderRadius: '4px',
+                          padding: '1px 5px',
+                          fontSize: '9px',
+                          fontWeight: 800,
+                        }}
+                      >
+                        🔴 UNPAID (Due: ${totalDue.toFixed(2)})
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Grouped Items Breakdown */}
+                  <div className="ticket-items">
+                    {kitchenItems.length > 0 && (
+                      <div>
+                        <div className="ticket-item-group-title">🍔 KITCHEN</div>
+                        {kitchenItems.map((item, idx) => (
+                          <div key={idx} style={{ marginBottom: '4px' }}>
+                            <div className="ticket-item-line">
+                              <span>
+                                {item.name}{' '}
+                                {item.qty > 1 && (
+                                  <span style={{ color: 'var(--gold)', fontWeight: 900 }}>
+                                    x{item.qty}
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                            {item.notes && (
+                              <div className="ticket-item-note">Note: {item.notes}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {barItems.length > 0 && (
+                      <div>
+                        <div className="ticket-item-group-title">🍸 BAR</div>
+                        {barItems.map((item, idx) => (
+                          <div key={idx} style={{ marginBottom: '4px' }}>
+                            <div className="ticket-item-line">
+                              <span>
+                                {item.name}{' '}
+                                {item.qty > 1 && (
+                                  <span style={{ color: 'var(--gold)', fontWeight: 900 }}>
+                                    x{item.qty}
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                            {item.notes && (
+                              <div className="ticket-item-note">Note: {item.notes}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {hookahItems.length > 0 && (
+                      <div>
+                        <div className="ticket-item-group-title">💨 HOOKAH</div>
+                        {hookahItems.map((item, idx) => (
+                          <div key={idx} style={{ marginBottom: '6px' }}>
+                            <div
+                              className="ticket-item-line"
+                              style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}
+                            >
+                              <span>
+                                💨 <strong>{item.name}</strong>{' '}
+                                {item.qty > 1 && (
+                                  <span style={{ color: 'var(--gold)', fontWeight: 900 }}>
+                                    x{item.qty}
+                                  </span>
+                                )}
+                              </span>
+                              {item.hasIceBase && (
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    background: 'rgba(0,153,255,0.22)',
+                                    color: '#38BDF8',
+                                    border: '1.5px solid #0099FF',
+                                    borderRadius: '6px',
+                                    padding: '2px 7px',
+                                    fontSize: '11px',
+                                    fontWeight: 900,
+                                    marginLeft: '6px',
+                                  }}
+                                >
+                                  🧊 ICE BASE
+                                </span>
+                              )}
+                              {item.hasIceHose && (
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    background: 'rgba(20,184,166,0.22)',
+                                    color: '#2DD4BF',
+                                    border: '1.5px solid #14B8A6',
+                                    borderRadius: '6px',
+                                    padding: '2px 7px',
+                                    fontSize: '11px',
+                                    fontWeight: 900,
+                                    marginLeft: '6px',
+                                  }}
+                                >
+                                  ❄️ ICE HOSE
+                                </span>
+                              )}
+                            </div>
+                            {item.notes && (
+                              <div
+                                className="ticket-item-note"
+                                style={{ color: '#FBBF24', fontWeight: 700 }}
+                              >
+                                📝 Note: {item.notes}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Customer Notes Callout */}
+                  {ticket.customerNotes && (
+                    <div
+                      className="ticket-note"
+                      style={{
+                        background: 'rgba(229,177,58,0.08)',
+                        border: '1px solid rgba(229,177,58,0.3)',
+                        borderRadius: '6px',
+                        padding: '6px 10px',
+                        fontSize: '11px',
+                        color: 'var(--gold)',
+                        margin: '8px 0',
+                        fontStyle: 'italic',
+                      }}
+                    >
+                      📝 Customer Request: "{ticket.customerNotes}"
+                    </div>
+                  )}
+
+                  {/* Financial Summary */}
+                  <div
+                    style={{
+                      marginTop: '8px',
+                      paddingTop: '6px',
+                      borderTop: '1px dashed var(--line)',
+                      fontSize: '11px',
+                      color: 'var(--muted)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', marginBottom: '2px' }}>
+                      <span>Subtotal</span>
+                      <span>${ticket.subtotal.toFixed(2)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                      <span>Sales Tax (8.25%)</span>
+                      <span>${ticket.tax.toFixed(2)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                      <span>Gratuity (18%)</span>
+                      <span>${ticket.tips.toFixed(2)}</span>
                     </div>
                   </div>
-                  <span
-                    className={`ticket-badge ${
-                      ticket.status === 'fulfilled' ? 'badge-fulfilled' : 'badge-pending'
-                    }`}
-                  >
-                    {ticket.status.toUpperCase()}
-                  </span>
-                </div>
 
-                <div className="ticket-items">
-                  {ticket.items.map((item, idx) => (
-                    <div key={idx} style={{ marginBottom: '4px' }}>
-                      <div className="ticket-item-line">
-                        <span>{item.qty}x {item.name}</span>
-                        <span style={{ color: 'var(--muted)' }}>{item.price}</span>
-                      </div>
-                      {item.notes && <div className="ticket-item-note">Note: {item.notes}</div>}
-                    </div>
-                  ))}
-                </div>
+                  {/* Total Due */}
+                  <div
+                    className="ticket-total-row"
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginTop: '4px',
+                    }}
+                  >
+                    <span style={{ fontWeight: 700 }}>TOTAL DUE</span>
+                    <span
+                      style={{
+                        fontWeight: 900,
+                        color: isPaid ? 'var(--success)' : 'var(--gold)',
+                      }}
+                    >
+                      ${totalDue.toFixed(2)}
+                    </span>
+                  </div>
 
-                <div className="ticket-total-row">
-                  <span>Total Due</span>
-                  <span>{ticket.total}</span>
+                  {/* Action Buttons */}
+                  <div className="ticket-actions">
+                    <button
+                      className="btn"
+                      onClick={() => updateTicketStatus(ticket.id, 'preparing')}
+                      style={{
+                        background: 'rgba(59,130,246,0.15)',
+                        borderColor: '#3B82F6',
+                        color: '#60A5FA',
+                        fontWeight: 800,
+                        fontSize: '11px',
+                        padding: '4px 8px',
+                      }}
+                    >
+                      👨‍🍳 Prep
+                    </button>
+                    <button
+                      className="btn"
+                      onClick={() => updateTicketStatus(ticket.id, 'ready')}
+                      style={{
+                        background: 'rgba(245,158,11,0.15)',
+                        borderColor: '#F59E0B',
+                        color: '#FBBF24',
+                        fontWeight: 800,
+                        fontSize: '11px',
+                        padding: '4px 8px',
+                      }}
+                    >
+                      🔔 Ready
+                    </button>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => updateTicketStatus(ticket.id, 'fulfilled')}
+                      style={{
+                        background: 'var(--success)',
+                        borderColor: 'var(--success)',
+                        fontWeight: 800,
+                        fontSize: '11px',
+                        padding: '4px 8px',
+                      }}
+                    >
+                      <CheckCircle style={{ width: '13px', height: '13px' }} /> Serve
+                    </button>
+                    <button
+                      className="btn"
+                      onClick={() => {
+                        if (onOpenCollectCash) {
+                          onOpenCollectCash(
+                            ticket.id,
+                            ticket.grandTotal,
+                            ticket.totalPaid,
+                            totalDue
+                          );
+                        }
+                      }}
+                      style={{
+                        background: 'rgba(229,177,58,0.15)',
+                        borderColor: 'var(--gold)',
+                        color: 'var(--gold)',
+                        fontWeight: 800,
+                        fontSize: '11px',
+                        padding: '4px 8px',
+                      }}
+                    >
+                      💵 Pay Cash
+                    </button>
+                    <button
+                      className="btn"
+                      onClick={() => handlePrintTicket(ticket)}
+                      style={{ fontSize: '11px', padding: '4px 8px' }}
+                      title="Print Thermal Ticket"
+                    >
+                      <Printer style={{ width: '13px', height: '13px' }} /> Print
+                    </button>
+                    <button
+                      className="btn btn-danger"
+                      onClick={() => cancelTicket(ticket.id)}
+                      style={{ padding: '4px 8px', fontSize: '11px' }}
+                      title="Cancel Order"
+                    >
+                      <XCircle style={{ width: '13px', height: '13px' }} />
+                    </button>
+                  </div>
                 </div>
-
-                <div className="ticket-actions">
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => fulfillTicket(ticket.id)}
-                    disabled={ticket.status === 'fulfilled'}
-                  >
-                    <CheckCircle2 style={{ width: '13px', height: '13px' }} />
-                    <span>{ticket.status === 'fulfilled' ? 'Done' : 'Fulfill'}</span>
-                  </button>
-                  <button
-                    className="btn"
-                    onClick={() => alert(`Printing ticket for ${ticket.table}`)}
-                    title="Print Kitchen Ticket"
-                  >
-                    <Printer style={{ width: '13px', height: '13px' }} />
-                    <span>Print</span>
-                  </button>
-                  <button
-                    className="btn btn-danger"
-                    onClick={() => cancelTicket(ticket.id)}
-                    title="Cancel Order"
-                  >
-                    <XCircle style={{ width: '13px', height: '13px' }} />
-                  </button>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </section>

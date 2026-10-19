@@ -7,17 +7,27 @@ import {
   FolderPlus,
   PlusCircle,
   Edit2,
+  Trash2,
 } from 'lucide-react';
+import { MenuItem } from '../types';
 
-interface MenuItem {
+interface VibeQuestQuestion {
   id: string;
-  name: string;
-  price: number;
-  category: string;
-  superCategory: 'Hookah' | 'Food' | 'Drinks';
-  emoji: string;
-  description: string;
-  isSpecial?: boolean;
+  title: string;
+  prompt: string;
+  options: Array<{
+    text: string;
+    emoji: string;
+    targetCategory: string;
+  }>;
+}
+
+interface MenuViewProps {
+  onOpenHookahConfig?: () => void;
+  onOpenSpecials?: () => void;
+  onOpenAddCategory?: () => void;
+  onOpenAddItem?: () => void;
+  onOpenEditItem?: (item: MenuItem) => void;
 }
 
 const INITIAL_MENU: MenuItem[] = [
@@ -87,11 +97,41 @@ const INITIAL_MENU: MenuItem[] = [
   },
 ];
 
-export const MenuView: React.FC = () => {
+const INITIAL_QUESTIONS: VibeQuestQuestion[] = [
+  {
+    id: 'q1',
+    title: 'Experience Type',
+    prompt: 'What are you in the mood for tonight?',
+    options: [
+      { text: 'Hookah Chill', emoji: '💨', targetCategory: 'Hookah' },
+      { text: 'Refreshing Drinks', emoji: '🍹', targetCategory: 'Drinks' },
+      { text: 'Bites & Appetizers', emoji: '🫓', targetCategory: 'Food' },
+    ],
+  },
+  {
+    id: 'q2',
+    title: 'Flavor Profile',
+    prompt: 'What flavor notes do you prefer?',
+    options: [
+      { text: 'Fruity & Sweet', emoji: '🍉', targetCategory: 'Exotic Flavors' },
+      { text: 'Cool & Minty', emoji: '❄️', targetCategory: 'Classic Flavors' },
+      { text: 'Paan & Spiced', emoji: '🌿', targetCategory: 'Signature Mixes' },
+    ],
+  },
+];
+
+export const MenuView: React.FC<MenuViewProps> = ({
+  onOpenHookahConfig,
+  onOpenSpecials,
+  onOpenAddCategory,
+  onOpenAddItem,
+  onOpenEditItem,
+}) => {
   const [activeSubTab, setActiveSubTab] = useState<'items' | 'vibeQuest'>('items');
   const [superCat, setSuperCat] = useState<'All' | 'Hookah' | 'Food' | 'Drinks'>('All');
   const [searchTerm, setSearchTerm] = useState('');
   const [items] = useState<MenuItem[]>(INITIAL_MENU);
+  const [questions, setQuestions] = useState<VibeQuestQuestion[]>(INITIAL_QUESTIONS);
 
   const filteredItems = items.filter((item) => {
     if (superCat !== 'All' && item.superCategory !== superCat) return false;
@@ -99,9 +139,28 @@ export const MenuView: React.FC = () => {
     return true;
   });
 
+  const handleAddQuestion = () => {
+    setQuestions((prev) => [
+      ...prev,
+      {
+        id: `q_${Date.now()}`,
+        title: `Question ${prev.length + 1}`,
+        prompt: 'Select your preference:',
+        options: [
+          { text: 'Option A', emoji: '⭐', targetCategory: 'Hookah' },
+          { text: 'Option B', emoji: '✨', targetCategory: 'Drinks' },
+        ],
+      },
+    ]);
+  };
+
+  const handleSaveQuestions = () => {
+    alert('Ordering Questions saved successfully!');
+  };
+
   return (
     <div id="menuPageLayout" style={{ display: 'block' }}>
-      {/* Menu Catalog Sub-Navigation */}
+      {/* Menu Catalog Sub-Navigation (Items vs Vibe Quest) */}
       <div
         style={{
           display: 'flex',
@@ -225,6 +284,26 @@ export const MenuView: React.FC = () => {
               <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'nowrap' }}>
                 <button
                   className="btn touch-target"
+                  onClick={() => setActiveSubTab('vibeQuest')}
+                  style={{
+                    background: 'rgba(245,158,11,0.14)',
+                    color: 'var(--gold)',
+                    border: '1.5px solid var(--gold)',
+                    fontWeight: 800,
+                    padding: '6px 10px',
+                    fontSize: '12px',
+                    borderRadius: '8px',
+                    whiteSpace: 'nowrap',
+                    minHeight: '36px',
+                  }}
+                  title="Configure Ordering Questions"
+                >
+                  <HelpCircle style={{ width: '14px', height: '14px' }} />
+                  <span>Ordering Questions</span>
+                </button>
+                <button
+                  className="btn touch-target"
+                  onClick={onOpenHookahConfig}
                   style={{
                     background: 'rgba(229,177,58,0.12)',
                     color: 'var(--gold)',
@@ -236,13 +315,14 @@ export const MenuView: React.FC = () => {
                     whiteSpace: 'nowrap',
                     minHeight: '36px',
                   }}
-                  title="Configure Hookah Flavors"
+                  title="Configure Hookah Flavors, Bases, Add-ons & Packages"
                 >
                   <Flame style={{ width: '14px', height: '14px' }} />
                   <span>💨 Hookah Config</span>
                 </button>
                 <button
                   className="btn touch-target"
+                  onClick={onOpenSpecials}
                   style={{
                     background: 'rgba(168,85,247,0.12)',
                     color: '#c084fc',
@@ -261,6 +341,7 @@ export const MenuView: React.FC = () => {
                 </button>
                 <button
                   className="btn touch-target"
+                  onClick={onOpenAddCategory}
                   style={{
                     background: 'var(--card2)',
                     color: 'var(--gold)',
@@ -279,6 +360,7 @@ export const MenuView: React.FC = () => {
                 </button>
                 <button
                   className="btn btn-primary touch-target"
+                  onClick={onOpenAddItem}
                   style={{
                     fontWeight: 800,
                     padding: '6px 12px',
@@ -318,6 +400,9 @@ export const MenuView: React.FC = () => {
               </button>
             ))}
           </div>
+
+          {/* Sub-Category Pill Filters Bar placeholder */}
+          <div id="subCategoryHeaderNav" style={{ marginBottom: '20px' }} />
 
           {/* Menu Items Grid */}
           <div
@@ -363,7 +448,11 @@ export const MenuView: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px', paddingTop: '10px', borderTop: '1px dashed var(--line)' }}>
-                  <button className="btn" style={{ padding: '6px 10px', fontSize: '11px' }}>
+                  <button
+                    className="btn"
+                    onClick={() => onOpenEditItem && onOpenEditItem(item)}
+                    style={{ padding: '6px 10px', fontSize: '11px' }}
+                  >
                     <Edit2 style={{ width: '12px', height: '12px' }} />
                     Edit
                   </button>
@@ -374,6 +463,7 @@ export const MenuView: React.FC = () => {
         </div>
       ) : (
         <div id="menuCatalogVibeQuestView" style={{ maxWidth: '1040px', margin: '0 auto' }}>
+          {/* Header & Primary Action Toolbar */}
           <div
             style={{
               background: 'var(--card)',
@@ -411,6 +501,8 @@ export const MenuView: React.FC = () => {
             </div>
             <button
               className="btn btn-primary"
+              id="saveQuestionsTopBtn"
+              onClick={handleSaveQuestions}
               style={{
                 background: 'var(--gold)',
                 borderColor: 'var(--gold)',
@@ -419,28 +511,112 @@ export const MenuView: React.FC = () => {
                 fontSize: '13px',
                 padding: '10px 24px',
                 borderRadius: '10px',
+                boxShadow: '0 4px 14px rgba(229,177,58,0.25)',
               }}
             >
               💾 Save Questions
             </button>
           </div>
 
+          {/* Question Cards List Container */}
+          <div
+            id="questionConfigCardsContainer"
+            style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '24px' }}
+          >
+            {questions.map((q, idx) => (
+              <div
+                key={q.id}
+                style={{
+                  background: 'var(--card)',
+                  border: '1.5px solid var(--line)',
+                  borderRadius: '14px',
+                  padding: '20px',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--gold)' }}>
+                    Q{idx + 1}: {q.title}
+                  </div>
+                  <button
+                    className="btn btn-danger"
+                    onClick={() => setQuestions((prev) => prev.filter((item) => item.id !== q.id))}
+                    style={{ padding: '4px 8px', fontSize: '11px' }}
+                  >
+                    <Trash2 style={{ width: '12px', height: '12px' }} />
+                  </button>
+                </div>
+                <div style={{ fontSize: '13px', color: 'var(--cream)', fontWeight: 700, marginBottom: '12px' }}>
+                  {q.prompt}
+                </div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {q.options.map((opt, oIdx) => (
+                    <div
+                      key={oIdx}
+                      style={{
+                        background: 'var(--card2)',
+                        border: '1px solid var(--line)',
+                        borderRadius: '8px',
+                        padding: '8px 12px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <span>{opt.emoji}</span>
+                      <span>{opt.text}</span>
+                      <span style={{ fontSize: '10px', color: 'var(--gold)', marginLeft: '4px' }}>
+                        → {opt.targetCategory}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Bottom Action Bar */}
           <div
             style={{
-              background: 'var(--card)',
-              border: '1px solid var(--line)',
-              borderRadius: '12px',
-              padding: '20px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginTop: '16px',
+              marginBottom: '40px',
             }}
           >
-            <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--cream)', marginBottom: '8px' }}>
-              Q1: What are you in the mood for today?
-            </div>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <span className="sub-tab active">Hookah Experience 💨</span>
-              <span className="sub-tab">Signature Drinks 🍹</span>
-              <span className="sub-tab">Artisan Food 🫓</span>
-            </div>
+            <button
+              className="btn"
+              onClick={handleAddQuestion}
+              style={{
+                background: 'var(--card2)',
+                border: '1.5px dashed var(--gold)',
+                color: 'var(--gold)',
+                fontWeight: 800,
+                fontSize: '13px',
+                padding: '10px 20px',
+                borderRadius: '10px',
+              }}
+            >
+              + Add Another Question
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={handleSaveQuestions}
+              style={{
+                background: 'var(--gold)',
+                borderColor: 'var(--gold)',
+                color: '#000',
+                fontWeight: 900,
+                fontSize: '13px',
+                padding: '10px 24px',
+                borderRadius: '10px',
+                boxShadow: '0 4px 14px rgba(229,177,58,0.25)',
+              }}
+            >
+              💾 Save Questions
+            </button>
           </div>
         </div>
       )}

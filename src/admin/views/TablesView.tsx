@@ -1,161 +1,206 @@
 import React, { useState } from 'react';
-import { RefreshCw, PlusCircle } from 'lucide-react';
+import { RefreshCw, PlusCircle, Edit2 } from 'lucide-react';
 
-interface MockTable {
+import { AdminTabId } from '../types';
+
+export interface FloorTable {
   id: string;
-  name: string;
+  tableNumber: string | number;
+  label: string;
   capacity: number;
   section: string;
   status: 'available' | 'new_order' | 'in_progress' | 'ready' | 'completed';
   activeOrder?: {
+    orderId: string;
     orderNumber: string;
-    total: string;
+    total: number;
+    totalDue: number;
     elapsed: string;
-    server: string;
+    serverName?: string;
+    serverId?: string;
+    customerNickname?: string;
     itemSummary: string;
   };
 }
 
-const INITIAL_TABLES: MockTable[] = [
+interface TablesViewProps {
+  onOpenAddTable?: () => void;
+  onOpenEditTable?: (table: {
+    id: string;
+    tableNumber: string | number;
+    label: string;
+    capacity: number;
+  }) => void;
+  onOpenCollectCash?: (orderId: string, grandTotal: number, totalPaid: number, totalDue: number) => void;
+  onOpenReassignServer?: (orderId: string, tableLabel: string, currentServerId?: string, currentServerName?: string) => void;
+  onSelectTab?: (tabId: AdminTabId) => void;
+  currentUserId?: string;
+  currentUserName?: string;
+}
+
+const INITIAL_TABLES: FloorTable[] = [
   {
     id: 't1',
-    name: 'Table 1',
+    tableNumber: '1',
+    label: 'Table 1',
     capacity: 4,
     section: 'Main Lounge',
     status: 'new_order',
     activeOrder: {
+      orderId: 'ord_108',
       orderNumber: '#108',
-      total: '$52.00',
+      total: 52.0,
+      totalDue: 52.0,
       elapsed: '3m ago',
-      server: 'Alex M.',
+      serverName: 'Suwasna Gorkhali',
+      serverId: 'u1',
+      customerNickname: 'Aarav P.',
       itemSummary: '1x Love 66 Hookah, 2x Red Bull',
     },
   },
   {
     id: 't2',
-    name: 'Table 2',
+    tableNumber: '2',
+    label: 'Table 2',
     capacity: 2,
     section: 'Main Lounge',
     status: 'in_progress',
     activeOrder: {
+      orderId: 'ord_105',
       orderNumber: '#105',
-      total: '$44.00',
+      total: 44.0,
+      totalDue: 0.0,
       elapsed: '18m ago',
-      server: 'Sarah K.',
+      serverName: 'Alex M.',
+      serverId: 'u3',
+      customerNickname: 'Sarah K.',
       itemSummary: '1x Blue Mist, 2x Turkish Coffee',
     },
   },
   {
     id: 't3',
-    name: 'Table 3',
+    tableNumber: '3',
+    label: 'Table 3',
     capacity: 4,
     section: 'Main Lounge',
     status: 'ready',
     activeOrder: {
+      orderId: 'ord_102',
       orderNumber: '#102',
-      total: '$68.00',
+      total: 68.0,
+      totalDue: 68.0,
       elapsed: '32m ago',
-      server: 'David R.',
+      serverName: undefined,
+      customerNickname: 'David R.',
       itemSummary: '1x Double Apple, Flatbread, Mocktails',
     },
   },
   {
     id: 't4',
-    name: 'Table 4',
+    tableNumber: 'P1',
+    label: 'Patio P1',
     capacity: 6,
     section: 'Patio',
     status: 'available',
   },
   {
     id: 't5',
-    name: 'Table 5',
+    tableNumber: 'P2',
+    label: 'Patio P2',
     capacity: 4,
     section: 'Patio',
     status: 'available',
   },
   {
     id: 't6',
-    name: 'Table 6',
+    tableNumber: 'VIP 1',
+    label: 'VIP Booth 1',
     capacity: 8,
     section: 'VIP Booth',
     status: 'completed',
     activeOrder: {
+      orderId: 'ord_99',
       orderNumber: '#99',
-      total: '$140.00',
+      total: 140.0,
+      totalDue: 0.0,
       elapsed: 'Paid 5m ago',
-      server: 'Alex M.',
+      serverName: 'Suwasna Gorkhali',
+      serverId: 'u1',
+      customerNickname: 'VIP Party',
       itemSummary: 'Daku VIP Package, Bottle Service',
     },
   },
-  {
-    id: 't7',
-    name: 'VIP 1',
-    capacity: 10,
-    section: 'VIP Lounge',
-    status: 'in_progress',
-    activeOrder: {
-      orderNumber: '#107',
-      total: '$80.00',
-      elapsed: '15m ago',
-      server: 'Alex M.',
-      itemSummary: 'Daku VIP Hookah, Sparkling Water',
-    },
-  },
-  {
-    id: 't8',
-    name: 'VIP 2',
-    capacity: 10,
-    section: 'VIP Lounge',
-    status: 'available',
-  },
 ];
 
-export const TablesView: React.FC = () => {
-  const [tables] = useState<MockTable[]>(INITIAL_TABLES);
+export const TablesView: React.FC<TablesViewProps> = ({
+  onOpenAddTable,
+  onOpenEditTable,
+  onOpenCollectCash,
+  onOpenReassignServer,
+  onSelectTab,
+  currentUserId = 'u1',
+  currentUserName = 'Suwasna Gorkhali',
+}) => {
+  const [tables, setTables] = useState<FloorTable[]>(INITIAL_TABLES);
   const [filter, setFilter] = useState<'all' | 'active' | 'my' | 'available'>('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  const filteredTables = tables.filter((tbl) => {
-    if (filter === 'active' && tbl.status === 'available') return false;
-    if (filter === 'available' && tbl.status !== 'available') return false;
-    if (filter === 'my' && tbl.activeOrder?.server !== 'Alex M.') return false;
-    if (searchTerm) {
-      const q = searchTerm.toLowerCase();
-      const matchName = tbl.name.toLowerCase().includes(q);
-      const matchServer = tbl.activeOrder?.server.toLowerCase().includes(q);
-      const matchOrder = tbl.activeOrder?.orderNumber.toLowerCase().includes(q);
-      if (!matchName && !matchServer && !matchOrder) return false;
-    }
-    return true;
-  });
-
   const countTotal = tables.length;
-  const countNew = tables.filter((t) => t.status === 'new_order').length;
+  const countNewOrders = tables.filter((t) => t.status === 'new_order').length;
   const countInProgress = tables.filter((t) => t.status === 'in_progress').length;
   const countReady = tables.filter((t) => t.status === 'ready').length;
   const countAvailable = tables.filter((t) => t.status === 'available').length;
   const countActive = tables.filter((t) => t.status !== 'available').length;
-  const countMy = tables.filter((t) => t.activeOrder?.server === 'Alex M.').length;
 
-  const renderStatusPill = (status: MockTable['status']) => {
+  const countMy = tables.filter(
+    (t) =>
+      t.status !== 'available' &&
+      (t.activeOrder?.serverId === currentUserId ||
+        t.activeOrder?.serverName === currentUserName)
+  ).length;
+
+  const filteredTables = tables.filter((tbl) => {
+    if (filter === 'active' && tbl.status === 'available') return false;
+    if (filter === 'available' && tbl.status !== 'available') return false;
+    if (filter === 'my') {
+      if (tbl.status === 'available') return false;
+      const isMine =
+        tbl.activeOrder?.serverId === currentUserId ||
+        tbl.activeOrder?.serverName === currentUserName;
+      if (!isMine) return false;
+    }
+
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase();
+      const matchLabel = tbl.label.toLowerCase().includes(q);
+      const matchServer = (tbl.activeOrder?.serverName || '').toLowerCase().includes(q);
+      const matchCustomer = (tbl.activeOrder?.customerNickname || '').toLowerCase().includes(q);
+      const matchItems = (tbl.activeOrder?.itemSummary || '').toLowerCase().includes(q);
+      if (!matchLabel && !matchServer && !matchCustomer && !matchItems) return false;
+    }
+
+    return true;
+  });
+
+  const renderStatusPill = (status: FloorTable['status']) => {
     switch (status) {
       case 'new_order':
-        return <span className="table-pill table-pill-new_order">🔥 New Order</span>;
+        return <span className="table-pill table-pill-new_order">🔥 NEW ORDER</span>;
       case 'in_progress':
-        return <span className="table-pill table-pill-in_progress">⏳ In Progress</span>;
+        return <span className="table-pill table-pill-in_progress">⏳ IN PROGRESS</span>;
       case 'ready':
-        return <span className="table-pill table-pill-ready">✓ Ready</span>;
+        return <span className="table-pill table-pill-ready">✓ READY</span>;
       case 'completed':
-        return <span className="table-pill table-pill-completed">✓ Completed</span>;
+        return <span className="table-pill table-pill-completed">✓ COMPLETED</span>;
       case 'available':
       default:
-        return <span className="table-pill table-pill-available">○ Available</span>;
+        return <span className="table-pill table-pill-available">○ AVAILABLE</span>;
     }
   };
 
   return (
-    <div id="tablesPageLayout" style={{ display: 'block', padding: '10px 0 60px 0' }}>
-      {/* Top Floor Controls & Metrics Bar */}
+    <div id="tablesPageLayout" style={{ padding: '20px 24px 60px 24px' }}>
+      {/* Top Header & Live Indicator */}
       <div
         style={{
           display: 'flex',
@@ -224,7 +269,7 @@ export const TablesView: React.FC = () => {
           >
             <span>New Orders:</span>{' '}
             <span id="statNewOrders" style={{ fontWeight: 900, marginLeft: '4px' }}>
-              {countNew}
+              {countNewOrders}
             </span>
           </div>
           <div
@@ -296,27 +341,31 @@ export const TablesView: React.FC = () => {
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
           <button
             className={`sub-tab ${filter === 'all' ? 'active' : ''}`}
+            id="tblFilterBtn-all"
             onClick={() => setFilter('all')}
           >
-            All Tables ({countTotal})
+            All Tables (<span id="tblFilterCount-all">{countTotal}</span>)
           </button>
           <button
             className={`sub-tab ${filter === 'active' ? 'active' : ''}`}
+            id="tblFilterBtn-active"
             onClick={() => setFilter('active')}
           >
-            Active Orders ({countActive})
+            Active Orders (<span id="tblFilterCount-active">{countActive}</span>)
           </button>
           <button
             className={`sub-tab ${filter === 'my' ? 'active' : ''}`}
+            id="tblFilterBtn-my"
             onClick={() => setFilter('my')}
           >
-            My Assigned Tables ({countMy})
+            My Assigned Tables (<span id="tblFilterCount-my">{countMy}</span>)
           </button>
           <button
             className={`sub-tab ${filter === 'available' ? 'active' : ''}`}
+            id="tblFilterBtn-available"
             onClick={() => setFilter('available')}
           >
-            Available ({countAvailable})
+            Available (<span id="tblFilterCount-available">{countAvailable}</span>)
           </button>
         </div>
 
@@ -332,12 +381,14 @@ export const TablesView: React.FC = () => {
           <button
             className="btn"
             title="Force Refresh Table State"
+            onClick={() => setTables([...INITIAL_TABLES])}
             style={{ padding: '8px 12px', fontSize: '13px' }}
           >
             <RefreshCw style={{ width: '14px', height: '14px' }} />
           </button>
           <button
             className="btn btn-primary"
+            onClick={onOpenAddTable}
             style={{
               background: 'var(--gold)',
               borderColor: 'var(--gold)',
@@ -360,88 +411,236 @@ export const TablesView: React.FC = () => {
 
       {/* Main Tables Grid */}
       <div className="tables-grid" id="tablesGridContainer">
-        {filteredTables.map((tbl) => (
-          <div key={tbl.id} className={`table-card state-${tbl.status}`}>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+        {filteredTables.map((tbl) => {
+          const isPatio = tbl.label.toLowerCase().includes('patio') || String(tbl.tableNumber).startsWith('P');
+          const isAvailable = tbl.status === 'available';
+          const order = tbl.activeOrder;
+          const isAssignedToMe =
+            order?.serverId === currentUserId || order?.serverName === currentUserName;
+
+          return (
+            <div key={tbl.id} className={`table-card state-${tbl.status} ${!isAvailable ? 'has-order' : ''}`}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                 <div>
-                  <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--cream)', margin: 0 }}>
-                    {tbl.name}
+                  <div
+                    style={{
+                      fontSize: '11px',
+                      textTransform: 'uppercase',
+                      fontWeight: 800,
+                      letterSpacing: '0.05em',
+                      color: isPatio ? '#38bdf8' : 'var(--gold)',
+                    }}
+                  >
+                    {isPatio ? 'PATIO' : 'TABLE'}
+                  </div>
+                  <h3 style={{ fontSize: '20px', fontWeight: 900, margin: 0, color: 'var(--cream)' }}>
+                    {tbl.label}
                   </h3>
                   <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
-                    {tbl.section} &bull; Capacity {tbl.capacity}
+                    {tbl.section} • Capacity {tbl.capacity}
                   </div>
                 </div>
-                {renderStatusPill(tbl.status)}
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {renderStatusPill(tbl.status)}
+                  <button
+                    className="btn"
+                    onClick={() =>
+                      onOpenEditTable &&
+                      onOpenEditTable({
+                        id: tbl.id,
+                        tableNumber: tbl.tableNumber,
+                        label: tbl.label,
+                        capacity: tbl.capacity,
+                      })
+                    }
+                    style={{
+                      padding: '4px 8px',
+                      fontSize: '11px',
+                      borderRadius: '6px',
+                      background: 'rgba(255,255,255,0.06)',
+                      border: '1px solid var(--line)',
+                      color: 'var(--muted)',
+                    }}
+                    title="Edit Table Details"
+                  >
+                    <Edit2 style={{ width: '12px', height: '12px' }} />
+                  </button>
+                </div>
               </div>
 
-              {tbl.activeOrder ? (
-                <div
-                  style={{
-                    background: 'var(--card2)',
-                    border: '1px solid var(--line)',
-                    borderRadius: '8px',
-                    padding: '10px 12px',
-                    margin: '10px 0',
-                    fontSize: '12px',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: 'var(--gold)', marginBottom: '4px' }}>
-                    <span>Order {tbl.activeOrder.orderNumber}</span>
-                    <span>{tbl.activeOrder.total}</span>
-                  </div>
-                  <div style={{ color: 'var(--cream)', fontSize: '12px', marginBottom: '6px' }}>
-                    {tbl.activeOrder.itemSummary}
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--muted)' }}>
-                    <span>Server: {tbl.activeOrder.server}</span>
-                    <span>{tbl.activeOrder.elapsed}</span>
+              {isAvailable ? (
+                <div style={{ padding: '24px 10px', textAlign: 'center', color: 'var(--muted)', fontSize: '13px' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--cream)' }}>Available</div>
+                  <div style={{ fontSize: '11px', opacity: 0.6, marginTop: '2px' }}>
+                    Table is clean and open for guests
                   </div>
                 </div>
               ) : (
-                <div
-                  style={{
-                    padding: '24px 0',
-                    textAlign: 'center',
-                    color: 'var(--muted)',
-                    fontSize: '13px',
-                    fontStyle: 'italic',
-                  }}
-                >
-                  Table is ready for seating
-                </div>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-              {tbl.activeOrder ? (
                 <>
-                  <button className="btn btn-primary" style={{ flex: 1, padding: '7px', fontSize: '11px', justifyContent: 'center' }}>
-                    View Ticket
-                  </button>
-                  <button className="btn" style={{ padding: '7px 10px', fontSize: '11px' }}>
-                    Bill
-                  </button>
+                  <div
+                    style={{
+                      background: 'rgba(0,0,0,0.25)',
+                      borderRadius: '10px',
+                      padding: '10px 12px',
+                      marginBottom: '12px',
+                      border: '1px solid var(--line)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--cream)' }}>
+                        👤 {order?.customerNickname || 'Guest'}
+                      </span>
+                      <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>
+                        🕒 {order?.elapsed}
+                      </span>
+                    </div>
+
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--cream)', marginBottom: '6px' }}>
+                      🍽️ {order?.itemSummary}
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        fontSize: '11px',
+                        color: 'var(--muted)',
+                        borderTop: '1px dashed var(--line)',
+                        paddingTop: '5px',
+                        marginTop: '5px',
+                      }}
+                    >
+                      <span>Total: ${(order?.total || 0).toFixed(2)}</span>
+                      <span
+                        style={{
+                          fontWeight: 800,
+                          color: (order?.totalDue || 0) <= 0 ? 'var(--success)' : 'var(--gold)',
+                        }}
+                      >
+                        {(order?.totalDue || 0) <= 0 ? 'PAID' : `Due: $${(order?.totalDue || 0).toFixed(2)}`}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Server Assignment Badge */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '12px',
+                      padding: '8px 10px',
+                      background: 'var(--card2)',
+                      borderRadius: '8px',
+                      border: '1px solid var(--line)',
+                    }}
+                  >
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>
+                      Server
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {order?.serverName ? (
+                        <span
+                          style={{
+                            fontSize: '12px',
+                            fontWeight: 800,
+                            color: isAssignedToMe ? 'var(--success)' : 'var(--cream)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          👤 {order.serverName}
+                          {isAssignedToMe && (
+                            <span
+                              style={{
+                                fontSize: '10px',
+                                background: 'rgba(34,197,94,0.2)',
+                                border: '1px solid var(--success)',
+                                padding: '1px 6px',
+                                borderRadius: '10px',
+                                marginLeft: '2px',
+                              }}
+                            >
+                              YOU
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '11px', fontWeight: 800, color: '#f59e0b' }}>
+                          ⚠️ Unassigned
+                        </span>
+                      )}
+
+                      <button
+                        className="btn"
+                        onClick={() =>
+                          onOpenReassignServer &&
+                          onOpenReassignServer(
+                            order?.orderId || '',
+                            tbl.label,
+                            order?.serverId,
+                            order?.serverName
+                          )
+                        }
+                        style={{ padding: '2px 8px', fontSize: '11px' }}
+                      >
+                        {order?.serverName ? 'Reassign' : 'Assign'}
+                      </button>
+                    </div>
+                  </div>
                 </>
-              ) : (
-                <button
-                  className="btn btn-primary"
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    fontSize: '12px',
-                    justifyContent: 'center',
-                    background: 'var(--card2)',
-                    borderColor: 'var(--line)',
-                    color: 'var(--cream)',
-                  }}
-                >
-                  + Start New Order
-                </button>
               )}
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
+                {order ? (
+                  <>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => onSelectTab && onSelectTab('kds')}
+                      style={{ flex: 1, padding: '7px', fontSize: '11px', justifyContent: 'center' }}
+                    >
+                      View Ticket
+                    </button>
+                    <button
+                      className="btn"
+                      onClick={() =>
+                        onOpenCollectCash &&
+                        onOpenCollectCash(
+                          order.orderId,
+                          order.total,
+                          order.total - order.totalDue,
+                          order.totalDue
+                        )
+                      }
+                      style={{ padding: '7px 10px', fontSize: '11px', fontWeight: 700 }}
+                    >
+                      💵 Bill
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => alert(`Starting new order for ${tbl.label}`)}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      fontSize: '12px',
+                      justifyContent: 'center',
+                      background: 'var(--card2)',
+                      borderColor: 'var(--line)',
+                      color: 'var(--cream)',
+                    }}
+                  >
+                    + Start New Order
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
