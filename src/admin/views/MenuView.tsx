@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BookOpen,
   HelpCircle,
@@ -13,6 +13,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { MenuItem } from '../types';
+import { apiClient } from '../api/client';
 
 export type NavigationTrigger =
   | 'start_order'
@@ -47,104 +48,7 @@ interface MenuViewProps {
   onOpenEditItem?: (item: MenuItem) => void;
 }
 
-const INITIAL_MENU: MenuItem[] = [
-  {
-    id: 'm_hummus',
-    name: 'Hummus',
-    price: 10.0,
-    category: 'Appetizers',
-    superCategory: 'Food',
-    emoji: '🥗',
-    imageUrl: 'https://images.unsplash.com/photo-1577906096429-f73c2c312435?w=300&auto=format&fit=crop&q=80',
-    description: 'Creamy chickpea puree with tahini, olive oil, and warm pita.',
-    available: true,
-  },
-  {
-    id: 'm1',
-    name: 'Anarkali House Blend',
-    price: 36.0,
-    category: 'Signature Mixes',
-    superCategory: 'Hookah',
-    emoji: '👑',
-    imageUrl: 'https://images.unsplash.com/photo-1527661591475-527312dd65f5?w=300&auto=format&fit=crop&q=80',
-    description: 'Our house-crafted blend of Pan Ras, Lady Killer & Bagdadi with iced base.',
-    isSpecial: true,
-    available: true,
-    recipeIngredientsCount: 3,
-    modifierGroupsCount: 1,
-  },
-  {
-    id: 'm2',
-    name: 'Blue Mist Premium',
-    price: 34.0,
-    category: 'Classic Flavors',
-    superCategory: 'Hookah',
-    emoji: '🫐',
-    description: 'Sweet blueberry flavor with a cool, refined mint finish.',
-    available: true,
-    recipeIngredientsCount: 2,
-    modifierGroupsCount: 1,
-  },
-  {
-    id: 'm3',
-    name: 'Love 66',
-    price: 34.0,
-    category: 'Exotic Flavors',
-    superCategory: 'Hookah',
-    emoji: '❤️',
-    description: 'Passion fruit, honeydew melon, watermelon with gentle cool menthol.',
-    available: false,
-    recipeIngredientsCount: 2,
-  },
-  {
-    id: 'm4',
-    name: 'Zaatar & Cheese Flatbread',
-    price: 13.5,
-    category: 'Warm Appetizers',
-    superCategory: 'Food',
-    emoji: '🫓',
-    imageUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=300&auto=format&fit=crop&q=80',
-    description: 'Stone-baked artisan flatbread with wild thyme zaatar and melted akkawi cheese.',
-    available: true,
-    recipeIngredientsCount: 4,
-    modifierGroupsCount: 1,
-  },
-  {
-    id: 'm5',
-    name: 'Crispy Falafel Platter',
-    price: 14.0,
-    category: 'Warm Appetizers',
-    superCategory: 'Food',
-    emoji: '🧆',
-    imageUrl: 'https://images.unsplash.com/photo-1593560708920-61dd98c46a4e?w=300&auto=format&fit=crop&q=80',
-    description: 'Six house-ground crispy falafels served with tahini sauce and pickled turnips.',
-    available: true,
-    recipeIngredientsCount: 3,
-  },
-  {
-    id: 'm6',
-    name: 'Turkish Coffee with Cardamom',
-    price: 5.5,
-    category: 'Hot Beverages',
-    superCategory: 'Drinks',
-    emoji: '☕',
-    description: 'Traditionally prepared in cezve sand with crushed green cardamom pods.',
-    available: true,
-    recipeIngredientsCount: 2,
-    modifierGroupsCount: 1,
-  },
-  {
-    id: 'm7',
-    name: 'Iced Fresh Mint Lemonade',
-    price: 7.0,
-    category: 'Mocktails & Sodas',
-    superCategory: 'Drinks',
-    emoji: '🍋',
-    description: 'Freshly squeezed lemon juice blended with garden mint and simple syrup.',
-    available: true,
-    recipeIngredientsCount: 3,
-  },
-];
+const INITIAL_MENU: MenuItem[] = [];
 
 const SUB_CATEGORIES_BY_SUPER: Record<string, string[]> = {
   All: [
@@ -309,9 +213,81 @@ export const MenuView: React.FC<MenuViewProps> = ({
   const [superCat, setSuperCat] = useState<'All' | 'Hookah' | 'Food' | 'Drinks'>('All');
   const [subCat, setSubCat] = useState<string>('All Sub-Categories');
   const [searchTerm, setSearchTerm] = useState('');
-  const [items, setItems] = useState<MenuItem[]>(INITIAL_MENU);
-  const [questions, setQuestions] = useState<VibeQuestQuestion[]>(INITIAL_QUESTIONS);
+  const [items, setItems] = useState<MenuItem[]>([]);
+  const [questions, setQuestions] = useState<VibeQuestQuestion[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [saveToast, setSaveToast] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadData = async () => {
+      try {
+        const [menuData, vqData] = await Promise.all([
+          apiClient.getMenu(),
+          apiClient.getVibeQuest(),
+        ]);
+
+        if (mounted) {
+          if (menuData && Array.isArray(menuData.items)) {
+            const mapped: MenuItem[] = menuData.items.map((raw: any) => {
+              const superCat = raw.super_category || raw.superCategory || (
+                raw.category?.toLowerCase().includes('hookah') || raw.category_id?.toLowerCase().includes('hookah')
+                  ? 'Hookah'
+                  : (raw.category?.toLowerCase().includes('drink') || raw.category?.toLowerCase().includes('beverage') || raw.category?.toLowerCase().includes('mocktail') || raw.category?.toLowerCase().includes('tea') || raw.category?.toLowerCase().includes('coffee')
+                    ? 'Drinks'
+                    : 'Food')
+              );
+              return {
+                id: raw.id || raw._id,
+                name: raw.name || 'Untitled Item',
+                price: typeof raw.price === 'number' ? raw.price : parseFloat(raw.price) || 0,
+                category: raw.category || raw.category_id || 'General',
+                superCategory: superCat,
+                emoji: raw.emoji || '🍽️',
+                description: raw.desc || raw.description || '',
+                imageUrl: raw.image_url || raw.imageUrl || '',
+                isSpecial: !!raw.is_special || !!raw.isSpecial,
+                available: raw.available !== false,
+                recipeIngredientsCount: Array.isArray(raw.recipe) ? raw.recipe.length : 0,
+                modifierGroupsCount: Array.isArray(raw.modifier_groups || raw.modifierGroups) ? (raw.modifier_groups || raw.modifierGroups).length : 0,
+              };
+            });
+            setItems(mapped);
+          }
+
+          if (menuData && Array.isArray(menuData.categories)) {
+            setCategories(menuData.categories);
+          }
+
+          if (Array.isArray(vqData) && vqData.length > 0) {
+            const mappedQuestions: VibeQuestQuestion[] = vqData.map((q: any) => ({
+              id: q.id || q._id,
+              trigger: (q.navigation_trigger || q.trigger || 'start_order') as NavigationTrigger,
+              active: q.active !== false,
+              title: q.title || q.question_text || 'Ordering Discovery',
+              prompt: q.question_text || q.prompt || q.title || '',
+              subtitle: q.subtitle || q.helper_text || '',
+              curatedProductIds: Array.isArray(q.curated_product_ids) ? q.curated_product_ids : [],
+              options: (q.answers || q.options || []).map((a: any) => ({
+                text: a.text || a.answer_text || '',
+                emoji: a.emoji || '✨',
+                hostReply: a.host_reply || a.hostReply || '',
+                destination: a.destination || a.destination_target || '',
+              })),
+            }));
+            setQuestions(mappedQuestions);
+          }
+        }
+      } catch (err) {
+        console.error('Error loading menu catalog from MongoDB:', err);
+      }
+    };
+
+    loadData();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const handleToggleItemStatus = (itemId: string) => {
     setItems((prev) =>
@@ -329,11 +305,33 @@ export const MenuView: React.FC<MenuViewProps> = ({
     }
   };
 
-  const availableSubCats = SUB_CATEGORIES_BY_SUPER[superCat] || SUB_CATEGORIES_BY_SUPER.All;
+  const dynamicSubCats = Array.from(
+    new Set(
+      items
+        .filter((it) => superCat === 'All' || it.superCategory === superCat)
+        .map((it) => it.category)
+        .filter(Boolean)
+    )
+  );
+
+  const availableSubCats = [
+    superCat === 'All' ? 'All Sub-Categories' : `All ${superCat}`,
+    ...dynamicSubCats,
+  ];
 
   const handleSuperCatChange = (sc: 'All' | 'Hookah' | 'Food' | 'Drinks') => {
     setSuperCat(sc);
-    const subList = SUB_CATEGORIES_BY_SUPER[sc] || SUB_CATEGORIES_BY_SUPER.All;
+    const subList = [
+      sc === 'All' ? 'All Sub-Categories' : `All ${sc}`,
+      ...Array.from(
+        new Set(
+          items
+            .filter((it) => sc === 'All' || it.superCategory === sc)
+            .map((it) => it.category)
+            .filter(Boolean)
+        )
+      ),
+    ];
     setSubCat(subList[0] || 'All Sub-Categories');
   };
 

@@ -348,14 +348,72 @@ router.delete('/:id', async (req: Request, res: Response) => {
       label: table.label
     });
 
-    return res.status(200).json({
-      success: true,
-      message: `Table "${table.label}" removed successfully`,
-      table_id: tableId
-    });
+    return res.status(200).json({ success: true, message: `Table "${table.label}" deleted` });
   } catch (err: any) {
     console.error('Error deleting table:', err);
     return res.status(500).json({ success: false, message: 'Failed to delete table: ' + err.message });
+  }
+});
+
+// POST /api/tables/:id/reset
+// Resets a floor table to Available state after guests get up / order is served
+router.post('/:id/reset', async (req: Request, res: Response) => {
+  try {
+    const restaurantId = await resolveTenantRestaurantId(req);
+    if (!restaurantId) {
+      return res.status(400).json({ success: false, message: 'Tenant restaurant ID is required' });
+    }
+
+    const tableId = String(req.params.id);
+    const table = await MultiTenantDbService.getTable(tableId, restaurantId);
+    if (!table) {
+      return res.status(404).json({ success: false, message: 'Table not found' });
+    }
+
+    // Find and close any active orders for this table
+    const orders = await OrderRepository.listByRestaurant(restaurantId);
+    let resetCount = 0;
+    for (const o of orders) {
+      const isClosed = o.status === 'fulfilled' || o.status === 'completed' || o.closedSession;
+      const orderTbl = String(o.table || o.table_id || '').toLowerCase();
+      const matchId = o.table_id === table._id;
+      const matchLabel = table.label && orderTbl === table.label.toLowerCase();
+      const matchNum = orderTbl === String(table.number) || orderTbl === `table ${table.number}`;
+
+      if (!isClosed && (matchId || matchLabel || matchNum)) {
+        await MultiTenantDbService.updateOrderStatus(o._id, restaurantId, 'completed', {
+          closedSession: true,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as any);
+        resetCount++;
+
+        sseService.broadcast({
+          type: 'table_reset',
+          orderId: o._id,
+          table: o.table || table.label,
+          table_id: table._id,
+        }, restaurantId);
+      }
+    }
+
+    // Broadcast table state change
+    sseService.broadcast({
+      type: 'table_reset',
+      table_id: table._id,
+      table: table.label,
+      restaurant_id: restaurantId,
+    }, restaurantId);
+
+    return res.status(200).json({
+      success: true,
+      message: `Table "${table.label}" has been reset to Available.`,
+      table_id: tableId,
+      orders_closed: resetCount,
+    });
+  } catch (err: any) {
+    console.error('Error resetting table:', err);
+    return res.status(500).json({ success: false, message: 'Failed to reset table: ' + err.message });
   }
 });
 

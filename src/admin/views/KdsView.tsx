@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Printer,
   CheckCircle,
@@ -6,7 +6,9 @@ import {
   PlusCircle,
   Flame,
   XCircle,
+  RefreshCw,
 } from 'lucide-react';
+import { apiClient } from '../api/client';
 
 export interface TicketItem {
   name: string;
@@ -59,154 +61,8 @@ interface KdsViewProps {
   currentUserName?: string;
 }
 
-const SAMPLE_TICKETS: KdsTicket[] = [
-  {
-    id: 'ord_104',
-    table: '4',
-    orderNumber: '#104',
-    timestamp: '10:42 PM',
-    timeAgo: '4m ago',
-    customerName: 'Aarav Patel',
-    assignedServerName: 'Suwasna Gorkhali',
-    assignedServerId: 'u1',
-    status: 'pending',
-    foodDone: false,
-    barDone: true,
-    hookahDone: false,
-    items: [
-      {
-        name: '👑 Anarkali House Blend Hookah',
-        qty: 1,
-        price: 36.0,
-        category: 'hookah',
-        notes: 'Lady Killer + Pan Ras 50/50',
-        hasIceBase: true,
-        hasIceHose: true,
-      },
-      {
-        name: 'Mint Lemonade Spritzer',
-        qty: 2,
-        price: 14.0,
-        category: 'bar',
-        notes: 'Extra fresh crushed mint',
-      },
-      {
-        name: 'Zaatar Truffle Flatbread',
-        qty: 1,
-        price: 12.5,
-        category: 'kitchen',
-        notes: 'Crispy well-done crust',
-      },
-    ],
-    customerNotes: 'Celebrating birthday at table! Extra napkins please.',
-    subtotal: 62.5,
-    tax: 5.16,
-    tips: 11.25,
-    grandTotal: 78.91,
-    totalPaid: 0.0,
-  },
-  {
-    id: 'ord_105',
-    table: '12',
-    orderNumber: '#105',
-    timestamp: '10:37 PM',
-    timeAgo: '9m ago',
-    customerName: 'Priya Sharma',
-    assignedServerName: 'Suwasna Gorkhali',
-    assignedServerId: 'u1',
-    status: 'preparing',
-    foodDone: true,
-    barDone: true,
-    hookahDone: false,
-    items: [
-      {
-        name: 'Blue Mist Premium Hookah',
-        qty: 1,
-        price: 34.0,
-        category: 'hookah',
-        notes: 'Refill coals in 20m',
-        hasIceBase: true,
-      },
-      {
-        name: 'Traditional Turkish Coffee',
-        qty: 2,
-        price: 10.0,
-        category: 'bar',
-        notes: 'Medium sweet with cardamom',
-      },
-    ],
-    subtotal: 44.0,
-    tax: 3.63,
-    tips: 8.0,
-    grandTotal: 55.63,
-    totalPaid: 55.63,
-  },
-  {
-    id: 'ord_106',
-    table: 'VIP 1',
-    orderNumber: '#106',
-    timestamp: '10:28 PM',
-    timeAgo: '18m ago',
-    customerName: 'Samir Khan',
-    assignedServerName: undefined,
-    status: 'pending',
-    foodDone: false,
-    barDone: false,
-    hookahDone: false,
-    items: [
-      {
-        name: '👑 Make It Daku VIP Hookah Package',
-        qty: 1,
-        price: 65.0,
-        category: 'hookah',
-        notes: 'Unlimited head refill, Pineapple fruit head',
-        hasIceBase: true,
-        hasIceHose: true,
-      },
-      {
-        name: 'Sparkling Mineral Water',
-        qty: 3,
-        price: 15.0,
-        category: 'bar',
-      },
-      {
-        name: 'Classic Hummus & Warm Pita',
-        qty: 2,
-        price: 18.0,
-        category: 'kitchen',
-      },
-    ],
-    customerNotes: 'VIP guest booth, prioritize coal warm-up.',
-    subtotal: 98.0,
-    tax: 8.09,
-    tips: 20.0,
-    grandTotal: 126.09,
-    totalPaid: 50.0, // partial payment
-  },
-];
-
-const SAMPLE_SERVER_CALLS: ServerCallRequest[] = [
-  {
-    id: 'req_1',
-    table: '8',
-    orderNumber: '#REQ8',
-    type: 'coals',
-    title: 'Hookah Coal Refill 🔥',
-    timeAgo: '2m ago',
-    assignedServerName: 'Suwasna Gorkhali',
-    status: 'active',
-  },
-  {
-    id: 'req_2',
-    table: '14',
-    orderNumber: '#REQ14',
-    type: 'server',
-    title: 'Server Assistance Needed 🛎️',
-    timeAgo: '5m ago',
-    assignedServerName: undefined,
-    status: 'active',
-  },
-];
+const SAMPLE_TICKETS: KdsTicket[] = [];
+const SAMPLE_SERVER_CALLS: ServerCallRequest[] = [];
 
 export const KdsView: React.FC<KdsViewProps> = ({
   onOpenCollectCash,
@@ -215,9 +71,103 @@ export const KdsView: React.FC<KdsViewProps> = ({
   currentUserId = 'u1',
   currentUserName = 'Suwasna Gorkhali',
 }) => {
-  const [tickets, setTickets] = useState<KdsTicket[]>(SAMPLE_TICKETS);
-  const [serverCalls, setServerCalls] = useState<ServerCallRequest[]>(SAMPLE_SERVER_CALLS);
+  const [tickets, setTickets] = useState<KdsTicket[]>([]);
+  const [serverCalls, setServerCalls] = useState<ServerCallRequest[]>([]);
   const [showCoalQueue, setShowCoalQueue] = useState(true);
+  const [loading, setLoading] = useState(false);
+
+  const loadOrdersAndCalls = async () => {
+    setLoading(true);
+    try {
+      const [orders, requests] = await Promise.all([
+        apiClient.getOrders(),
+        apiClient.getServiceRequests(),
+      ]);
+
+      if (Array.isArray(orders)) {
+        const mappedTickets: KdsTicket[] = orders.map((ord: any) => {
+          const items: TicketItem[] = (ord.items || []).map((it: any) => ({
+            name: it.name || 'Item',
+            qty: it.quantity || it.qty || 1,
+            price: it.price || 0,
+            category: (it.category?.toLowerCase() === 'hookah' ? 'hookah' : (it.category?.toLowerCase() === 'drinks' || it.category?.toLowerCase() === 'bar' ? 'bar' : 'kitchen')) as any,
+            notes: it.notes || it.note || '',
+            hasIceBase: !!it.hasIceBase,
+            hasIceHose: !!it.hasIceHose,
+          }));
+
+          const createdTime = ord.created_at || ord.createdAt || new Date().toISOString();
+          const dateObj = new Date(createdTime);
+          const timeStr = !isNaN(dateObj.getTime())
+            ? dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : 'Now';
+
+          const minsAgo = !isNaN(dateObj.getTime())
+            ? Math.max(0, Math.floor((Date.now() - dateObj.getTime()) / 60000))
+            : 0;
+
+          return {
+            id: ord.id || ord._id,
+            table: String(ord.table || ord.table_number || ord.tableNumber || '1'),
+            orderNumber: ord.orderNumber || (ord.order_number ? `#${ord.order_number}` : `#${String(ord.id || ord._id).slice(-4)}`),
+            timestamp: timeStr,
+            timeAgo: minsAgo === 0 ? 'just now' : `${minsAgo}m ago`,
+            customerName: ord.customerName || ord.customer_name || 'Guest',
+            assignedServerName: ord.assignedServerName || ord.server_name || ord.assigned_server_name || 'Server',
+            assignedServerId: ord.assignedServerId || ord.server_id,
+            status: (ord.status === 'completed' || ord.status === 'fulfilled')
+              ? 'fulfilled'
+              : (ord.status === 'ready' ? 'ready' : (ord.status === 'preparing' ? 'preparing' : 'pending')),
+            foodDone: ord.foodDone || false,
+            barDone: ord.barDone || false,
+            hookahDone: ord.hookahDone || false,
+            items,
+            customerNotes: ord.notes || ord.customerNotes || '',
+            subtotal: ord.subtotal || ord.total || 0,
+            tax: ord.taxAmount || ord.tax || 0,
+            tips: ord.tipAmount || ord.tips || 0,
+            grandTotal: ord.grandTotal || ord.total || 0,
+            totalPaid: ord.paymentStatus === 'paid' ? (ord.grandTotal || ord.total || 0) : (ord.totalPaid || 0),
+          };
+        });
+        setTickets(mappedTickets);
+      }
+
+      if (Array.isArray(requests)) {
+        const mappedCalls: ServerCallRequest[] = requests.map((req: any) => {
+          const reqTime = req.created_at || req.createdAt || new Date().toISOString();
+          const dateObj = new Date(reqTime);
+          const minsAgo = !isNaN(dateObj.getTime())
+            ? Math.max(0, Math.floor((Date.now() - dateObj.getTime()) / 60000))
+            : 0;
+
+          const rawType = (req.request_type || req.type || 'server').toLowerCase();
+          const callType: 'server' | 'coals' | 'water' | 'utensils' | 'check' = 
+            rawType.includes('coal') ? 'coals' : (rawType.includes('water') ? 'water' : (rawType.includes('utensil') ? 'utensils' : 'server'));
+
+          return {
+            id: req.id || req._id,
+            table: String(req.table_number || req.table_id || req.table || '1').replace(/^TBL_|^Table\s*/i, ''),
+            orderNumber: req.order_number ? `#${req.order_number}` : `#${String(req.id || req._id).slice(-4)}`,
+            type: callType,
+            title: req.note || (callType === 'coals' ? 'Hookah Coal Refill 🔥' : 'Server Assistance Needed'),
+            timeAgo: minsAgo === 0 ? 'just now' : `${minsAgo}m ago`,
+            assignedServerName: req.assigned_server_name || req.server_name || 'Assigned Staff',
+            status: (req.status?.toLowerCase() === 'completed' || req.status?.toLowerCase() === 'dismissed') ? 'dismissed' : 'active',
+          };
+        });
+        setServerCalls(mappedCalls);
+      }
+    } catch (e) {
+      console.error('Failed to load live KDS orders/requests:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadOrdersAndCalls();
+  }, []);
 
   const isHookahOrManager =
     currentUserRole === 'hookah_maker' ||
@@ -230,13 +180,18 @@ export const KdsView: React.FC<KdsViewProps> = ({
     (c) => c.status === 'active' && c.type === 'coals'
   );
 
-  const updateTicketStatus = (
+  const updateTicketStatus = async (
     id: string,
     newStatus: 'pending' | 'preparing' | 'ready' | 'fulfilled'
   ) => {
     setTickets((prev) =>
       prev.map((t) => (t.id === id ? { ...t, status: newStatus } : t))
     );
+    try {
+      await apiClient.updateOrderStatus(id, newStatus === 'fulfilled' ? 'completed' : newStatus);
+    } catch (e) {
+      console.error('Failed to update ticket status in database:', e);
+    }
   };
 
   const cancelTicket = (id: string) => {
@@ -453,24 +408,15 @@ export const KdsView: React.FC<KdsViewProps> = ({
               <Flame style={{ width: '13px', height: '13px' }} />
               <span>{showCoalQueue ? 'Hide Coal Queue' : 'Show Coal Queue'}</span>
             </button>
-            {activeTickets.length === 0 ? (
-              <button
-                className="btn btn-primary"
-                onClick={() => setTickets(SAMPLE_TICKETS)}
-                style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 800 }}
-              >
-                <PlusCircle style={{ width: '13px', height: '13px' }} />
-                <span>Simulate Active Tickets</span>
-              </button>
-            ) : (
-              <button
-                className="btn"
-                onClick={() => setTickets([])}
-                style={{ padding: '6px 12px', fontSize: '12px' }}
-              >
-                <span>Clear to Empty State</span>
-              </button>
-            )}
+            <button
+              className="btn btn-primary"
+              onClick={loadOrdersAndCalls}
+              disabled={loading}
+              style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 800 }}
+            >
+              <RefreshCw style={{ width: '13px', height: '13px', animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+              <span>{loading ? 'Refreshing...' : 'Refresh Live Orders'}</span>
+            </button>
           </div>
         </h2>
 

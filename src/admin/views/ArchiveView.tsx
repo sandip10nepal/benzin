@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Trash2, Archive } from 'lucide-react';
+import { apiClient } from '../api/client';
 
 interface ArchivedTicket {
   id: string;
@@ -12,47 +13,56 @@ interface ArchivedTicket {
   status: 'fulfilled' | 'cancelled';
 }
 
-const INITIAL_ARCHIVE: ArchivedTicket[] = [
-  {
-    id: 'arch_1',
-    table: 'Table 9',
-    orderNumber: '#98',
-    completedAt: 'Today, 5:45 PM',
-    server: 'Alex M.',
-    items: [
-      { name: 'Double Apple Hookah', qty: 1, price: '$32.00' },
-      { name: 'Red Bull Energy Drink', qty: 2, price: '$12.00' },
-    ],
-    total: '$44.00',
-    status: 'fulfilled',
-  },
-  {
-    id: 'arch_2',
-    table: 'Table 2',
-    orderNumber: '#97',
-    completedAt: 'Today, 5:12 PM',
-    server: 'Sarah K.',
-    items: [
-      { name: 'Mint Lemonade', qty: 2, price: '$14.00' },
-      { name: 'Zaatar Flatbread', qty: 1, price: '$12.50' },
-    ],
-    total: '$26.50',
-    status: 'fulfilled',
-  },
-  {
-    id: 'arch_3',
-    table: 'Table 14',
-    orderNumber: '#96',
-    completedAt: 'Today, 4:30 PM',
-    server: 'David R.',
-    items: [{ name: 'Blue Mist Hookah', qty: 1, price: '$34.00' }],
-    total: '$34.00',
-    status: 'cancelled',
-  },
-];
-
 export const ArchiveView: React.FC = () => {
-  const [archivedTickets, setArchivedTickets] = useState<ArchivedTicket[]>(INITIAL_ARCHIVE);
+  const [archivedTickets, setArchivedTickets] = useState<ArchivedTicket[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadArchive = async () => {
+      setLoading(true);
+      try {
+        const orders = await apiClient.getOrders();
+        if (mounted && Array.isArray(orders)) {
+          const archived = orders
+            .filter((o: any) => o.status === 'completed' || o.status === 'cancelled' || o.status === 'fulfilled')
+            .map((o: any) => {
+              const dt = o.updatedAt || o.updated_at || o.createdAt || o.created_at
+                ? new Date(o.updatedAt || o.updated_at || o.createdAt || o.created_at)
+                : new Date();
+              const dateStr = !isNaN(dt.getTime())
+                ? dt.toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                : 'Recent';
+
+              return {
+                id: o.id || o._id,
+                table: `Table ${o.table || '1'}`,
+                orderNumber: o.order_number ? `#${o.order_number}` : `#${String(o.id || o._id).slice(-4)}`,
+                completedAt: dateStr,
+                server: o.server_name || o.assignedServerName || 'Staff',
+                items: (o.items || []).map((it: any) => ({
+                  name: it.name || 'Item',
+                  qty: it.quantity || it.qty || 1,
+                  price: `$${(Number(it.price) || 0).toFixed(2)}`,
+                })),
+                total: `$${(Number(o.grandTotal || o.total) || 0).toFixed(2)}`,
+                status: o.status === 'cancelled' ? ('cancelled' as const) : ('fulfilled' as const),
+              };
+            });
+          setArchivedTickets(archived);
+        }
+      } catch (e) {
+        console.error('Failed to load archived orders from database:', e);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    loadArchive();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const clearArchive = () => {
     if (confirm('Are you sure you want to permanently clear the order archive?')) {
@@ -97,7 +107,7 @@ export const ArchiveView: React.FC = () => {
               }}
             >
               <Archive style={{ width: '48px', height: '48px', marginBottom: '12px', opacity: 0.5, display: 'inline-block' }} />
-              <div>Archive is currently empty. Fulfilled tickets will be stored here.</div>
+              <div>{loading ? 'Loading archived tickets from database...' : 'Archive is currently empty. Fulfilled tickets will be stored here.'}</div>
             </div>
           ) : (
             archivedTickets.map((t) => (

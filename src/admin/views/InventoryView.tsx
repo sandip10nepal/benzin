@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FolderPlus,
   PlusCircle,
@@ -8,12 +8,13 @@ import {
   ArrowUpDown,
   Search,
 } from 'lucide-react';
+import { apiClient } from '../api/client';
 
 export interface InventoryItem {
   id: string;
   name: string;
   brand: string;
-  category: 'Hookah' | 'Food' | 'Drinks' | 'Essentials' | string;
+  category: string;
   categoryId: string;
   stock: number;
   unit: string;
@@ -26,193 +27,105 @@ interface InventoryViewProps {
   onOpenEditItem?: (item: InventoryItem) => void;
 }
 
-const INITIAL_INVENTORY: InventoryItem[] = [
-  // Low Stock Items (Below Threshold) to demonstrate priority listing
-  {
-    id: 'inv_low_1',
-    name: 'Al Fakher- Two Apples',
-    brand: 'AL FAKHER',
-    category: 'Hookah',
-    categoryId: 'INVCAT_1862EED65A2E',
-    stock: 85,
-    unit: 'g',
-    minThreshold: 200,
-  },
-  {
-    id: 'inv_low_2',
-    name: 'Adalya- Lady Killer',
-    brand: 'ADALYA',
-    category: 'Hookah',
-    categoryId: 'INVCAT_1862EED65A2E',
-    stock: 120,
-    unit: 'g',
-    minThreshold: 200,
-  },
-  // Items matching the user screenshot
-  {
-    id: 'inv_1',
-    name: 'Pan Ras',
-    brand: 'AFZAL',
-    category: 'Hookah',
-    categoryId: 'INVCAT_1862EED65A2E',
-    stock: 1711,
-    unit: 'g',
-    minThreshold: 150,
-  },
-  {
-    id: 'inv_2',
-    name: 'Green Savior',
-    brand: 'HOUSE',
-    category: 'Hookah',
-    categoryId: 'INVCAT_1862EED65A2E',
-    stock: 4000,
-    unit: 'g',
-    minThreshold: 200,
-  },
-  {
-    id: 'inv_3',
-    name: 'Afzal Pan Raas',
-    brand: 'AFZAL',
-    category: 'Hookah',
-    categoryId: 'INVCAT_1862EED65A2E',
-    stock: 979,
-    unit: 'g',
-    minThreshold: 200,
-  },
-  {
-    id: 'inv_4',
-    name: 'Eternal Smoke- Smoothie Sunshine',
-    brand: 'ETERNAL SMOKE',
-    category: 'Hookah',
-    categoryId: 'INVCAT_1862EED65A2E',
-    stock: 1641,
-    unit: 'g',
-    minThreshold: 200,
-  },
-  {
-    id: 'inv_5',
-    name: 'Eternal Smoke- Watermelon Lit',
-    brand: 'ETERNAL SMOKE',
-    category: 'Hookah',
-    categoryId: 'INVCAT_1862EED65A2E',
-    stock: 1036,
-    unit: 'g',
-    minThreshold: 200,
-  },
-  {
-    id: 'inv_6',
-    name: 'Al Fakher- Energy Drink',
-    brand: 'AL FAKHER',
-    category: 'Hookah',
-    categoryId: 'INVCAT_1862EED65A2E',
-    stock: 2500,
-    unit: 'g',
-    minThreshold: 200,
-  },
-  {
-    id: 'inv_7',
-    name: 'Al Fakher- Rose',
-    brand: 'AL FAKHER',
-    category: 'Hookah',
-    categoryId: 'INVCAT_1862EED65A2E',
-    stock: 3703,
-    unit: 'g',
-    minThreshold: 200,
-  },
-  {
-    id: 'inv_8',
-    name: 'Eternal Smoke- Lime Lit',
-    brand: 'ETERNAL SMOKE',
-    category: 'Hookah',
-    categoryId: 'INVCAT_1862EED65A2E',
-    stock: 1000,
-    unit: 'g',
-    minThreshold: 200,
-  },
-  {
-    id: 'inv_9',
-    name: 'smoothie sunshine',
-    brand: 'HOUSE',
-    category: 'Hookah',
-    categoryId: 'INVCAT_1862EED65A2E',
-    stock: 500,
-    unit: 'g',
-    minThreshold: 200,
-  },
-  {
-    id: 'inv_10',
-    name: 'Al Fakher- Gum with Cinnamon',
-    brand: 'AL FAKHER',
-    category: 'Hookah',
-    categoryId: 'INVCAT_1862EED65A2E',
-    stock: 5696,
-    unit: 'g',
-    minThreshold: 200,
-  },
-  // Food & Drinks Items
-  {
-    id: 'inv_11',
-    name: 'Artisan Flatbread Dough',
-    brand: 'HOUSE',
-    category: 'Food',
-    categoryId: 'INVCAT_KITCHEN_PREP',
-    stock: 85,
-    unit: 'units',
-    minThreshold: 20,
-  },
-  {
-    id: 'inv_12',
-    name: 'Turkish Mehmet Efendi Coffee',
-    brand: 'MEHMET EFENDI',
-    category: 'Drinks',
-    categoryId: 'INVCAT_BEVERAGE_BASE',
-    stock: 650,
-    unit: 'g',
-    minThreshold: 150,
-  },
-  {
-    id: 'inv_13',
-    name: 'CocoUrth Coconut Charcoal 1kg',
-    brand: 'COCOURTH',
-    category: 'Essentials',
-    categoryId: 'INVCAT_LOUNGE_SUPPLIES',
-    stock: 42,
-    unit: 'boxes',
-    minThreshold: 10,
-  },
-];
-
 export const InventoryView: React.FC<InventoryViewProps> = ({
   onOpenAddCategory,
   onOpenAddItem,
   onOpenEditItem,
 }) => {
-  const [items, setItems] = useState<InventoryItem[]>(INITIAL_INVENTORY);
-  const [activeCategory, setActiveCategory] = useState<string>('Hookah');
+  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [categories, setCategories] = useState<{ id: string; label: string; emoji: string }[]>([
+    { id: 'all', label: 'All Items', emoji: '📋' },
+    { id: 'INVCAT_1862EED65A2E', label: 'Hookah', emoji: '💨' },
+    { id: 'INVCAT_RES_EED4E9D266DF_RAW', label: 'Food', emoji: '🍅' },
+    { id: 'INVCAT_0AB839BB0513', label: 'Drinks', emoji: '🧉' },
+    { id: 'INVCAT_B6EFBD60AE5B', label: 'Essentials', emoji: '📦' },
+  ]);
+  const [activeCategory, setActiveCategory] = useState<string>('INVCAT_1862EED65A2E');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [prioritizeLowStock, setPrioritizeLowStock] = useState<boolean>(true);
   const [onlyBelowThreshold, setOnlyBelowThreshold] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  const categories = [
-    { id: 'Hookah', label: 'Hookah', emoji: '💨' },
-    { id: 'Food', label: 'Food', emoji: '🍎' },
-    { id: 'Drinks', label: 'Drinks', emoji: '☕' },
-    { id: 'Essentials', label: 'Essentials', emoji: '📦' },
-  ];
+  // Load real inventory items and categories from database
+  const loadInventory = async () => {
+    try {
+      setLoading(true);
+      const data = await apiClient.getInventory();
+      if (data && Array.isArray(data.categories) && data.categories.length > 0) {
+        const catList = [
+          ...data.categories.map((c: any) => ({
+            id: c._id || c.id,
+            label: c.title || 'Category',
+            emoji: c.icon || '📦',
+          })),
+        ];
+        setCategories(catList);
+        if (!activeCategory || activeCategory === 'all') {
+          setActiveCategory(catList[0].id);
+        }
+      }
 
-  const adjustStock = (e: React.MouseEvent, id: string, delta: number) => {
+      if (data && data.inventory) {
+        const rawList = Object.values(data.inventory);
+        const mapped: InventoryItem[] = rawList.map((item: any) => {
+          let brand = item.brand ? String(item.brand).trim() : '';
+          if (!brand) {
+            const uName = String(item.name || '').toUpperCase();
+            if (uName.includes('AFZAL')) brand = 'AFZAL';
+            else if (uName.includes('AL FAKHER')) brand = 'AL FAKHER';
+            else if (uName.includes('ETERNAL SMOKE')) brand = 'ETERNAL SMOKE';
+            else if (uName.includes('ADALYA')) brand = 'ADALYA';
+            else brand = 'HOUSE';
+          }
+          const catId = item.category_id || item.category || 'INVCAT_1862EED65A2E';
+          return {
+            id: item._id || item.id,
+            name: item.name || 'Inventory Item',
+            brand: brand.toUpperCase(),
+            category: catId,
+            categoryId: catId,
+            stock: Number(item.stock) || 0,
+            unit: item.unit || 'g',
+            minThreshold: Number(item.reorder_threshold ?? item.minThreshold) || 100,
+          };
+        });
+        setItems(mapped);
+      }
+    } catch (err) {
+      console.error('Error loading inventory from MongoDB:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadInventory();
+  }, []);
+
+  const adjustStock = async (e: React.MouseEvent, id: string, delta: number) => {
     e.stopPropagation();
     setItems((prev) =>
       prev.map((item) =>
         item.id === id ? { ...item, stock: Math.max(0, item.stock + delta) } : item
       )
     );
+    try {
+      await apiClient.adjustInventory(id, Math.abs(delta), delta > 0 ? 'add' : 'remove');
+    } catch (err) {
+      console.error('Error adjusting inventory in database:', err);
+    }
   };
 
-  const handleDeleteItem = (e: React.MouseEvent, id: string) => {
+  const handleDeleteItem = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (confirm('Are you sure you want to delete this stock item?')) {
       setItems((prev) => prev.filter((item) => item.id !== id));
+      try {
+        await fetch(`${apiClient.baseUrl}/api/orders/inventory/${id}`, {
+          method: 'DELETE',
+          headers: apiClient.getHeaders(),
+        });
+      } catch (_) {}
     }
   };
 
@@ -224,7 +137,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   // Filter items by category, search query, and threshold filter
   let filteredItems = items.filter((item) => {
     if (onlyBelowThreshold && item.stock > item.minThreshold) return false;
-    if (activeCategory !== 'all' && item.category !== activeCategory) return false;
+    if (
+      activeCategory !== 'all' &&
+      item.category !== activeCategory &&
+      item.categoryId !== activeCategory
+    ) {
+      return false;
+    }
     if (
       searchTerm &&
       !item.name.toLowerCase().includes(searchTerm.toLowerCase()) &&

@@ -9,7 +9,24 @@ import { MenuView } from './views/MenuView';
 import { SalesView } from './views/SalesView';
 import { StaffView } from './views/StaffView';
 import { AdminTabId, RestaurantVenue, StaffUser, MenuItem } from './types';
-import { MOCK_VENUE, MOCK_STAFF } from './api/client';
+import { apiClient } from './api/client';
+
+const DEFAULT_VENUE: RestaurantVenue = {
+  id: 'RES_EED4E9D266DF',
+  name: 'Cavalli',
+  slug: 'cavali',
+  code: 'CAVALI',
+  isDemo: false,
+};
+
+const DEFAULT_USER: StaffUser = {
+  id: 'usr_owner',
+  name: 'Sandip Nepal',
+  role: 'owner',
+  position: 'Owner',
+  isClockedIn: true,
+  hourlyWage: 0,
+};
 
 import {
   StaffSwitchModal,
@@ -35,18 +52,47 @@ export const App: React.FC = () => {
     const saved = localStorage.getItem('benzin_theme');
     return saved === 'light' || saved === 'dark' ? saved : 'dark';
   });
-  const [venue] = useState<RestaurantVenue>(MOCK_VENUE);
-  const [user, setUser] = useState<StaffUser>(MOCK_STAFF);
+  const [venue, setVenue] = useState<RestaurantVenue>(DEFAULT_VENUE);
+  const [user, setUser] = useState<StaffUser>(DEFAULT_USER);
+  const [staffList, setStaffList] = useState<StaffUser[]>([DEFAULT_USER]);
 
-  // Staff members list for reassign, switcher, login, profile
-  const [staffList, setStaffList] = useState<StaffUser[]>([
-    MOCK_STAFF,
-    { id: 'u2', name: 'Farhan Cavalli', role: 'owner', isClockedIn: true, hourlyWage: 35, email: 'owner@cavalli.com', pin: '2448' },
-    { id: 'u3', name: 'Alex Morales', role: 'manager', isClockedIn: true, hourlyWage: 22, email: 'alex@cavalli.com', pin: '1111' },
-    { id: 'u4', name: 'Sarah Khan', role: 'server', isClockedIn: true, hourlyWage: 16.5, pin: '2222' },
-    { id: 'u5', name: 'David Ramirez', role: 'server', isClockedIn: false, hourlyWage: 15, pin: '3333' },
-    { id: 'u6', name: 'Tariq Al-Mansoor', role: 'hookah_maker', isClockedIn: false, hourlyWage: 18, pin: '4444' },
-  ]);
+  useEffect(() => {
+    let mounted = true;
+    const initSession = async () => {
+      try {
+        const [vInfo, uInfo, emps] = await Promise.all([
+          apiClient.getVenueInfo(),
+          apiClient.getCurrentUser(),
+          apiClient.getEmployees(),
+        ]);
+
+        if (mounted) {
+          if (vInfo) setVenue(vInfo);
+          if (uInfo) setUser(uInfo);
+          if (Array.isArray(emps) && emps.length > 0) {
+            const mappedStaff: StaffUser[] = emps.map((e: any) => ({
+              id: e.id || e._id,
+              name: e.name || 'Staff Member',
+              role: e.role || 'server',
+              position: e.position,
+              isClockedIn: !!e.is_clocked_in,
+              hourlyWage: Number(e.hourly_rate) || 18,
+              email: e.email,
+              pin: e.pin,
+            }));
+            setStaffList(mappedStaff);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to init venue/user session from MongoDB:', err);
+      }
+    };
+
+    initSession();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Modals visibility states
   const [isStaffSwitchOpen, setIsStaffSwitchOpen] = useState(false);
@@ -243,8 +289,20 @@ export const App: React.FC = () => {
               setSelectedEmployee(null);
               setIsEmployeeModalOpen(true);
             }}
+            onOpenEditEmployee={(emp) => {
+              setSelectedEmployee({
+                id: emp.id,
+                name: emp.name,
+                role: emp.role,
+                position: emp.position,
+                hourlyWage: Number(emp.hourly_rate) || 18,
+                email: emp.email || undefined,
+                isClockedIn: emp.is_clocked_in,
+              });
+              setIsEmployeeModalOpen(true);
+            }}
             onOpenStaffProfile={handleOpenStaffProfile}
-            onFulfillWeeklyPayroll={() => alert('Fulfillment processed!')}
+            onFulfillWeeklyPayroll={() => {}}
           />
         );
       default:

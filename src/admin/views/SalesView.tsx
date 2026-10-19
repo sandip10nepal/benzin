@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { apiClient } from '../api/client';
 
-interface MockPaymentLog {
+interface PaymentLog {
   orderId: string;
   table: string;
   customer: string;
@@ -12,54 +13,64 @@ interface MockPaymentLog {
   dateTime: string;
 }
 
-const PAYMENT_LOGS: MockPaymentLog[] = [
-  {
-    orderId: '#102',
-    table: 'Table 3',
-    customer: 'Walk-in Guest',
-    method: 'Credit Card (Stripe)',
-    subtotal: '$68.00',
-    tax: '$5.61',
-    tips: '$12.00',
-    grandTotal: '$85.61',
-    dateTime: 'Today, 6:15 PM',
-  },
-  {
-    orderId: '#99',
-    table: 'Table 6 (VIP)',
-    customer: 'Farhan A.',
-    method: 'Apple Pay',
-    subtotal: '$140.00',
-    tax: '$11.55',
-    tips: '$28.00',
-    grandTotal: '$179.55',
-    dateTime: 'Today, 5:48 PM',
-  },
-  {
-    orderId: '#98',
-    table: 'Table 9',
-    customer: 'Walk-in Guest',
-    method: 'Cash',
-    subtotal: '$44.00',
-    tax: '$3.63',
-    tips: '$6.00',
-    grandTotal: '$53.63',
-    dateTime: 'Today, 5:45 PM',
-  },
-  {
-    orderId: '#97',
-    table: 'Table 2',
-    customer: 'Zainab M.',
-    method: 'Credit Card (Stripe)',
-    subtotal: '$26.50',
-    tax: '$2.19',
-    tips: '$5.00',
-    grandTotal: '$33.69',
-    dateTime: 'Today, 5:12 PM',
-  },
-];
-
 export const SalesView: React.FC = () => {
+  const [loading, setLoading] = useState(true);
+  const [daily, setDaily] = useState({ sales: 0, gross: 0, count: 0, tax: 0, tips: 0 });
+  const [weekly, setWeekly] = useState({ sales: 0, gross: 0, count: 0 });
+  const [yearly, setYearly] = useState({ sales: 0, gross: 0, count: 0 });
+  const [taxTips, setTaxTips] = useState({ tax: 0, tips: 0, total: 0 });
+  const [paymentLogs, setPaymentLogs] = useState<PaymentLog[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchAnalytics = async () => {
+      setLoading(true);
+      try {
+        const data = await apiClient.getSalesSummary();
+        if (mounted && data) {
+          if (data.daily) setDaily(data.daily);
+          if (data.weekly) setWeekly(data.weekly);
+          if (data.yearly) setYearly(data.yearly);
+
+          const tax = (data.daily?.tax || 0) + (data.weekly?.tax || 0);
+          const tips = (data.daily?.tips || 0) + (data.weekly?.tips || 0);
+          setTaxTips({ tax, tips, total: tax + tips });
+
+          if (Array.isArray(data.payment_logs)) {
+            const mappedLogs: PaymentLog[] = data.payment_logs.map((log: any) => {
+              const dt = log.created_at ? new Date(log.created_at) : new Date();
+              const dateStr = !isNaN(dt.getTime())
+                ? dt.toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                : 'Recent';
+
+              return {
+                orderId: log.id ? `#${String(log.id).slice(-4)}` : '#N/A',
+                table: `Table ${log.table || '1'}`,
+                customer: log.customer || 'Guest',
+                method: log.payment_method || 'CASH',
+                subtotal: `$${(Number(log.subtotal) || 0).toFixed(2)}`,
+                tax: `$${(Number(log.tax) || 0).toFixed(2)}`,
+                tips: `$${(Number(log.tips) || 0).toFixed(2)}`,
+                grandTotal: `$${(Number(log.grandTotal) || 0).toFixed(2)}`,
+                dateTime: dateStr,
+              };
+            });
+            setPaymentLogs(mappedLogs);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load sales analytics from MongoDB Atlas:', e);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    fetchAnalytics();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <div id="salesPageLayout" style={{ display: 'block' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
@@ -68,7 +79,7 @@ export const SalesView: React.FC = () => {
             Sales Analytics, Tax Collection &amp; Payment Ledger
           </h2>
           <p style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '4px' }}>
-            Daily, Weekly, Monthly, and YTD Sales Metrics with complete Tax Collection and Payment Logs.
+            Live MongoDB Atlas metrics for Cavalli Lounge.
           </p>
         </div>
       </div>
@@ -95,10 +106,10 @@ export const SalesView: React.FC = () => {
             💵 DAILY SALES (TODAY)
           </div>
           <div id="salesDailyTotal" style={{ fontSize: '26px', fontWeight: 900, color: 'var(--cream)', marginTop: '4px' }}>
-            $1,482.50
+            ${daily.sales.toFixed(2)}
           </div>
           <div id="salesDailyMeta" style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px', fontWeight: 700 }}>
-            Gross: $1,675.20 • 28 orders
+            Gross: ${daily.gross.toFixed(2)} • {daily.count} orders
           </div>
         </div>
 
@@ -115,10 +126,10 @@ export const SalesView: React.FC = () => {
             📅 WEEKLY SALES (THIS WEEK)
           </div>
           <div id="salesWeeklyTotal" style={{ fontSize: '26px', fontWeight: 900, color: 'var(--success)', marginTop: '4px' }}>
-            $11,840.00
+            ${weekly.sales.toFixed(2)}
           </div>
           <div id="salesWeeklyMeta" style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px', fontWeight: 700 }}>
-            Gross: $13,290.40 • 214 orders
+            Gross: ${weekly.gross.toFixed(2)} • {weekly.count} orders
           </div>
         </div>
 
@@ -135,10 +146,10 @@ export const SalesView: React.FC = () => {
             🗓️ YEAR TO DATE (YTD) SALES
           </div>
           <div id="salesYearlyTotal" style={{ fontSize: '26px', fontWeight: 900, color: '#3b82f6', marginTop: '4px' }}>
-            $184,250.00
+            ${yearly.sales.toFixed(2)}
           </div>
           <div id="salesYearlyMeta" style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px', fontWeight: 700 }}>
-            Monthly Avg: $46,062 • 3,420 orders YTD
+            Gross: ${yearly.gross.toFixed(2)} • {yearly.count} orders YTD
           </div>
         </div>
 
@@ -155,10 +166,10 @@ export const SalesView: React.FC = () => {
             🏛️ TAX &amp; TIPS COLLECTED
           </div>
           <div id="salesTaxTipsTotal" style={{ fontSize: '26px', fontWeight: 900, color: 'var(--ember)', marginTop: '4px' }}>
-            $2,284.15
+            ${taxTips.total.toFixed(2)}
           </div>
           <div id="salesTaxTipsMeta" style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px', fontWeight: 700 }}>
-            Tax: $794.15 • Tips: $1,490.00
+            Tax: ${taxTips.tax.toFixed(2)} • Tips: ${taxTips.tips.toFixed(2)}
           </div>
         </div>
       </div>
@@ -182,7 +193,7 @@ export const SalesView: React.FC = () => {
             margin: '0 0 16px 0',
           }}
         >
-          💳 Payment Logs &amp; Transaction Ledger
+          💳 Payment Logs &amp; Transaction Ledger ({paymentLogs.length} Records)
         </h3>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
@@ -207,27 +218,35 @@ export const SalesView: React.FC = () => {
             </tr>
           </thead>
           <tbody id="paymentLogsTbody">
-            {PAYMENT_LOGS.map((log) => (
-              <tr
-                key={log.orderId}
-                style={{
-                  borderBottom: '1px solid var(--line)',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  color: 'var(--cream)',
-                }}
-              >
-                <td style={{ padding: '12px 10px', color: 'var(--gold)', fontWeight: 800 }}>{log.orderId}</td>
-                <td style={{ padding: '12px 10px' }}>{log.table}</td>
-                <td style={{ padding: '12px 10px' }}>{log.customer}</td>
-                <td style={{ padding: '12px 10px' }}>{log.method}</td>
-                <td style={{ padding: '12px 10px' }}>{log.subtotal}</td>
-                <td style={{ padding: '12px 10px' }}>{log.tax}</td>
-                <td style={{ padding: '12px 10px', color: 'var(--success)' }}>{log.tips}</td>
-                <td style={{ padding: '12px 10px', fontWeight: 800 }}>{log.grandTotal}</td>
-                <td style={{ padding: '12px 10px', color: 'var(--muted)', fontSize: '12px' }}>{log.dateTime}</td>
+            {paymentLogs.length === 0 ? (
+              <tr>
+                <td colSpan={9} style={{ padding: '24px', textAlign: 'center', color: 'var(--muted)' }}>
+                  {loading ? 'Loading payment records from database...' : 'No transactions recorded yet.'}
+                </td>
               </tr>
-            ))}
+            ) : (
+              paymentLogs.map((log) => (
+                <tr
+                  key={log.orderId}
+                  style={{
+                    borderBottom: '1px solid var(--line)',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: 'var(--cream)',
+                  }}
+                >
+                  <td style={{ padding: '12px 10px', color: 'var(--gold)', fontWeight: 800 }}>{log.orderId}</td>
+                  <td style={{ padding: '12px 10px' }}>{log.table}</td>
+                  <td style={{ padding: '12px 10px' }}>{log.customer}</td>
+                  <td style={{ padding: '12px 10px' }}>{log.method}</td>
+                  <td style={{ padding: '12px 10px' }}>{log.subtotal}</td>
+                  <td style={{ padding: '12px 10px' }}>{log.tax}</td>
+                  <td style={{ padding: '12px 10px', color: 'var(--success)' }}>{log.tips}</td>
+                  <td style={{ padding: '12px 10px', fontWeight: 800 }}>{log.grandTotal}</td>
+                  <td style={{ padding: '12px 10px', color: 'var(--muted)', fontSize: '12px' }}>{log.dateTime}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
