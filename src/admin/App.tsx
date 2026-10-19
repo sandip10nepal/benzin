@@ -30,8 +30,27 @@ import {
   LoginOverlay,
 } from './components/modals';
 
+// URL and Tab Synchronization helpers
+const parseTabFromLocation = (): AdminTabId => {
+  if (typeof window === 'undefined') return 'kds';
+  const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+  if (path === '/staff' || path.endsWith('/staff')) return 'staff';
+  if (path.endsWith('/tables')) return 'tables';
+  if (path.endsWith('/archive')) return 'archive';
+  if (path.endsWith('/inventory')) return 'inventory';
+  if (path.endsWith('/menu')) return 'menu';
+  if (path.endsWith('/sales') || path.endsWith('/ledger')) return 'sales';
+  if (path.endsWith('/kds') || path.endsWith('/live') || path.endsWith('/orders')) return 'kds';
+  return 'kds';
+};
+
+const getPathForTab = (tabId: AdminTabId): string => {
+  if (tabId === 'kds') return '/admin/kds';
+  return `/admin/${tabId}`;
+};
+
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<AdminTabId>('kds');
+  const [activeTab, setActiveTab] = useState<AdminTabId>(() => parseTabFromLocation());
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('benzin_theme');
     return saved === 'light' || saved === 'dark' ? saved : 'dark';
@@ -66,6 +85,26 @@ export const App: React.FC = () => {
     return !token || !uId || !rId;
   });
 
+  // Listen to browser Back / Forward buttons and sync URL to active tab
+  useEffect(() => {
+    const handlePopState = () => {
+      const tab = parseTabFromLocation();
+      setActiveTab(tab);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const handleSelectTab = (tabId: AdminTabId) => {
+    setActiveTab(tabId);
+    if (typeof window !== 'undefined') {
+      const targetPath = getPathForTab(tabId);
+      if (window.location.pathname !== targetPath) {
+        window.history.pushState({ tab: tabId }, '', targetPath);
+      }
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
     const initSession = async () => {
@@ -73,11 +112,44 @@ export const App: React.FC = () => {
       const uId = typeof window !== 'undefined' ? localStorage.getItem('benzin_user_id') : null;
       const rId = typeof window !== 'undefined' ? localStorage.getItem('benzin_restaurant_id') : null;
 
-      // If user is not authenticated, show login overlay and wait
+      // If user is not authenticated, redirect to /admin/login and open login modal
       if (!token || !uId || !rId) {
+        if (typeof window !== 'undefined' && window.location.pathname !== '/admin/login') {
+          sessionStorage.setItem('benzin_redirect_after_login', window.location.pathname);
+          window.history.replaceState({ tab: 'login' }, '', '/admin/login');
+        }
         setIsLoginOverlayOpen(true);
         return;
       }
+
+      // Authoritative database session verification
+      const sessionCheck = await apiClient.verifySession();
+      if (!sessionCheck.valid) {
+        console.warn('Session is expired or invalid in database. Redirecting to login.');
+        apiClient.logout();
+        if (typeof window !== 'undefined' && window.location.pathname !== '/admin/login') {
+          sessionStorage.setItem('benzin_redirect_after_login', window.location.pathname);
+          window.history.replaceState({ tab: 'login' }, '', '/admin/login');
+        }
+        setVenue({ id: '', name: '', slug: '', code: '', isDemo: false });
+        setUser({ id: '', name: '', role: 'staff', position: '', isClockedIn: false, hourlyWage: 0 });
+        setIsLoginOverlayOpen(true);
+        return;
+      }
+
+      // Valid session: if currently on /admin/login, restore requested destination URL
+      if (typeof window !== 'undefined') {
+        if (window.location.pathname === '/admin/login') {
+          const savedPath = sessionStorage.getItem('benzin_redirect_after_login');
+          sessionStorage.removeItem('benzin_redirect_after_login');
+          const targetPath = savedPath && savedPath !== '/admin/login' ? savedPath : '/admin/kds';
+          window.history.replaceState(null, '', targetPath);
+          setActiveTab(parseTabFromLocation());
+        } else {
+          setActiveTab(parseTabFromLocation());
+        }
+      }
+      setIsLoginOverlayOpen(false);
 
       try {
         const [vInfo, uInfo, emps, menuRes] = await Promise.all([
@@ -416,6 +488,7 @@ export const App: React.FC = () => {
         isDemo: Boolean(restaurantData.isDemo),
       });
       if (typeof window !== 'undefined') {
+        localStorage.setItem('benzin_restaurant_id', restaurantData.id || restaurantData._id || '');
         localStorage.setItem('benzin_restaurant_name', restaurantData.name || '');
         localStorage.setItem('benzin_restaurant_code', restaurantData.restaurant_code || restaurantData.code || '');
       }
@@ -432,17 +505,33 @@ export const App: React.FC = () => {
         pin: userData.pin,
       });
       if (typeof window !== 'undefined') {
+        localStorage.setItem('benzin_user_id', userData.id || userData._id || '');
+        localStorage.setItem('benzin_user_name', userData.name || '');
+        localStorage.setItem('benzin_user_role', userData.role || 'staff');
         localStorage.setItem('benzin_user_position', userData.position || (userData.role ? userData.role.toUpperCase() : 'Staff'));
       }
     }
     setIsLoginOverlayOpen(false);
+
+    // If currently on /admin/login, restore requested destination URL or default to /admin/kds
+    if (typeof window !== 'undefined') {
+      const savedPath = sessionStorage.getItem('benzin_redirect_after_login');
+      sessionStorage.removeItem('benzin_redirect_after_login');
+      const targetPath = savedPath && savedPath !== '/admin/login' ? savedPath : (window.location.pathname === '/admin/login' ? '/admin/kds' : window.location.pathname);
+      window.history.replaceState(null, '', targetPath);
+      setActiveTab(parseTabFromLocation());
+    }
+
     setSessionKey((prev) => prev + 1);
   };
 
   const handleLogout = () => {
     apiClient.logout();
-    setVenue(DEFAULT_VENUE);
-    setUser(DEFAULT_USER);
+    setVenue({ id: '', name: '', slug: '', code: '', isDemo: false });
+    setUser({ id: '', name: '', role: 'staff', position: '', isClockedIn: false, hourlyWage: 0 });
+    if (typeof window !== 'undefined') {
+      window.history.replaceState({ tab: 'login' }, '', '/admin/login');
+    }
     setIsLoginOverlayOpen(true);
   };
 
@@ -468,7 +557,7 @@ export const App: React.FC = () => {
                   onOpenEditTable={handleOpenEditTable}
                   onOpenCollectCash={handleOpenCollectCash}
                   onOpenReassignServer={handleOpenReassignServer}
-                  onSelectTab={setActiveTab}
+                  onSelectTab={handleSelectTab}
                   currentUserId={user.id}
                   currentUserName={user.name}
                 />
@@ -541,7 +630,7 @@ export const App: React.FC = () => {
 
       <AdminLayout
         activeTab={activeTab}
-        onSelectTab={setActiveTab}
+        onSelectTab={handleSelectTab}
         venue={venue}
         user={user}
         theme={theme}

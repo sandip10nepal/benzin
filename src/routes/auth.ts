@@ -1182,4 +1182,58 @@ router.get('/me', requireAuth, async (req, res) => {
   }
 });
 
+/**
+ * GET /api/auth/session
+ *
+ * Verifies active session token from Authorization: Bearer <token>.
+ * Validates against authoritative database (checks active restaurant and user).
+ * Returns session details with unique session_id.
+ */
+router.get('/session', requireAuth, async (req, res) => {
+  try {
+    const tenant = req.tenant!;
+    const restaurant = await MultiTenantDbService.getRestaurant(tenant.restaurant_id);
+    if (!restaurant || !restaurant.active) {
+      res.status(401).json({ success: false, valid: false, error: 'Venue is inactive or not found.' });
+      return;
+    }
+
+    let user = null;
+    if (tenant.user_id) {
+      user = await MultiTenantDbService.getUser(tenant.user_id);
+      if (user && user.active === false) {
+        res.status(401).json({ success: false, valid: false, error: 'User account has been deactivated.' });
+        return;
+      }
+    }
+
+    const sessionId = `sess_${Buffer.from(`${tenant.restaurant_id}_${tenant.user_id || 'admin'}`).toString('hex').slice(0, 16)}_${Date.now()}`;
+
+    res.status(200).json({
+      success: true,
+      valid: true,
+      session_id: sessionId,
+      user: user ? {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        position: user.position || user.role,
+      } : {
+        id: tenant.user_id || '',
+        name: tenant.role === 'owner' ? 'Owner' : 'Staff',
+        role: tenant.role,
+      },
+      restaurant: {
+        id: restaurant._id,
+        name: restaurant.name,
+        slug: restaurant.slug,
+        restaurant_code: restaurant.restaurant_code,
+      },
+    });
+  } catch (err: any) {
+    res.status(401).json({ success: false, valid: false, error: 'Invalid or expired session.' });
+  }
+});
+
 export default router;

@@ -523,6 +523,39 @@ export class AdminApiClient {
   /*                         AUTHENTICATION METHODS                             */
   /* ═══════════════════════════════════════════════════════════════════════════ */
 
+  async verifySession(): Promise<{ valid: boolean; session_id?: string; user?: any; restaurant?: any }> {
+    if (typeof window === 'undefined') return { valid: false };
+    const token = localStorage.getItem('benzin_jwt_token');
+    const uId = localStorage.getItem('benzin_user_id');
+    const rId = localStorage.getItem('benzin_restaurant_id');
+
+    if (!token || !uId || !rId) {
+      return { valid: false };
+    }
+
+    try {
+      const res = await fetch(`${this.baseUrl}/api/auth/session`, {
+        headers: this.getHeaders(),
+      });
+      if (res.status === 401 || res.status === 403) {
+        return { valid: false };
+      }
+      if (!res.ok) {
+        return { valid: true };
+      }
+      const data = await res.json();
+      if (data && data.valid && data.success) {
+        if (data.session_id) {
+          localStorage.setItem('benzin_session_id', data.session_id);
+        }
+        return data;
+      }
+      return { valid: false };
+    } catch (_) {
+      return { valid: true };
+    }
+  }
+
   async verifyVenue(venueCode: string): Promise<{ success: boolean; restaurant?: any; staff?: any[]; error?: string }> {
     try {
       const res = await fetch(`${this.baseUrl}/api/auth/staff-roster`, {
@@ -548,7 +581,13 @@ export class AdminApiClient {
           action: 'login',
         }),
       });
-      return await res.json();
+      const data = await res.json();
+      if (data.success && data.token && typeof window !== 'undefined') {
+        const sessionId = `sess_${Math.random().toString(36).substring(2, 10)}_${Date.now()}`;
+        localStorage.setItem('benzin_session_id', sessionId);
+        localStorage.setItem('benzin_jwt_token', data.token);
+      }
+      return data;
     } catch (err: any) {
       return { success: false, error: err.message || 'Network error verifying staff PIN' };
     }
@@ -566,7 +605,13 @@ export class AdminApiClient {
           restaurant_code: params.restaurant_code?.trim() || undefined,
         }),
       });
-      return await res.json();
+      const data = await res.json();
+      if (data.success && data.token && typeof window !== 'undefined') {
+        const sessionId = `sess_${Math.random().toString(36).substring(2, 10)}_${Date.now()}`;
+        localStorage.setItem('benzin_session_id', sessionId);
+        localStorage.setItem('benzin_jwt_token', data.token);
+      }
+      return data;
     } catch (err: any) {
       return { success: false, error: err.message || 'Network error during manager login' };
     }
@@ -574,11 +619,13 @@ export class AdminApiClient {
 
   logout(): void {
     if (typeof window !== 'undefined') {
+      localStorage.removeItem('benzin_session_id');
       localStorage.removeItem('benzin_jwt_token');
       localStorage.removeItem('benzin_user_id');
       localStorage.removeItem('benzin_user_name');
       localStorage.removeItem('benzin_user_role');
       localStorage.removeItem('benzin_user_pin');
+      localStorage.removeItem('benzin_user_position');
       localStorage.removeItem('benzin_restaurant_id');
       localStorage.removeItem('benzin_selected_slug');
       localStorage.removeItem('benzin_restaurant_code');

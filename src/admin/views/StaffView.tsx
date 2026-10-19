@@ -362,6 +362,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
               const roleLabel = getRoleLabel(emp);
               const roleColor = getRoleColor(roleLabel);
               const isOwner = emp.role === 'owner' || roleLabel === 'OWNER';
+              const isManager = isOwner || emp.role === 'manager' || roleLabel === 'MANAGER';
               const displayEmail = emp.email || null;
 
               const initial = (emp.name || 'S').charAt(0).toUpperCase();
