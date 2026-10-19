@@ -78,9 +78,6 @@ export const SalesView: React.FC = () => {
           <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--cream)', margin: 0 }}>
             Sales Analytics, Tax Collection &amp; Payment Ledger
           </h2>
-          <p style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '4px' }}>
-            Live MongoDB Atlas metrics for Cavalli Lounge.
-          </p>
         </div>
       </div>
 

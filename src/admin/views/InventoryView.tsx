@@ -4,8 +4,6 @@ import {
   PlusCircle,
   Edit2,
   Trash2,
-  AlertTriangle,
-  ArrowUpDown,
   Search,
 } from 'lucide-react';
 import { apiClient } from '../api/client';
@@ -42,8 +40,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   ]);
   const [activeCategory, setActiveCategory] = useState<string>('INVCAT_1862EED65A2E');
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [prioritizeLowStock, setPrioritizeLowStock] = useState<boolean>(true);
-  const [onlyBelowThreshold, setOnlyBelowThreshold] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
 
   // Load real inventory items and categories from database
@@ -129,14 +125,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     }
   };
 
-  // Count total items below threshold
-  const totalBelowThresholdCount = items.filter(
-    (item) => item.stock <= item.minThreshold
-  ).length;
-
-  // Filter items by category, search query, and threshold filter
+  // Filter items by category and search query
   let filteredItems = items.filter((item) => {
-    if (onlyBelowThreshold && item.stock > item.minThreshold) return false;
     if (
       activeCategory !== 'all' &&
       item.category !== activeCategory &&
@@ -155,20 +145,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     return true;
   });
 
-  // Sort items: if prioritizeLowStock is true, items below threshold float to the very top!
-  if (prioritizeLowStock) {
-    filteredItems = [...filteredItems].sort((a, b) => {
-      const aIsLow = a.stock <= a.minThreshold;
-      const bIsLow = b.stock <= b.minThreshold;
-      if (aIsLow && !bIsLow) return -1;
-      if (!aIsLow && bIsLow) return 1;
-      return 0;
-    });
-  }
-
-  const lowStockInCurrentView = filteredItems.filter(
-    (item) => item.stock <= item.minThreshold
-  );
+  // Items below threshold float to the top
+  filteredItems = [...filteredItems].sort((a, b) => {
+    const aIsLow = a.stock <= a.minThreshold;
+    const bIsLow = b.stock <= b.minThreshold;
+    if (aIsLow && !bIsLow) return -1;
+    if (!aIsLow && bIsLow) return 1;
+    return 0;
+  });
 
   return (
     <div className="inventory-page-layout" id="inventoryPageLayout" style={{ display: 'block' }}>
@@ -246,30 +230,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
           {/* Action Buttons */}
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'nowrap' }}>
-            {/* Prioritize Low Stock Toggle Button */}
-            <button
-              className="btn touch-target"
-              onClick={() => setPrioritizeLowStock((prev) => !prev)}
-              style={{
-                background: prioritizeLowStock ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.04)',
-                color: prioritizeLowStock ? '#f87171' : 'var(--muted)',
-                border: prioritizeLowStock ? '1.5px solid #ef4444' : '1.5px solid #233044',
-                fontWeight: 800,
-                padding: '8px 12px',
-                fontSize: '12px',
-                borderRadius: '10px',
-                whiteSpace: 'nowrap',
-                minHeight: '38px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                cursor: 'pointer',
-              }}
-              title="Toggle listing below-threshold items at the top"
-            >
-              <ArrowUpDown style={{ width: '13px', height: '13px' }} />
-              <span>Low Stock First {prioritizeLowStock ? '✓' : ''}</span>
-            </button>
 
             <button
               className="btn touch-target"
@@ -366,74 +326,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             </button>
           );
         })}
-
-        {/* Below Threshold Quick Filter Pill */}
-        <button
-          onClick={() => setOnlyBelowThreshold((prev) => !prev)}
-          style={{
-            padding: '8px 18px',
-            borderRadius: '9999px',
-            fontSize: '13px',
-            fontWeight: 800,
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            transition: 'all 0.2s ease',
-            border: onlyBelowThreshold ? '1.5px solid #ef4444' : '1.5px solid rgba(239,68,68,0.4)',
-            background: onlyBelowThreshold ? '#ef4444' : 'rgba(239,68,68,0.12)',
-            color: onlyBelowThreshold ? '#FFFFFF' : '#f87171',
-          }}
-        >
-          <span>⚠️</span>
-          <span>Below Threshold ({totalBelowThresholdCount})</span>
-        </button>
       </div>
-
-      {/* Prominent Alert Banner when items are below threshold */}
-      {lowStockInCurrentView.length > 0 && (
-        <div
-          style={{
-            background: 'rgba(239, 68, 68, 0.08)',
-            border: '1.5px solid rgba(239, 68, 68, 0.45)',
-            borderRadius: '16px',
-            padding: '12px 18px',
-            marginBottom: '20px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '12px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <AlertTriangle style={{ width: '20px', height: '20px', color: '#f87171', flexShrink: 0 }} />
-            <div>
-              <div style={{ fontSize: '13px', fontWeight: 800, color: '#f87171' }}>
-                Stock Below Reorder Threshold ({lowStockInCurrentView.length} item{lowStockInCurrentView.length > 1 ? 's' : ''})
-              </div>
-              <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
-                Items below threshold are automatically prioritized and displayed at the top of the inventory grid.
-              </div>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <span
-              style={{
-                fontSize: '11px',
-                fontWeight: 800,
-                color: '#f87171',
-                background: 'rgba(239, 68, 68, 0.15)',
-                padding: '4px 10px',
-                borderRadius: '8px',
-              }}
-            >
-              Sorted at Top
-            </span>
-          </div>
-        </div>
-      )}
 
       {/* Grid of Inventory Cards matching the user screenshot */}
       <div
@@ -526,26 +419,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   >
                     <span style={{ color: '#E5B13A' }}>🟡</span>
                     <span>{item.brand}</span>
-                  </span>
-                </div>
-
-                {/* Category ID Pill */}
-                <div style={{ marginBottom: '8px' }}>
-                  <span
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      background: 'rgba(14, 165, 233, 0.1)',
-                      color: '#38BDF8',
-                      border: '1.5px solid #0284C7',
-                      borderRadius: '9999px',
-                      padding: '2px 10px',
-                      fontSize: '11px',
-                      fontWeight: 800,
-                      letterSpacing: '0.5px',
-                    }}
-                  >
-                    {item.categoryId}
                   </span>
                 </div>
 

@@ -723,25 +723,7 @@ export const TablesView: React.FC<TablesViewProps> = ({
                         <span>{isResetting ? 'Resetting Table...' : '🔄 Reset Table to Available'}</span>
                       </button>
                     </>
-                  ) : (
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button
-                        className="btn btn-primary touch-target"
-                        onClick={() => onSelectTab && onSelectTab('kds')}
-                        style={{
-                          flex: 1,
-                          padding: '8px',
-                          fontSize: '12px',
-                          justifyContent: 'center',
-                          background: 'var(--card2)',
-                          borderColor: 'var(--line)',
-                          color: 'var(--cream)',
-                        }}
-                      >
-                        + Start New Order
-                      </button>
-                    </div>
-                  )}
+                  ) : null}
                 </div>
               </div>
             );

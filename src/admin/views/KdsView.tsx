@@ -4,7 +4,6 @@ import {
   CheckCircle,
   Inbox,
   PlusCircle,
-  Flame,
   XCircle,
   RefreshCw,
 } from 'lucide-react';
@@ -73,7 +72,6 @@ export const KdsView: React.FC<KdsViewProps> = ({
 }) => {
   const [tickets, setTickets] = useState<KdsTicket[]>([]);
   const [serverCalls, setServerCalls] = useState<ServerCallRequest[]>([]);
-  const [showCoalQueue, setShowCoalQueue] = useState(true);
   const [loading, setLoading] = useState(false);
 
   const loadOrdersAndCalls = async () => {
@@ -238,152 +236,6 @@ export const KdsView: React.FC<KdsViewProps> = ({
 
   return (
     <div className="kds-layout" id="kdsPageLayout">
-      {/* Hookah Station Coal Refill Request Queue (Visible for Hookah Maker & Managers) */}
-      {isHookahOrManager && (
-        <div
-          id="hookahStationQueueSection"
-          style={{ display: showCoalQueue ? 'block' : 'none', marginBottom: '24px' }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              background:
-                'linear-gradient(135deg, rgba(255,90,31,0.18) 0%, rgba(229,177,58,0.12) 100%)',
-              border: '1.5px solid rgba(255,90,31,0.45)',
-              borderRadius: '12px',
-              padding: '14px 18px',
-              marginBottom: '14px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '24px' }}>🔥</span>
-              <div>
-                <div
-                  style={{
-                    color: '#fff',
-                    fontWeight: 900,
-                    fontSize: '16px',
-                    letterSpacing: '0.5px',
-                  }}
-                >
-                  Hookah Station — Coal Refill Queue
-                </div>
-                <div style={{ color: 'var(--muted)', fontSize: '12px' }}>
-                  Customer table requests routed exclusively to the Hookah Maker
-                </div>
-              </div>
-            </div>
-            <div
-              id="hookahQueueBadge"
-              style={{
-                background: '#ff5a1f',
-                color: '#fff',
-                fontWeight: 900,
-                fontSize: '12px',
-                padding: '4px 10px',
-                borderRadius: '20px',
-              }}
-            >
-              {activeCoalRequests.length} ACTIVE
-            </div>
-          </div>
-
-          <div className="tickets-grid" id="hookahRequestsGrid">
-            {activeCoalRequests.map((req) => (
-              <div
-                key={req.id}
-                className="ticket-card server-call-ticket"
-                style={{
-                  border: '2px solid #ff5a1f',
-                  boxShadow: '0 0 24px rgba(255,90,31,0.28)',
-                }}
-              >
-                <div
-                  className="ticket-header"
-                  style={{
-                    background: 'rgba(255,90,31,0.12)',
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    marginBottom: '12px',
-                  }}
-                >
-                  <div>
-                    <div
-                      className="ticket-title"
-                      style={{
-                        color: '#ff5a1f',
-                        fontSize: '19px',
-                        fontWeight: 900,
-                      }}
-                    >
-                      🔥 Table {req.table}{' '}
-                      <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                        {req.orderNumber}
-                      </span>
-                    </div>
-                    <div className="ticket-meta">
-                      🕒 {req.timeAgo} • Hookah Coal Refresh
-                    </div>
-                  </div>
-                  <span
-                    className="ticket-badge"
-                    style={{
-                      background: '#ff5a1f',
-                      color: '#fff',
-                      fontWeight: 900,
-                    }}
-                  >
-                    COAL REFILL
-                  </span>
-                </div>
-
-                <div
-                  style={{
-                    background: 'rgba(255,255,255,0.03)',
-                    border: '1.5px solid rgba(255,90,31,0.3)',
-                    borderRadius: '12px',
-                    padding: '16px 14px',
-                    textAlign: 'center',
-                    marginBottom: '14px',
-                  }}
-                >
-                  <div style={{ fontSize: '18px', fontWeight: 900, color: '#fff', marginBottom: '4px' }}>
-                    Fresh Coconut Coals Needed
-                  </div>
-                  <div style={{ fontSize: '12px', color: 'var(--gold)', fontWeight: 700 }}>
-                    Customer at Table {req.table} is ready for hot coals
-                  </div>
-                </div>
-
-                <div className="ticket-actions">
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => dismissServerCall(req.id)}
-                    style={{
-                      background: '#10b981',
-                      borderColor: '#10b981',
-                      fontWeight: 900,
-                      flex: 1,
-                      padding: '10px',
-                      fontSize: '13px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                    }}
-                  >
-                    <CheckCircle style={{ width: '16px', height: '16px' }} />
-                    <span>Coals Refilled / Dismiss</span>
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Main KDS Tickets Section */}
       <section className="tickets-section">
         <h2
@@ -400,14 +252,6 @@ export const KdsView: React.FC<KdsViewProps> = ({
             <span>Active Live KDS Tickets</span>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              className="btn"
-              onClick={() => setShowCoalQueue(!showCoalQueue)}
-              style={{ padding: '6px 12px', fontSize: '12px' }}
-            >
-              <Flame style={{ width: '13px', height: '13px' }} />
-              <span>{showCoalQueue ? 'Hide Coal Queue' : 'Show Coal Queue'}</span>
-            </button>
             <button
               className="btn btn-primary"
               onClick={loadOrdersAndCalls}

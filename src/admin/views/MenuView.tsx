@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   BookOpen,
-  HelpCircle,
   Flame,
   Star,
   FolderPlus,
@@ -507,24 +506,6 @@ export const MenuView: React.FC<MenuViewProps> = ({
           <BookOpen style={{ width: '15px', height: '15px' }} />
           <span>Menu Items &amp; Categories</span>
         </button>
-        <button
-          className={`sub-tab ${activeSubTab === 'vibeQuest' ? 'active' : ''}`}
-          id="menuSubTab-vibeQuest"
-          onClick={() => setActiveSubTab('vibeQuest')}
-          style={{
-            fontWeight: 800,
-            fontSize: '13px',
-            padding: '8px 18px',
-            borderRadius: '10px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            cursor: 'pointer',
-          }}
-        >
-          <HelpCircle style={{ width: '15px', height: '15px', color: 'var(--gold)' }} />
-          <span>Ordering Questions</span>
-        </button>
       </div>
 
       {activeSubTab === 'items' ? (
@@ -599,25 +580,6 @@ export const MenuView: React.FC<MenuViewProps> = ({
               </div>
 
               <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'nowrap' }}>
-                <button
-                  className="btn touch-target"
-                  onClick={() => setActiveSubTab('vibeQuest')}
-                  style={{
-                    background: 'rgba(245,158,11,0.14)',
-                    color: 'var(--gold)',
-                    border: '1.5px solid var(--gold)',
-                    fontWeight: 800,
-                    padding: '6px 10px',
-                    fontSize: '12px',
-                    borderRadius: '8px',
-                    whiteSpace: 'nowrap',
-                    minHeight: '36px',
-                  }}
-                  title="Configure Ordering Questions"
-                >
-                  <HelpCircle style={{ width: '14px', height: '14px' }} />
-                  <span>Ordering Questions</span>
-                </button>
                 <button
                   className="btn touch-target"
                   onClick={onOpenHookahConfig}
@@ -1051,60 +1013,6 @@ export const MenuView: React.FC<MenuViewProps> = ({
         </div>
       ) : (
         <div id="menuCatalogVibeQuestView" style={{ maxWidth: '1040px', margin: '0 auto' }}>
-          {/* Header & Primary Action Toolbar */}
-          <div
-            style={{
-              background: 'var(--card)',
-              border: '1.5px solid var(--line)',
-              borderRadius: '16px',
-              padding: '22px 24px',
-              marginBottom: '24px',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: '16px',
-            }}
-          >
-            <div>
-              <h2
-                style={{
-                  fontFamily: "'Outfit', 'Inter', system-ui, sans-serif",
-                  fontSize: '22px',
-                  fontWeight: 900,
-                  color: 'var(--gold)',
-                  margin: 0,
-                  letterSpacing: '-0.3px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}
-              >
-                <span>🎯</span>
-                <span>Ordering Question Configuration</span>
-              </h2>
-              <p style={{ fontSize: '13px', color: 'var(--muted)', margin: '6px 0 0 0' }}>
-                Configure questions shown when customers click navigation buttons, and destination pages or menu categories for each answer.
-              </p>
-            </div>
-            <button
-              className="btn btn-primary"
-              id="saveQuestionsTopBtn"
-              onClick={handleSaveQuestions}
-              style={{
-                background: 'var(--gold)',
-                borderColor: 'var(--gold)',
-                color: '#000',
-                fontWeight: 900,
-                fontSize: '13px',
-                padding: '10px 24px',
-                borderRadius: '10px',
-                boxShadow: '0 4px 14px rgba(229,177,58,0.25)',
-              }}
-            >
-              💾 Save Questions
-            </button>
-          </div>
 
           {saveToast && (
             <div
