@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   BookOpen,
+  HelpCircle,
+  ArrowLeft,
   Flame,
   Star,
   FolderPlus,
@@ -201,6 +203,15 @@ const INITIAL_QUESTIONS: VibeQuestQuestion[] = [
   },
 ];
 
+const resolveImageUrl = (url?: string) => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+    return url;
+  }
+  const cleanPath = url.startsWith('/') ? url : `/${url}`;
+  return `${apiClient.baseUrl}${cleanPath}`;
+};
+
 export const MenuView: React.FC<MenuViewProps> = ({
   onOpenHookahConfig,
   onOpenSpecials,
@@ -244,7 +255,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
                 superCategory: superCat,
                 emoji: raw.emoji || '🍽️',
                 description: raw.desc || raw.description || '',
-                imageUrl: raw.image_url || raw.imageUrl || '',
+                imageUrl: raw.image_url || raw.imageUrl || raw.image || raw.img || '',
                 isSpecial: !!raw.is_special || !!raw.isSpecial,
                 available: raw.available !== false,
                 recipeIngredientsCount: Array.isArray(raw.recipe) ? raw.recipe.length : 0,
@@ -582,6 +593,30 @@ export const MenuView: React.FC<MenuViewProps> = ({
               <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'nowrap' }}>
                 <button
                   className="btn touch-target"
+                  id="toolbarOrderingQuestionsBtn"
+                  onClick={() => setActiveSubTab('vibeQuest')}
+                  style={{
+                    background: 'rgba(245,158,11,0.14)',
+                    color: 'var(--gold)',
+                    border: '1.5px solid var(--gold)',
+                    fontWeight: 800,
+                    padding: '6px 10px',
+                    fontSize: '12px',
+                    borderRadius: '8px',
+                    whiteSpace: 'nowrap',
+                    minHeight: '36px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    cursor: 'pointer',
+                  }}
+                  title="Configure Ordering Questions"
+                >
+                  <HelpCircle style={{ width: '14px', height: '14px' }} />
+                  <span>Ordering Questions</span>
+                </button>
+                <button
+                  className="btn touch-target"
                   onClick={onOpenHookahConfig}
                   style={{
                     background: 'rgba(229,177,58,0.12)',
@@ -716,17 +751,18 @@ export const MenuView: React.FC<MenuViewProps> = ({
             })}
           </div>
 
-          {/* Menu Items Grid */}
+          {/* Menu Items Grid with compact sizing */}
           <div
             id="menuGridContainer"
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-              gap: '20px',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))',
+              gap: '16px',
             }}
           >
             {filteredItems.map((item) => {
               const isAvail = item.available !== false;
+              const resolvedImg = resolveImageUrl(item.imageUrl);
               return (
                 <div
                   key={item.id}
@@ -734,27 +770,27 @@ export const MenuView: React.FC<MenuViewProps> = ({
                   style={{
                     background: '#151D2A',
                     border: isAvail ? '1.5px solid #233044' : '1.5px solid rgba(239, 68, 68, 0.5)',
-                    borderRadius: '24px',
-                    padding: '24px',
+                    borderRadius: '16px',
+                    padding: '16px',
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'space-between',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                    boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
                     opacity: isAvail ? 1 : 0.65,
                     transition: 'all 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
                   }}
                 >
                   <div>
                     {/* Top Row: Thumbnail + Title + Price */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', marginBottom: '14px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', minWidth: 0, flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
                         <div
                           style={{
-                            width: '72px',
-                            height: '72px',
-                            borderRadius: '18px',
+                            width: '52px',
+                            height: '52px',
+                            borderRadius: '12px',
                             overflow: 'hidden',
-                            border: '2.5px solid #38BDF8',
+                            border: '1.5px solid #38BDF8',
                             flexShrink: 0,
                             display: 'flex',
                             alignItems: 'center',
@@ -762,30 +798,37 @@ export const MenuView: React.FC<MenuViewProps> = ({
                             background: '#0B0F19',
                           }}
                         >
-                          {item.imageUrl ? (
+                          {resolvedImg ? (
                             <img
-                              src={item.imageUrl}
+                              src={resolvedImg}
                               alt={item.name}
                               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              onError={(e) => {
+                                (e.currentTarget as HTMLElement).style.display = 'none';
+                                const fallback = e.currentTarget.parentElement?.querySelector('.menu-emoji-fallback') as HTMLElement;
+                                if (fallback) fallback.style.display = 'block';
+                              }}
                             />
-                          ) : (
-                            <span style={{ fontSize: '36px' }}>{item.emoji}</span>
-                          )}
+                          ) : null}
+                          <span
+                            className="menu-emoji-fallback"
+                            style={{ fontSize: '26px', display: resolvedImg ? 'none' : 'block' }}
+                          >
+                            {item.emoji}
+                          </span>
                         </div>
 
                         <div style={{ minWidth: 0 }}>
                           <h3
                             style={{
                               fontFamily: "'Outfit', 'Inter', system-ui, sans-serif",
-                              fontSize: '22px',
-                              fontWeight: 900,
+                              fontSize: '15px',
+                              fontWeight: 800,
                               color: '#FFFFFF',
                               margin: 0,
-                              lineHeight: 1.2,
+                              lineHeight: 1.25,
                               letterSpacing: '-0.2px',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
+                              wordBreak: 'break-word',
                             }}
                           >
                             {item.name}
@@ -796,7 +839,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
                       <div
                         style={{
                           fontFamily: "'Outfit', 'Inter', system-ui, sans-serif",
-                          fontSize: '26px',
+                          fontSize: '16px',
                           fontWeight: 900,
                           color: '#38BDF8',
                           whiteSpace: 'nowrap',
@@ -809,34 +852,40 @@ export const MenuView: React.FC<MenuViewProps> = ({
                     </div>
 
                     {/* Description */}
-                    <p
-                      style={{
-                        fontSize: '14px',
-                        fontWeight: 500,
-                        color: '#94a3b8',
-                        lineHeight: 1.45,
-                        margin: '14px 0 16px 0',
-                      }}
-                    >
-                      {item.description}
-                    </p>
+                    {item.description ? (
+                      <p
+                        style={{
+                          fontSize: '12px',
+                          fontWeight: 500,
+                          color: '#94a3b8',
+                          lineHeight: 1.4,
+                          margin: '6px 0 10px 0',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        {item.description}
+                      </p>
+                    ) : null}
 
                     {/* Pill Badges Row */}
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '20px' }}>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '14px' }}>
                       {/* Category Pill */}
                       <span
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '6px',
-                          padding: '5px 14px',
+                          gap: '5px',
+                          padding: '3px 10px',
                           borderRadius: '9999px',
                           background: 'rgba(20, 26, 36, 0.85)',
                           border: '1.5px solid #ca8a04',
                           color: '#38BDF8',
-                          fontSize: '12px',
-                          fontWeight: 900,
-                          letterSpacing: '0.6px',
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          letterSpacing: '0.4px',
                           textTransform: 'uppercase',
                         }}
                       >
@@ -850,15 +899,14 @@ export const MenuView: React.FC<MenuViewProps> = ({
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
-                            padding: '5px 14px',
+                            padding: '3px 10px',
                             borderRadius: '9999px',
                             background: 'rgba(16, 185, 129, 0.08)',
                             border: '1.5px solid #10B981',
                             color: '#10B981',
-                            fontSize: '12px',
-                            fontWeight: 900,
-                            letterSpacing: '0.6px',
-                            textTransform: 'uppercase',
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            letterSpacing: '0.4px',
                           }}
                         >
                           ACTIVE
@@ -868,15 +916,14 @@ export const MenuView: React.FC<MenuViewProps> = ({
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
-                            padding: '5px 14px',
+                            padding: '3px 10px',
                             borderRadius: '9999px',
                             background: 'rgba(239, 68, 68, 0.1)',
                             border: '1.5px solid #ef4444',
                             color: '#ef4444',
-                            fontSize: '12px',
-                            fontWeight: 900,
-                            letterSpacing: '0.6px',
-                            textTransform: 'uppercase',
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            letterSpacing: '0.4px',
                           }}
                         >
                           DISABLED
@@ -888,14 +935,14 @@ export const MenuView: React.FC<MenuViewProps> = ({
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
-                            padding: '5px 12px',
+                            padding: '3px 10px',
                             borderRadius: '9999px',
                             background: 'rgba(168,85,247,0.18)',
                             color: '#c084fc',
                             border: '1.5px solid #a855f7',
-                            fontSize: '11px',
+                            fontSize: '10px',
                             fontWeight: 900,
-                            letterSpacing: '0.5px',
+                            letterSpacing: '0.4px',
                           }}
                         >
                           ⭐ SPECIAL
@@ -910,7 +957,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
                             background: 'rgba(229,177,58,0.12)',
                             color: 'var(--gold)',
                             border: '1px dashed var(--gold)',
-                            padding: '4px 8px',
+                            padding: '3px 8px',
                             borderRadius: '6px',
                           }}
                         >
@@ -926,7 +973,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
                             background: 'rgba(16,185,129,0.12)',
                             color: '#10B981',
                             border: '1px dashed #10B981',
-                            padding: '4px 8px',
+                            padding: '3px 8px',
                             borderRadius: '6px',
                           }}
                         >
@@ -937,28 +984,28 @@ export const MenuView: React.FC<MenuViewProps> = ({
                   </div>
 
                   {/* Bottom Action Row: Edit, Disable/Enable, Delete */}
-                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: 'auto' }}>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: 'auto' }}>
                     <button
                       type="button"
                       className="btn"
                       onClick={() => onOpenEditItem && onOpenEditItem(item)}
                       style={{
                         flex: 1,
-                        height: '44px',
-                        borderRadius: '12px',
+                        height: '34px',
+                        borderRadius: '8px',
                         background: 'rgba(255, 255, 255, 0.03)',
                         border: '1.5px solid #2b394e',
                         color: '#FFFFFF',
                         fontWeight: 800,
-                        fontSize: '14px',
+                        fontSize: '12px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '8px',
+                        gap: '6px',
                         cursor: 'pointer',
                       }}
                     >
-                      <Edit2 style={{ width: '15px', height: '15px' }} />
+                      <Edit2 style={{ width: '13px', height: '13px' }} />
                       Edit
                     </button>
 
@@ -966,17 +1013,17 @@ export const MenuView: React.FC<MenuViewProps> = ({
                       type="button"
                       onClick={() => handleToggleItemStatus(item.id)}
                       style={{
-                        height: '44px',
-                        padding: '0 16px',
-                        borderRadius: '12px',
+                        height: '34px',
+                        padding: '0 12px',
+                        borderRadius: '8px',
                         background: isAvail ? 'rgba(239, 68, 68, 0.12)' : 'rgba(34, 197, 94, 0.12)',
                         border: isAvail ? '1.5px solid rgba(248, 113, 113, 0.65)' : '1.5px solid rgba(34, 197, 94, 0.65)',
                         color: isAvail ? '#f87171' : '#34d399',
                         fontWeight: 800,
-                        fontSize: '14px',
+                        fontSize: '12px',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '6px',
+                        gap: '4px',
                         cursor: 'pointer',
                         whiteSpace: 'nowrap',
                       }}
@@ -989,9 +1036,9 @@ export const MenuView: React.FC<MenuViewProps> = ({
                       type="button"
                       onClick={() => handleDeleteItem(item.id)}
                       style={{
-                        width: '46px',
-                        height: '44px',
-                        borderRadius: '12px',
+                        width: '36px',
+                        height: '34px',
+                        borderRadius: '8px',
                         background: 'rgba(239, 68, 68, 0.08)',
                         border: '1.5px solid rgba(248, 113, 113, 0.35)',
                         color: '#f87171',
@@ -1003,7 +1050,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
                       }}
                       title="Delete Item"
                     >
-                      <Trash2 style={{ width: '16px', height: '16px' }} />
+                      <Trash2 style={{ width: '13px', height: '13px' }} />
                     </button>
                   </div>
                 </div>
@@ -1013,6 +1060,75 @@ export const MenuView: React.FC<MenuViewProps> = ({
         </div>
       ) : (
         <div id="menuCatalogVibeQuestView" style={{ maxWidth: '1040px', margin: '0 auto' }}>
+          {/* Header Bar with Back to Menu Items & Save Questions */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '20px',
+              paddingBottom: '12px',
+              borderBottom: '1.5px solid var(--line)',
+              flexWrap: 'wrap',
+              gap: '12px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <button
+                type="button"
+                className="btn touch-target"
+                onClick={() => setActiveSubTab('items')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 14px',
+                  fontSize: '12px',
+                  fontWeight: 800,
+                  background: 'var(--card2)',
+                  border: '1.5px solid var(--line)',
+                  color: 'var(--cream)',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                }}
+              >
+                <ArrowLeft style={{ width: '14px', height: '14px' }} />
+                <span>Back to Menu Items</span>
+              </button>
+              <h2
+                style={{
+                  fontFamily: "'Outfit', 'Inter', system-ui, sans-serif",
+                  fontSize: '18px',
+                  fontWeight: 900,
+                  color: 'var(--gold)',
+                  margin: 0,
+                  letterSpacing: '-0.2px',
+                }}
+              >
+                🎯 Ordering Questions
+              </h2>
+            </div>
+
+            <button
+              type="button"
+              className="btn btn-primary touch-target"
+              id="saveQuestionsTopBtn"
+              onClick={handleSaveQuestions}
+              style={{
+                background: 'var(--gold)',
+                borderColor: 'var(--gold)',
+                color: '#000',
+                fontWeight: 900,
+                fontSize: '12px',
+                padding: '8px 18px',
+                borderRadius: '8px',
+                boxShadow: '0 4px 14px rgba(229,177,58,0.25)',
+                cursor: 'pointer',
+              }}
+            >
+              💾 Save Questions
+            </button>
+          </div>
 
           {saveToast && (
             <div

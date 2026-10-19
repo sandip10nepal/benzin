@@ -302,7 +302,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               key={cat.id}
               onClick={() => {
                 setActiveCategory(cat.id);
-                setOnlyBelowThreshold(false);
               }}
               style={{
                 padding: '8px 18px',

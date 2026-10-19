@@ -658,7 +658,72 @@ export const TablesView: React.FC<TablesViewProps> = ({
                         </div>
                       </div>
                     </>
-                  ) : null}
+                  ) : (
+                    <div
+                      style={{
+                        padding: '24px 16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        border: '1.5px dashed rgba(255, 255, 255, 0.07)',
+                        borderRadius: '14px',
+                        margin: '12px 0',
+                        textAlign: 'center',
+                      }}
+                    >
+                      {/* Top-down vector architectural drawing of table and chairs */}
+                      <svg
+                        width="72"
+                        height="72"
+                        viewBox="0 0 72 72"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        style={{ marginBottom: '10px' }}
+                      >
+                        {/* Table Top with subtle rim and center accent */}
+                        <circle cx="36" cy="36" r="17" fill="#1E293B" stroke="#38BDF8" strokeWidth="1.8" strokeDasharray="3 3" />
+                        <circle cx="36" cy="36" r="7" fill="#38BDF8" fillOpacity="0.15" />
+                        <circle cx="36" cy="36" r="2.5" fill="#38BDF8" fillOpacity="0.8" />
+                        
+                        {/* 4 Chairs placed around table */}
+                        {/* Top Chair */}
+                        <rect x="29" y="8" width="14" height="7" rx="3.5" fill="#334155" stroke="#64748B" strokeWidth="1.2" />
+                        {/* Bottom Chair */}
+                        <rect x="29" y="57" width="14" height="7" rx="3.5" fill="#334155" stroke="#64748B" strokeWidth="1.2" />
+                        {/* Left Chair */}
+                        <rect x="8" y="29" width="7" height="14" rx="3.5" fill="#334155" stroke="#64748B" strokeWidth="1.2" />
+                        {/* Right Chair */}
+                        <rect x="57" y="29" width="7" height="14" rx="3.5" fill="#334155" stroke="#64748B" strokeWidth="1.2" />
+                      </svg>
+
+                      <div
+                        style={{
+                          fontSize: '13px',
+                          fontWeight: 800,
+                          color: '#94a3b8',
+                          letterSpacing: '0.3px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        <span>🪑</span>
+                        <span>Table &amp; Chairs Ready</span>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          color: '#64748b',
+                          marginTop: '3px',
+                        }}
+                      >
+                        {tbl.capacity || 4} Guests Capacity • Open for Seating
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Card Actions: View Ticket, Bill, and RESET TABLE */}
