@@ -55,10 +55,26 @@ export const App: React.FC = () => {
   const [venue, setVenue] = useState<RestaurantVenue>(DEFAULT_VENUE);
   const [user, setUser] = useState<StaffUser>(DEFAULT_USER);
   const [staffList, setStaffList] = useState<StaffUser[]>([DEFAULT_USER]);
+  const [sessionKey, setSessionKey] = useState<number>(0);
+  const [isLoginOverlayOpen, setIsLoginOverlayOpen] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const token = localStorage.getItem('benzin_jwt_token');
+    const userName = localStorage.getItem('benzin_user_name');
+    return !token && !userName;
+  });
 
   useEffect(() => {
     let mounted = true;
     const initSession = async () => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('benzin_jwt_token') : null;
+      const userName = typeof window !== 'undefined' ? localStorage.getItem('benzin_user_name') : null;
+
+      // If user is not authenticated, show login overlay and wait
+      if (!token && !userName) {
+        setIsLoginOverlayOpen(true);
+        return;
+      }
+
       try {
         const [vInfo, uInfo, emps] = await Promise.all([
           apiClient.getVenueInfo(),
@@ -92,7 +108,7 @@ export const App: React.FC = () => {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [sessionKey]);
 
   // Modals visibility states
   const [isStaffSwitchOpen, setIsStaffSwitchOpen] = useState(false);
@@ -163,7 +179,6 @@ export const App: React.FC = () => {
 
   const [isHookahConfigOpen, setIsHookahConfigOpen] = useState(false);
   const [isSpecialsOpen, setIsSpecialsOpen] = useState(false);
-  const [isLoginOverlayOpen, setIsLoginOverlayOpen] = useState(false);
 
   // Sync theme attribute with document root
   useEffect(() => {
@@ -232,82 +247,121 @@ export const App: React.FC = () => {
     }
   };
 
-  const renderActiveView = () => {
-    switch (activeTab) {
-      case 'kds':
-        return (
-          <KdsView
-            onOpenCollectCash={handleOpenCollectCash}
-            onOpenReassignServer={handleOpenReassignServer}
-            currentUserRole={user.role}
-            currentUserId={user.id}
-            currentUserName={user.name}
-          />
-        );
-      case 'tables':
-        return (
-          <TablesView
-            onOpenAddTable={() => setIsAddTableOpen(true)}
-            onOpenEditTable={handleOpenEditTable}
-            onOpenCollectCash={handleOpenCollectCash}
-            onOpenReassignServer={handleOpenReassignServer}
-            onSelectTab={setActiveTab}
-            currentUserId={user.id}
-            currentUserName={user.name}
-          />
-        );
-      case 'archive':
-        return <ArchiveView />;
-      case 'inventory':
-        return (
-          <InventoryView
-            onOpenAddCategory={() => setIsInventoryCategoryOpen(true)}
-            onOpenAddItem={() => setIsAddInventoryOpen(true)}
-            onOpenEditItem={handleOpenEditInventory}
-          />
-        );
-      case 'menu':
-        return (
-          <MenuView
-            onOpenHookahConfig={() => setIsHookahConfigOpen(true)}
-            onOpenSpecials={() => setIsSpecialsOpen(true)}
-            onOpenAddCategory={() => setIsMenuCategoryOpen(true)}
-            onOpenAddItem={() => {
-              setSelectedMenuItem(null);
-              setIsMenuItemOpen(true);
-            }}
-            onOpenEditItem={handleOpenEditMenuItem}
-          />
-        );
-      case 'sales':
-        return <SalesView />;
-      case 'staff':
-        return (
-          <StaffView
-            currentUser={user}
-            onOpenAddEmployee={() => {
-              setSelectedEmployee(null);
-              setIsEmployeeModalOpen(true);
-            }}
-            onOpenEditEmployee={(emp) => {
-              setSelectedEmployee({
-                id: emp.id,
-                name: emp.name,
-                role: emp.role,
-                position: emp.position,
-                hourlyWage: Number(emp.hourly_rate) || 18,
-                email: emp.email || undefined,
-                isClockedIn: emp.is_clocked_in,
-              });
-              setIsEmployeeModalOpen(true);
-            }}
-            onOpenStaffProfile={handleOpenStaffProfile}
-            onFulfillWeeklyPayroll={() => {}}
-          />
-        );
-      default:
-        return <KdsView />;
+  const handleLoginSuccess = (userData: any, restaurantData: any) => {
+    if (restaurantData) {
+      setVenue({
+        id: restaurantData.id || restaurantData._id || 'RES_EED4E9D266DF',
+        name: restaurantData.name || 'Cavalli',
+        slug: restaurantData.slug || 'cavali',
+        code: restaurantData.restaurant_code || '4821',
+        isDemo: false,
+      });
     }
+    if (userData) {
+      setUser({
+        id: userData.id || userData._id || 'usr_owner',
+        name: userData.name || 'Staff Member',
+        role: userData.role || 'server',
+        position: userData.position || (userData.role ? userData.role.toUpperCase() : 'Staff'),
+        isClockedIn: !!userData.is_clocked_in,
+        hourlyWage: Number(userData.hourly_rate) || 18,
+        email: userData.email,
+        pin: userData.pin,
+      });
+    }
+    setIsLoginOverlayOpen(false);
+    setSessionKey((prev) => prev + 1);
+  };
+
+  const handleLogout = () => {
+    apiClient.logout();
+    setVenue(DEFAULT_VENUE);
+    setUser(DEFAULT_USER);
+    setIsLoginOverlayOpen(true);
+  };
+
+  const renderActiveView = () => {
+    return (
+      <div key={`${venue.id}-${venue.slug}-${sessionKey}`}>
+        {(() => {
+          switch (activeTab) {
+            case 'kds':
+              return (
+                <KdsView
+                  onOpenCollectCash={handleOpenCollectCash}
+                  onOpenReassignServer={handleOpenReassignServer}
+                  currentUserRole={user.role}
+                  currentUserId={user.id}
+                  currentUserName={user.name}
+                />
+              );
+            case 'tables':
+              return (
+                <TablesView
+                  onOpenAddTable={() => setIsAddTableOpen(true)}
+                  onOpenEditTable={handleOpenEditTable}
+                  onOpenCollectCash={handleOpenCollectCash}
+                  onOpenReassignServer={handleOpenReassignServer}
+                  onSelectTab={setActiveTab}
+                  currentUserId={user.id}
+                  currentUserName={user.name}
+                />
+              );
+            case 'archive':
+              return <ArchiveView />;
+            case 'inventory':
+              return (
+                <InventoryView
+                  onOpenAddCategory={() => setIsInventoryCategoryOpen(true)}
+                  onOpenAddItem={() => setIsAddInventoryOpen(true)}
+                  onOpenEditItem={handleOpenEditInventory}
+                />
+              );
+            case 'menu':
+              return (
+                <MenuView
+                  onOpenHookahConfig={() => setIsHookahConfigOpen(true)}
+                  onOpenSpecials={() => setIsSpecialsOpen(true)}
+                  onOpenAddCategory={() => setIsMenuCategoryOpen(true)}
+                  onOpenAddItem={() => {
+                    setSelectedMenuItem(null);
+                    setIsMenuItemOpen(true);
+                  }}
+                  onOpenEditItem={handleOpenEditMenuItem}
+                />
+              );
+            case 'sales':
+              return <SalesView />;
+            case 'staff':
+              return (
+                <StaffView
+                  currentUser={user}
+                  onOpenAddEmployee={() => {
+                    setSelectedEmployee(null);
+                    setIsEmployeeModalOpen(true);
+                  }}
+                  onOpenEditEmployee={(emp) => {
+                    setSelectedEmployee({
+                      id: emp.id,
+                      name: emp.name,
+                      role: emp.role,
+                      position: emp.position,
+                      hourlyWage: Number(emp.hourly_rate) || 18,
+                      email: emp.email || undefined,
+                      isClockedIn: emp.is_clocked_in,
+                    });
+                    setIsEmployeeModalOpen(true);
+                  }}
+                  onOpenStaffProfile={handleOpenStaffProfile}
+                  onFulfillWeeklyPayroll={() => {}}
+                />
+              );
+            default:
+              return <KdsView />;
+          }
+        })()}
+      </div>
+    );
   };
 
   return (
@@ -329,7 +383,7 @@ export const App: React.FC = () => {
         onToggleTheme={toggleTheme}
         onProfileClick={() => handleOpenStaffProfile(user)}
         onSwitchAccountClick={() => setIsStaffSwitchOpen(true)}
-        onLogout={() => setIsLoginOverlayOpen(true)}
+        onLogout={handleLogout}
       >
         {renderActiveView()}
       </AdminLayout>
@@ -527,17 +581,14 @@ export const App: React.FC = () => {
       {/* 15. Staff Login Overlay (#benzinLoginOverlay) */}
       <LoginOverlay
         isOpen={isLoginOverlayOpen}
-        onClose={() => setIsLoginOverlayOpen(false)}
-        staffList={staffList}
-        onStaffLogin={(st) => {
-          setUser(st);
-          setIsLoginOverlayOpen(false);
-          alert(`Logged in as ${st.name}`);
+        onClose={() => {
+          const token = localStorage.getItem('benzin_jwt_token');
+          const userName = localStorage.getItem('benzin_user_name');
+          if (token || userName) {
+            setIsLoginOverlayOpen(false);
+          }
         }}
-        onManagerLogin={(email) => {
-          alert(`Logged in as Manager (${email})`);
-          setIsLoginOverlayOpen(false);
-        }}
+        onLoginSuccess={handleLoginSuccess}
       />
     </>
   );

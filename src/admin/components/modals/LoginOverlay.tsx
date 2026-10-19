@@ -1,70 +1,186 @@
-import React, { useState } from 'react';
-import { StaffUser } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { apiClient } from '../../api/client';
 
 interface LoginOverlayProps {
   isOpen: boolean;
   onClose?: () => void;
-  staffList?: StaffUser[];
-  onStaffLogin?: (staff: StaffUser) => void;
-  onManagerLogin?: (email: string, pass: string) => void;
+  onLoginSuccess?: (userData: any, restaurantData: any) => void;
 }
 
 export const LoginOverlay: React.FC<LoginOverlayProps> = ({
   isOpen,
   onClose,
-  staffList = [
-    { id: 'u1', name: 'Suwasna Gorkhali', role: 'server', isClockedIn: true },
-    { id: 'u2', name: 'Owner', role: 'owner', isClockedIn: true },
-    { id: 'u3', name: 'Alex M.', role: 'manager', isClockedIn: true },
-  ],
-  onStaffLogin,
-  onManagerLogin,
+  onLoginSuccess,
 }) => {
   const [mode, setMode] = useState<'pin' | 'email'>('pin');
-  const [venueCode, setVenueCode] = useState('CAVALLI');
-  const [venueVerified, setVenueVerified] = useState(true);
-  const [venueStatus, setVenueStatus] = useState('✓ Venue Verified: Cavalli Lounge');
-  const [selectedStaffId, setSelectedStaffId] = useState(staffList[0]?.id || '');
+  const [venueCode, setVenueCode] = useState(() => {
+    return (
+      localStorage.getItem('benzin_restaurant_code') ||
+      localStorage.getItem('benzin_selected_slug') ||
+      '4821'
+    );
+  });
+  const [venueVerified, setVenueVerified] = useState(false);
+  const [verifiedRestaurant, setVerifiedRestaurant] = useState<any>(null);
+  const [venueStatus, setVenueStatus] = useState('');
+  const [isVerifyingVenue, setIsVerifyingVenue] = useState(false);
+
+  const [staffOptions, setStaffOptions] = useState<any[]>([]);
+  const [selectedStaffId, setSelectedStaffId] = useState('');
   const [pin, setPin] = useState('');
+
   const [managerEmail, setManagerEmail] = useState('');
   const [managerPass, setManagerPass] = useState('');
   const [managerVenueCode, setManagerVenueCode] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  if (!isOpen) return null;
-
-  const handleVerifyVenue = () => {
-    if (!venueCode.trim()) {
-      setVenueStatus('⚠️ Please enter a venue code');
+  const doVerifyVenue = async (codeToVerify: string) => {
+    if (!codeToVerify.trim()) {
+      setVenueStatus('Please enter a valid Venue ID');
       setVenueVerified(false);
       return;
     }
-    setVenueVerified(true);
-    setVenueStatus(`✓ Venue Verified: ${venueCode.toUpperCase()}`);
+    setIsVerifyingVenue(true);
+    setVenueStatus('Verifying venue with database...');
+    setErrorMessage('');
+    try {
+      const data = await apiClient.verifyVenue(codeToVerify.trim());
+      if (data.success && data.restaurant) {
+        setVenueVerified(true);
+        setVerifiedRestaurant(data.restaurant);
+        setVenueStatus(`✓ Verified Venue: ${data.restaurant.name}`);
+        const staff = Array.isArray(data.staff) ? data.staff : [];
+        setStaffOptions(staff);
+        if (staff.length > 0) {
+          const savedUserId = localStorage.getItem('benzin_user_id');
+          const matching = staff.find((s: any) => s.id === savedUserId);
+          setSelectedStaffId(matching ? matching.id : staff[0].id);
+        }
+      } else {
+        setVenueVerified(false);
+        setVenueStatus(data.error || 'Invalid Venue ID');
+      }
+    } catch (e: any) {
+      setVenueVerified(false);
+      setVenueStatus('Network error verifying venue: ' + e.message);
+    } finally {
+      setIsVerifyingVenue(false);
+    }
   };
 
-  const handlePinSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (isOpen) {
+      const code =
+        venueCode ||
+        localStorage.getItem('benzin_restaurant_code') ||
+        localStorage.getItem('benzin_selected_slug') ||
+        '4821';
+      setVenueCode(code);
+      doVerifyVenue(code);
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleStaffPinLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pin.length < 4) {
-      alert('Please enter a 4-digit staff PIN');
+    if (!venueVerified || !venueCode.trim()) {
+      alert('Please enter and verify a valid Venue ID first.');
       return;
     }
-    const staff = staffList.find((s) => s.id === selectedStaffId) || staffList[0];
-    if (onStaffLogin && staff) {
-      onStaffLogin(staff);
+    if (!selectedStaffId) {
+      alert('Please select your staff account.');
+      return;
     }
-    if (onClose) onClose();
+    if (!pin || pin.length < 4) {
+      alert('Please enter your 4-digit Staff PIN.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMessage('');
+    try {
+      const rCode = verifiedRestaurant?.restaurant_code || venueCode.trim();
+      const data = await apiClient.staffLogin({
+        restaurant_code: rCode,
+        user_id: selectedStaffId,
+        pin: pin.trim(),
+      });
+
+      if (data.success && data.user) {
+        if (data.token) localStorage.setItem('benzin_jwt_token', data.token);
+        localStorage.setItem('benzin_user_id', data.user.id || data.user._id || '');
+        localStorage.setItem('benzin_user_name', data.user.name);
+        localStorage.setItem('benzin_user_role', data.user.role);
+        localStorage.setItem('benzin_user_pin', pin.trim());
+
+        const rObj = data.restaurant || verifiedRestaurant;
+        if (rObj) {
+          localStorage.setItem('benzin_restaurant_id', rObj.id || rObj._id || '');
+          localStorage.setItem('benzin_selected_slug', rObj.slug || '');
+          localStorage.setItem('benzin_restaurant_code', rObj.restaurant_code || '');
+          localStorage.setItem('benzin_restaurant_name', rObj.name || '');
+        }
+
+        if (onLoginSuccess) {
+          onLoginSuccess(data.user, rObj);
+        }
+        if (onClose) onClose();
+      } else {
+        setErrorMessage(data.error || data.message || 'Staff verification failed: Invalid PIN');
+      }
+    } catch (err: any) {
+      setErrorMessage('Network error verifying staff PIN: ' + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleEmailSubmit = (e: React.FormEvent) => {
+  const handleManagerEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!managerEmail.trim() || !managerPass.trim()) {
-      alert('Please enter email and passcode');
+      alert('Please enter your manager email and passcode.');
       return;
     }
-    if (onManagerLogin) {
-      onManagerLogin(managerEmail, managerPass);
+
+    setIsSubmitting(true);
+    setErrorMessage('');
+    try {
+      const rCode = managerVenueCode.trim() || verifiedRestaurant?.restaurant_code || venueCode.trim();
+      const data = await apiClient.managerLogin({
+        email: managerEmail.trim(),
+        password: managerPass.trim(),
+        restaurant_code: rCode || undefined,
+      });
+
+      if (data.success && data.user) {
+        if (data.token) localStorage.setItem('benzin_jwt_token', data.token);
+        localStorage.setItem('benzin_user_id', data.user.id || data.user._id || '');
+        localStorage.setItem('benzin_user_name', data.user.name);
+        localStorage.setItem('benzin_user_role', data.user.role);
+        localStorage.setItem('benzin_user_pin', managerPass.trim());
+
+        const rObj = data.restaurant || verifiedRestaurant;
+        if (rObj) {
+          localStorage.setItem('benzin_restaurant_id', rObj.id || rObj._id || '');
+          localStorage.setItem('benzin_selected_slug', rObj.slug || '');
+          localStorage.setItem('benzin_restaurant_code', rObj.restaurant_code || '');
+          localStorage.setItem('benzin_restaurant_name', rObj.name || '');
+        }
+
+        if (onLoginSuccess) {
+          onLoginSuccess(data.user, rObj);
+        }
+        if (onClose) onClose();
+      } else {
+        setErrorMessage(data.error || data.message || 'Manager authentication failed. Please check credentials.');
+      }
+    } catch (err: any) {
+      setErrorMessage('Network error during manager login: ' + err.message);
+    } finally {
+      setIsSubmitting(false);
     }
-    if (onClose) onClose();
   };
 
   return (
@@ -74,7 +190,7 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({
         display: 'flex',
         position: 'fixed',
         inset: 0,
-        background: 'var(--overlay-bg)',
+        background: 'var(--overlay-bg, rgba(5, 7, 10, 0.85))',
         backdropFilter: 'blur(24px)',
         zIndex: 99999,
         alignItems: 'center',
@@ -87,15 +203,16 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({
           width: '100%',
           maxWidth: '440px',
           boxSizing: 'border-box',
-          background: 'var(--card)',
-          border: '1.5px solid var(--line)',
+          background: 'var(--card, #151D2A)',
+          border: '1.5px solid var(--line, #233044)',
           borderRadius: '24px',
-          padding: 'clamp(18px, 5vw, 32px)',
+          padding: 'clamp(20px, 5vw, 32px)',
           textAlign: 'center',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
-          color: 'var(--cream)',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+          color: 'var(--cream, #FFFFFF)',
         }}
       >
+        {/* Brand Header */}
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" style={{ filter: 'drop-shadow(0 0 10px rgba(59,130,246,0.6))' }}>
             <defs>
@@ -114,46 +231,84 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({
             <circle cx="3.78" cy="16.75" r="1.6" fill="#E5B13A" />
             <circle cx="3.78" cy="7.25" r="1.6" fill="#38BDF8" />
           </svg>
-          <h2 style={{ fontSize: '26px', fontWeight: 900, color: '#3b82f6', letterSpacing: '2px', textTransform: 'uppercase', margin: 0 }}>
+          <h2 style={{ fontSize: '26px', fontWeight: 900, color: '#3b82f6', letterSpacing: '2px', textTransform: 'uppercase', margin: 0, fontFamily: "'Outfit', sans-serif" }}>
             BENZIN
           </h2>
         </div>
 
-        {/* Mode Switcher (Staff PIN vs Manager Email) */}
-        <div
-          style={{
-            display: 'flex',
-            gap: '6px',
-            background: 'var(--card2)',
-            padding: '4px',
-            borderRadius: '12px',
-            border: '1px solid var(--line)',
-            marginBottom: '24px',
-          }}
-        >
+        {/* Mode Switcher Tabs */}
+        <div style={{ display: 'flex', gap: '6px', background: 'var(--card2, #0d131f)', padding: '4px', borderborderRadius: '12px', border: '1px solid var(--line, #233044)', marginBottom: '24px' }}>
           <button
+            type="button"
             className={`sub-tab ${mode === 'pin' ? 'active' : ''}`}
             id="loginTab-pin"
-            style={{ flex: 1, textAlign: 'center' }}
-            onClick={() => setMode('pin')}
+            style={{
+              flex: 1,
+              textAlign: 'center',
+              padding: '8px',
+              borderRadius: '8px',
+              border: 'none',
+              background: mode === 'pin' ? '#0ea5e9' : 'transparent',
+              color: '#FFFFFF',
+              fontWeight: 800,
+              fontSize: '13px',
+              cursor: 'pointer',
+            }}
+            onClick={() => {
+              setMode('pin');
+              setErrorMessage('');
+            }}
           >
             Staff
           </button>
           <button
+            type="button"
             className={`sub-tab ${mode === 'email' ? 'active' : ''}`}
             id="loginTab-email"
-            style={{ flex: 1, textAlign: 'center' }}
-            onClick={() => setMode('email')}
+            style={{
+              flex: 1,
+              textAlign: 'center',
+              padding: '8px',
+              borderRadius: '8px',
+              border: 'none',
+              background: mode === 'email' ? '#0ea5e9' : 'transparent',
+              color: '#FFFFFF',
+              fontWeight: 800,
+              fontSize: '13px',
+              cursor: 'pointer',
+            }}
+            onClick={() => {
+              setMode('email');
+              setErrorMessage('');
+            }}
           >
             Manager
           </button>
         </div>
 
-        {/* Mode 1: Staff 8-Digit Floor Code or Restaurant Code + Staff PIN */}
+        {errorMessage && (
+          <div
+            style={{
+              background: 'rgba(239, 68, 68, 0.15)',
+              border: '1px solid #ef4444',
+              color: '#f87171',
+              padding: '10px 14px',
+              borderRadius: '10px',
+              fontSize: '12px',
+              fontWeight: 700,
+              marginBottom: '16px',
+              textAlign: 'left',
+            }}
+          >
+            ⚠️ {errorMessage}
+          </div>
+        )}
+
+        {/* Mode 1: Staff PIN Login */}
         {mode === 'pin' && (
-          <div id="loginFormPin">
+          <form id="loginFormPin" onSubmit={handleStaffPinLogin}>
             <div style={{ marginBottom: '16px', textAlign: 'left' }}>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--gold, #E5B13A)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>
                 Venue ID *
               </label>
               <div className="login-venue-row" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', width: '100%' }}>
@@ -162,17 +317,17 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({
                   id="loginVenueCode"
                   placeholder="Enter Venue ID"
                   value={venueCode}
-                  onChange={(e) => setVenueCode(e.target.value.toUpperCase())}
+                  onChange={(e) => setVenueCode(e.target.value)}
                   style={{
                     flex: '1 1 130px',
                     minWidth: '110px',
                     width: '100%',
                     boxSizing: 'border-box',
                     padding: '12px',
-                    background: 'var(--card2)',
-                    border: '1.5px solid var(--line)',
+                    background: 'var(--card2, #0d131f)',
+                    border: '1.5px solid var(--line, #233044)',
                     borderRadius: '10px',
-                    color: 'var(--cream)',
+                    color: 'var(--cream, #FFFFFF)',
                     fontSize: '15px',
                     fontWeight: 800,
                     textTransform: 'uppercase',
@@ -182,22 +337,46 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({
                 <button
                   type="button"
                   className="btn btn-primary touch-target"
-                  onClick={handleVerifyVenue}
-                  style={{ padding: '12px 14px', fontWeight: 800, fontSize: '13px', flex: '1 1 auto', justifyContent: 'center', minHeight: '44px', whiteSpace: 'nowrap' }}
+                  disabled={isVerifyingVenue}
+                  onClick={() => doVerifyVenue(venueCode)}
+                  style={{
+                    padding: '12px 14px',
+                    fontWeight: 800,
+                    fontSize: '13px',
+                    flex: '1 1 auto',
+                    justifyContent: 'center',
+                    minHeight: '44px',
+                    whiteSpace: 'nowrap',
+                    background: '#0ea5e9',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    borderRadius: '10px',
+                    cursor: 'pointer',
+                  }}
                 >
-                  Verify Venue
+                  {isVerifyingVenue ? 'Verifying...' : 'Verify Venue'}
                 </button>
               </div>
-              <div id="loginVenueStatus" style={{ marginTop: '6px', fontSize: '12px', fontWeight: 700, color: venueVerified ? 'var(--success)' : 'var(--gold)' }}>
-                {venueStatus}
-              </div>
+              {venueStatus && (
+                <div
+                  id="loginVenueStatus"
+                  style={{
+                    marginTop: '6px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: venueVerified ? '#10b981' : '#E5B13A',
+                  }}
+                >
+                  {venueStatus}
+                </div>
+              )}
             </div>
 
             {venueVerified && (
-              <form onSubmit={handlePinSubmit} id="loginStaffFieldsContainer">
+              <div id="loginStaffFieldsContainer" style={{ display: 'block' }}>
                 <div style={{ marginBottom: '16px', textAlign: 'left' }}>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>
-                    Name *
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--muted, #94a3b8)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>
+                    Staff Name *
                   </label>
                   <select
                     id="loginStaffSelect"
@@ -206,25 +385,25 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({
                     style={{
                       width: '100%',
                       padding: '12px',
-                      background: 'var(--card2)',
-                      border: '1.5px solid var(--line)',
+                      background: 'var(--card2, #0d131f)',
+                      border: '1.5px solid var(--line, #233044)',
                       borderRadius: '10px',
-                      color: 'var(--cream)',
+                      color: 'var(--cream, #FFFFFF)',
                       fontSize: '15px',
                       fontWeight: 700,
                     }}
                   >
-                    {staffList.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({s.role.toUpperCase()})
+                    {staffOptions.map((s) => (
+                      <option key={s.id} value={s.id} style={{ background: '#151D2A', color: '#FFF' }}>
+                        {s.name} ({s.position || s.role || 'Staff'})
                       </option>
                     ))}
                   </select>
                 </div>
 
                 <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>
-                    Pin *
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--muted, #94a3b8)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>
+                    4-Digit PIN *
                   </label>
                   <input
                     type="password"
@@ -232,16 +411,16 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({
                     maxLength={4}
                     placeholder="••••"
                     value={pin}
-                    onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                    autoFocus
+                    onChange={(e) => setPin(e.target.value)}
+                    autoComplete="current-password"
                     style={{
                       width: '100%',
                       boxSizing: 'border-box',
                       padding: '14px',
-                      background: 'var(--card2)',
-                      border: '2px solid var(--gold)',
+                      background: 'var(--card2, #0d131f)',
+                      border: '2px solid var(--gold, #E5B13A)',
                       borderRadius: '12px',
-                      color: 'var(--cream)',
+                      color: 'var(--cream, #FFFFFF)',
                       fontSize: '24px',
                       fontWeight: 800,
                       letterSpacing: '8px',
@@ -254,35 +433,58 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({
                   <button
                     type="submit"
                     className="btn btn-primary"
-                    style={{ width: '100%', justifyContent: 'center', padding: '14px', fontSize: '15px', fontWeight: 800 }}
+                    disabled={isSubmitting}
+                    style={{
+                      width: '100%',
+                      justifyContent: 'center',
+                      padding: '14px',
+                      fontSize: '15px',
+                      fontWeight: 800,
+                      background: '#0ea5e9',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      borderRadius: '12px',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 14px rgba(14, 165, 233, 0.35)',
+                      opacity: isSubmitting ? 0.7 : 1,
+                    }}
                   >
-                    Open Dashboard
+                    {isSubmitting ? 'Opening Dashboard...' : 'Open Dashboard'}
                   </button>
                 </div>
-              </form>
+              </div>
             )}
-          </div>
+          </form>
         )}
 
-        {/* Mode 2: Manager / Owner Unified Login */}
+        {/* Mode 2: Manager Email + Password */}
         {mode === 'email' && (
-          <form onSubmit={handleEmailSubmit} id="loginFormEmail">
+          <form id="loginFormEmail" onSubmit={handleManagerEmailLogin}>
             <div style={{ marginBottom: '14px', textAlign: 'left' }}>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--gold)', textTransform: 'uppercase', marginBottom: '4px' }}>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--gold, #E5B13A)', textTransform: 'uppercase', marginBottom: '4px' }}>
                 Owner / Manager Email *
               </label>
               <input
                 type="email"
                 id="loginManagerEmailInput"
-                placeholder="name@cavalli.com"
+                placeholder="sandip@cavalli.com"
                 value={managerEmail}
                 onChange={(e) => setManagerEmail(e.target.value)}
-                style={{ width: '100%', padding: '12px', background: 'var(--card2)', border: '1px solid var(--line)', borderRadius: '10px', color: 'var(--cream)', fontSize: '14px' }}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  boxSizing: 'border-box',
+                  background: 'var(--card2, #0d131f)',
+                  border: '1px solid var(--line, #233044)',
+                  borderRadius: '10px',
+                  color: 'var(--cream, #FFFFFF)',
+                  fontSize: '14px',
+                }}
               />
             </div>
             <div style={{ marginBottom: '14px', textAlign: 'left' }}>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
-                Passcode / Password * (4-Digit PIN e.g. 2448)
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--muted, #94a3b8)', textTransform: 'uppercase', marginBottom: '4px' }}>
+                Passcode / Password * (4-Digit PIN e.g. 1234 or 2448)
               </label>
               <input
                 type="password"
@@ -290,28 +492,63 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({
                 placeholder="Enter 4-Digit Passcode"
                 value={managerPass}
                 onChange={(e) => setManagerPass(e.target.value)}
-                style={{ width: '100%', padding: '12px', background: 'var(--card2)', border: '1px solid var(--line)', borderRadius: '10px', color: 'var(--cream)', fontSize: '14px' }}
+                autoComplete="current-password"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  boxSizing: 'border-box',
+                  background: 'var(--card2, #0d131f)',
+                  border: '1px solid var(--line, #233044)',
+                  borderRadius: '10px',
+                  color: 'var(--cream, #FFFFFF)',
+                  fontSize: '14px',
+                }}
               />
             </div>
             <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--muted, #94a3b8)', textTransform: 'uppercase', marginBottom: '4px' }}>
                 Venue Code (Optional if email is unique)
               </label>
               <input
                 type="text"
                 id="loginManagerVenueCode"
-                placeholder="e.g. 4821 or leave blank"
+                placeholder="e.g. 4821 or cavali"
                 value={managerVenueCode}
                 onChange={(e) => setManagerVenueCode(e.target.value)}
-                style={{ width: '100%', padding: '12px', background: 'var(--card2)', border: '1px solid var(--line)', borderRadius: '10px', color: 'var(--cream)', fontSize: '14px', fontWeight: 700, textTransform: 'uppercase' }}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  boxSizing: 'border-box',
+                  background: 'var(--card2, #0d131f)',
+                  border: '1px solid var(--line, #233044)',
+                  borderRadius: '10px',
+                  color: 'var(--cream, #FFFFFF)',
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                }}
               />
             </div>
             <button
               type="submit"
               className="btn btn-primary"
-              style={{ width: '100%', justifyContent: 'center', padding: '14px', fontSize: '15px', fontWeight: 800 }}
+              disabled={isSubmitting}
+              style={{
+                width: '100%',
+                justifyContent: 'center',
+                padding: '14px',
+                fontSize: '15px',
+                fontWeight: 800,
+                background: '#0ea5e9',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: '12px',
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(14, 165, 233, 0.35)',
+                opacity: isSubmitting ? 0.7 : 1,
+              }}
             >
-              Open Dashboard
+              {isSubmitting ? 'Opening Dashboard...' : 'Open Dashboard'}
             </button>
           </form>
         )}

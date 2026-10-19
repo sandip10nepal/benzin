@@ -18,6 +18,13 @@ export default defineConfig({
     port: 3001,
     strictPort: false,
     cors: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
   build: {
     outDir: path.resolve(__dirname, '../../public/admin_react'),

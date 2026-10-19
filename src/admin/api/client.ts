@@ -9,7 +9,15 @@ export class AdminApiClient {
   public baseUrl: string;
 
   constructor() {
-    this.baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+    if (typeof window !== 'undefined') {
+      if (window.location.port === '3001') {
+        this.baseUrl = 'http://localhost:3000';
+      } else {
+        this.baseUrl = window.location.origin;
+      }
+    } else {
+      this.baseUrl = 'http://localhost:3000';
+    }
   }
 
   /**
@@ -326,6 +334,73 @@ export class AdminApiClient {
       console.warn('Failed to fetch vibe-quest questions:', e);
     }
     return [];
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════ */
+  /*                         AUTHENTICATION METHODS                             */
+  /* ═══════════════════════════════════════════════════════════════════════════ */
+
+  async verifyVenue(venueCode: string): Promise<{ success: boolean; restaurant?: any; staff?: any[]; error?: string }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/auth/staff-roster`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ restaurant_code: venueCode.trim() }),
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error verifying venue' };
+    }
+  }
+
+  async staffLogin(params: { restaurant_code: string; user_id: string; pin: string }): Promise<{ success: boolean; token?: string; user?: any; restaurant?: any; message?: string; error?: string }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/auth/staff-verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          restaurant_code: params.restaurant_code,
+          user_id: params.user_id,
+          pin: params.pin,
+          action: 'login',
+        }),
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error verifying staff PIN' };
+    }
+  }
+
+  async managerLogin(params: { email: string; password: string; restaurant_code?: string }): Promise<{ success: boolean; token?: string; user?: any; restaurant?: any; message?: string; error?: string }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/auth/manager-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: params.email.trim(),
+          password: params.password.trim(),
+          pin: params.password.trim(),
+          restaurant_code: params.restaurant_code?.trim() || undefined,
+        }),
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error during manager login' };
+    }
+  }
+
+  logout(): void {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('benzin_jwt_token');
+      localStorage.removeItem('benzin_user_id');
+      localStorage.removeItem('benzin_user_name');
+      localStorage.removeItem('benzin_user_role');
+      localStorage.removeItem('benzin_user_pin');
+      localStorage.removeItem('benzin_restaurant_id');
+      localStorage.removeItem('benzin_selected_slug');
+      localStorage.removeItem('benzin_restaurant_code');
+      localStorage.removeItem('benzin_restaurant_name');
+    }
   }
 }
 
