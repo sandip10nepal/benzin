@@ -56,12 +56,18 @@ export interface MenuItem {
   name: string;
   price: number;
   category: string;
+  category_ids?: string[];
+  categoryIds?: string[];
   superCategory?: 'Hookah' | 'Food' | 'Drinks' | string;
   emoji: string;
   description?: string;
   imageUrl?: string;
   isSpecial?: boolean;
   available?: boolean;
+  recipe?: any[];
+  modifier_groups?: any[];
+  modifierGroups?: any[];
   recipeIngredientsCount?: number;
   modifierGroupsCount?: number;
 }
+

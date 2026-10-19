@@ -11,8 +11,8 @@ interface InventoryCategoryModalProps {
   isOpen: boolean;
   onClose: () => void;
   categories: InvCategory[];
-  onSaveCategory: (cat: { id?: string; title: string; icon: string }) => void;
-  onDeleteCategory: (id: string) => void;
+  onSaveCategory: (cat: { id?: string; title: string; icon: string }) => Promise<void> | void;
+  onDeleteCategory: (id: string) => Promise<void> | void;
 }
 
 export const InventoryCategoryModal: React.FC<InventoryCategoryModalProps> = ({

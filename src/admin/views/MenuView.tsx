@@ -45,8 +45,9 @@ interface MenuViewProps {
   onOpenHookahConfig?: () => void;
   onOpenSpecials?: () => void;
   onOpenAddCategory?: () => void;
-  onOpenAddItem?: () => void;
-  onOpenEditItem?: (item: MenuItem) => void;
+  onOpenAddItem?: (scopedCat?: string) => void;
+  onOpenEditItem?: (item: MenuItem, scopedCat?: string) => void;
+  refreshKey?: number;
 }
 
 const INITIAL_MENU: MenuItem[] = [];
@@ -218,6 +219,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
   onOpenAddCategory,
   onOpenAddItem,
   onOpenEditItem,
+  refreshKey,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'items' | 'vibeQuest'>('items');
   const [superCat, setSuperCat] = useState<'All' | 'Hookah' | 'Food' | 'Drinks'>('All');
@@ -240,6 +242,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
         if (mounted) {
           if (menuData && Array.isArray(menuData.items)) {
             const mapped: MenuItem[] = menuData.items.map((raw: any) => {
+              const rawCatIds = Array.isArray(raw.category_ids) ? raw.category_ids : (raw.category ? [raw.category] : []);
               const superCat = raw.super_category || raw.superCategory || (
                 raw.category?.toLowerCase().includes('hookah') || raw.category_id?.toLowerCase().includes('hookah')
                   ? 'Hookah'
@@ -251,13 +254,17 @@ export const MenuView: React.FC<MenuViewProps> = ({
                 id: raw.id || raw._id,
                 name: raw.name || 'Untitled Item',
                 price: typeof raw.price === 'number' ? raw.price : parseFloat(raw.price) || 0,
-                category: raw.category || raw.category_id || 'General',
+                category: raw.category || raw.category_id || (rawCatIds[0] || 'General'),
+                category_ids: rawCatIds,
+                categoryIds: rawCatIds,
                 superCategory: superCat,
                 emoji: raw.emoji || '🍽️',
                 description: raw.desc || raw.description || '',
                 imageUrl: raw.image_url || raw.imageUrl || raw.image || raw.img || '',
                 isSpecial: !!raw.is_special || !!raw.isSpecial,
                 available: raw.available !== false,
+                recipe: Array.isArray(raw.recipe) ? raw.recipe : [],
+                modifier_groups: Array.isArray(raw.modifier_groups) ? raw.modifier_groups : (Array.isArray(raw.modifierGroups) ? raw.modifierGroups : []),
                 recipeIngredientsCount: Array.isArray(raw.recipe) ? raw.recipe.length : 0,
                 modifierGroupsCount: Array.isArray(raw.modifier_groups || raw.modifierGroups) ? (raw.modifier_groups || raw.modifierGroups).length : 0,
               };
@@ -277,12 +284,12 @@ export const MenuView: React.FC<MenuViewProps> = ({
               title: q.title || q.question_text || 'Ordering Discovery',
               prompt: q.question_text || q.prompt || q.title || '',
               subtitle: q.subtitle || q.helper_text || '',
-              curatedProductIds: Array.isArray(q.curated_product_ids) ? q.curated_product_ids : [],
+              curatedProductIds: Array.isArray(q.curated_product_ids) ? q.curated_product_ids : (Array.isArray(q.pinned_product_ids) ? q.pinned_product_ids : []),
               options: (q.answers || q.options || []).map((a: any) => ({
-                text: a.text || a.answer_text || '',
+                text: a.label || a.text || a.answer_text || '',
                 emoji: a.emoji || '✨',
-                hostReply: a.host_reply || a.hostReply || '',
-                destination: a.destination || a.destination_target || '',
+                hostReply: a.host_reply || a.hostReply || a.reaction_message || '',
+                destination: typeof a.destination === 'string' ? a.destination : (a.destination?.ref_id ? `${a.destination.type}:${a.destination.ref_id}` : (a.destination || 'skip')),
               })),
             }));
             setQuestions(mappedQuestions);
@@ -297,7 +304,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [refreshKey]);
 
   const handleToggleItemStatus = (itemId: string) => {
     setItems((prev) =>
@@ -315,13 +322,30 @@ export const MenuView: React.FC<MenuViewProps> = ({
     }
   };
 
+  const superCategoryList = categories.filter((c: any) => c.parent_id === null || c.is_super);
+  const subCategoryList = categories.filter((c: any) => c.parent_id !== null && !c.is_super);
+
+  const activeSuperObj = superCategoryList.find(
+    (s: any) =>
+      (s.name && s.name.toLowerCase().includes(superCat.toLowerCase())) ||
+      (s.title && s.title.toLowerCase().includes(superCat.toLowerCase())) ||
+      (superCat === 'Hookah' && (s.name?.toLowerCase().includes('hookah') || s.title?.toLowerCase().includes('hookah'))) ||
+      (superCat === 'Food' && (s.name?.toLowerCase().includes('food') || s.title?.toLowerCase().includes('food') || s.title?.toLowerCase().includes('dining'))) ||
+      (superCat === 'Drinks' && (s.name?.toLowerCase().includes('drink') || s.title?.toLowerCase().includes('beverage')))
+  );
+
+  const matchedSubCatsFromDb = subCategoryList
+    .filter((c: any) => superCat === 'All' || (activeSuperObj && c.parent_id === (activeSuperObj.id || activeSuperObj._id)))
+    .map((c: any) => c.title || c.name);
+
   const dynamicSubCats = Array.from(
-    new Set(
-      items
+    new Set([
+      ...matchedSubCatsFromDb,
+      ...items
         .filter((it) => superCat === 'All' || it.superCategory === superCat)
         .map((it) => it.category)
-        .filter(Boolean)
-    )
+        .filter(Boolean),
+    ])
   );
 
   const availableSubCats = [
@@ -331,23 +355,68 @@ export const MenuView: React.FC<MenuViewProps> = ({
 
   const handleSuperCatChange = (sc: 'All' | 'Hookah' | 'Food' | 'Drinks') => {
     setSuperCat(sc);
+    const targetSuper = superCategoryList.find(
+      (s: any) =>
+        (s.name && s.name.toLowerCase().includes(sc.toLowerCase())) ||
+        (s.title && s.title.toLowerCase().includes(sc.toLowerCase())) ||
+        (sc === 'Hookah' && (s.name?.toLowerCase().includes('hookah') || s.title?.toLowerCase().includes('hookah'))) ||
+        (sc === 'Food' && (s.name?.toLowerCase().includes('food') || s.title?.toLowerCase().includes('food') || s.title?.toLowerCase().includes('dining'))) ||
+        (sc === 'Drinks' && (s.name?.toLowerCase().includes('drink') || s.title?.toLowerCase().includes('beverage')))
+    );
+
+    const subCats = subCategoryList
+      .filter((c: any) => sc === 'All' || (targetSuper && c.parent_id === (targetSuper.id || targetSuper._id)))
+      .map((c: any) => c.title || c.name);
+
     const subList = [
       sc === 'All' ? 'All Sub-Categories' : `All ${sc}`,
       ...Array.from(
-        new Set(
-          items
+        new Set([
+          ...subCats,
+          ...items
             .filter((it) => sc === 'All' || it.superCategory === sc)
             .map((it) => it.category)
-            .filter(Boolean)
-        )
+            .filter(Boolean),
+        ])
       ),
     ];
     setSubCat(subList[0] || 'All Sub-Categories');
   };
 
   const filteredItems = items.filter((item) => {
-    if (superCat !== 'All' && item.superCategory !== superCat) return false;
-    if (subCat && !subCat.startsWith('All') && item.category !== subCat) return false;
+    if (superCat !== 'All') {
+      const matchSuper =
+        item.superCategory?.toLowerCase() === superCat.toLowerCase() ||
+        (superCat === 'Hookah' && (item.category?.toLowerCase().includes('hookah') || item.superCategory?.toLowerCase().includes('hookah'))) ||
+        (superCat === 'Food' && (item.category?.toLowerCase().includes('food') || item.superCategory?.toLowerCase().includes('food') || item.superCategory?.toLowerCase().includes('dining'))) ||
+        (superCat === 'Drinks' && (item.category?.toLowerCase().includes('drink') || item.superCategory?.toLowerCase().includes('beverage')));
+      if (!matchSuper) return false;
+    }
+
+    if (subCat && !subCat.startsWith('All')) {
+      const itemCatIds = (Array.isArray(item.category_ids) && item.category_ids.length > 0)
+        ? item.category_ids.map((c) => String(c).toLowerCase())
+        : [String(item.category || '').toLowerCase()];
+
+      const targetLower = subCat.toLowerCase();
+      const matchedCat = categories.find(
+        (c) =>
+          (c.name && c.name.toLowerCase() === targetLower) ||
+          (c.title && c.title.toLowerCase() === targetLower) ||
+          (c.id && c.id.toLowerCase() === targetLower) ||
+          (c._id && c._id.toLowerCase() === targetLower)
+      );
+
+      const matches = itemCatIds.some(
+        (cid) =>
+          cid === targetLower ||
+          (matchedCat && (cid === (matchedCat.id || matchedCat._id)?.toLowerCase() || cid === (matchedCat.name || matchedCat.title)?.toLowerCase())) ||
+          (item.category && item.category.toLowerCase() === targetLower)
+      );
+
+      if (!matches) return false;
+    }
+
     if (
       searchTerm &&
       !item.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
@@ -480,9 +549,39 @@ export const MenuView: React.FC<MenuViewProps> = ({
     );
   };
 
-  const handleSaveQuestions = () => {
-    setSaveToast(true);
-    setTimeout(() => setSaveToast(false), 3000);
+  const handleSaveQuestions = async () => {
+    try {
+      const formattedQuestions = questions.map((q, idx) => ({
+        id: q.id,
+        navigation_trigger: q.trigger,
+        question_text: q.prompt,
+        subtitle: q.subtitle,
+        active: q.active,
+        curated_product_ids: q.curatedProductIds,
+        pinned_product_ids: q.curatedProductIds,
+        answers: q.options.map((opt, aIdx) => ({
+          id: `ans_${idx + 1}_${aIdx + 1}`,
+          label: opt.text.trim(),
+          host_reply: opt.hostReply.trim(),
+          reaction_message: opt.hostReply.trim(),
+          destination: opt.destination || 'skip',
+          emoji: opt.emoji || '✨',
+          curated_product_ids: q.curatedProductIds,
+          pinned_product_ids: q.curatedProductIds,
+        })),
+      }));
+
+      const res = await apiClient.saveVibeQuest(formattedQuestions);
+      if (res && (res.success || res.config)) {
+        setSaveToast(true);
+        setTimeout(() => setSaveToast(false), 3000);
+        alert('Ordering questions successfully saved and published for customer ordering!');
+      } else {
+        alert('Could not save questions: ' + (res?.error || res?.message || 'Unknown error'));
+      }
+    } catch (err: any) {
+      alert('Network error saving questions: ' + err.message);
+    }
   };
 
   return (
@@ -674,7 +773,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
                 </button>
                 <button
                   className="btn btn-primary touch-target"
-                  onClick={onOpenAddItem}
+                  onClick={() => onOpenAddItem && onOpenAddItem(subCat.startsWith('All') ? undefined : subCat)}
                   style={{
                     fontWeight: 800,
                     padding: '6px 12px',
@@ -988,7 +1087,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
                     <button
                       type="button"
                       className="btn"
-                      onClick={() => onOpenEditItem && onOpenEditItem(item)}
+                      onClick={() => onOpenEditItem && onOpenEditItem(item, subCat.startsWith('All') ? (item.category || undefined) : subCat)}
                       style={{
                         flex: 1,
                         height: '34px',
@@ -1392,21 +1491,45 @@ export const MenuView: React.FC<MenuViewProps> = ({
                               border: '1px solid var(--gold)',
                               borderRadius: '6px',
                               color: 'var(--gold)',
+                              maxWidth: '220px',
                             }}
                           >
-                            <option value="cat:Signature Mixes">cat: Signature Mixes</option>
-                            <option value="cat:Classic Flavors">cat: Classic Flavors</option>
-                            <option value="cat:Exotic Flavors">cat: Exotic Flavors</option>
-                            <option value="cat:Food">cat: Kitchen Food</option>
-                            <option value="cat:Drinks">cat: Drinks</option>
-                            <option value="cat:Desserts">cat: Desserts</option>
-                            <option value="item:m1">item: m1 (Anarkali House Blend)</option>
-                            <option value="item:m4">item: m4 (Zaatar Flatbread)</option>
-                            <option value="item:m5">item: m5 (Crispy Falafel)</option>
-                            <option value="item:m6">item: m6 (Turkish Coffee)</option>
-                            <option value="item:m7">item: m7 (Mint Lemonade)</option>
-                            <option value="package:daku">package: Make It Daku VIP</option>
-                            <option value="cart:checkout">cart: Checkout Flow</option>
+                            <optgroup label="Standard Actions">
+                              <option value="menu:hookah">House Mix Hookahs Menu (menu:hookah)</option>
+                              <option value="flow:mix_lab">Custom Hookah Mix Lab (flow:mix_lab)</option>
+                              <option value="menu:food">All Food Menu (menu:food)</option>
+                              <option value="menu:drinks">All Drinks Menu (menu:drinks)</option>
+                              <option value="stage:checkout">Review Order (stage:checkout)</option>
+                              <option value="skip">Skip Question (skip)</option>
+                            </optgroup>
+                            {categories && categories.length > 0 && (
+                              <optgroup label="Menu Categories">
+                                {categories.map((c: any) => {
+                                  const cid = c.id || c._id;
+                                  const val = `category:${cid}`;
+                                  return (
+                                    <option key={cid} value={val}>
+                                      Category: {c.title || c.name || cid} ({cid})
+                                    </option>
+                                  );
+                                })}
+                              </optgroup>
+                            )}
+                            {items && items.length > 0 && (
+                              <optgroup label="Menu Items">
+                                {items.slice(0, 30).map((it: MenuItem) => (
+                                  <option key={it.id} value={`item:${it.id}`}>
+                                    Item: {it.name} (${Number(it.price).toFixed(2)})
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                            {opt.destination &&
+                              !['menu:hookah', 'flow:mix_lab', 'menu:food', 'menu:drinks', 'stage:checkout', 'skip'].includes(opt.destination) &&
+                              !categories.some((c: any) => `category:${c.id || c._id}` === opt.destination || (c.id || c._id) === opt.destination) &&
+                              !items.some((it: MenuItem) => `item:${it.id}` === opt.destination) && (
+                                <option value={opt.destination}>Current: {opt.destination}</option>
+                              )}
                           </select>
                         </div>
 

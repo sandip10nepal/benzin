@@ -1,7 +1,12 @@
 import React, { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 
-interface MenuCatItem {
+export interface SuperCategoryOption {
+  id: string;
+  title: string;
+}
+
+export interface MenuCatItem {
   id: string;
   title: string;
   subtitle?: string;
@@ -9,15 +14,17 @@ interface MenuCatItem {
   color?: string;
   superCategory?: string;
   isSuper?: boolean;
+  is_super?: boolean;
+  parent_id?: string | null;
 }
 
 interface MenuCategoryModalProps {
   isOpen: boolean;
   onClose: () => void;
   categories: MenuCatItem[];
-  superCategories: string[];
-  onSaveCategory: (cat: MenuCatItem) => void;
-  onDeleteCategory: (id: string) => void;
+  superCategories: Array<SuperCategoryOption | string>;
+  onSaveCategory: (cat: any) => Promise<void> | void;
+  onDeleteCategory: (id: string) => Promise<void> | void;
 }
 
 export const MenuCategoryModal: React.FC<MenuCategoryModalProps> = ({
@@ -32,27 +39,35 @@ export const MenuCategoryModal: React.FC<MenuCategoryModalProps> = ({
   const [title, setTitle] = useState('');
   const [subtitle, setSubtitle] = useState('');
   const [icon, setIcon] = useState('💨');
-  const [superCat, setSuperCat] = useState(superCategories[0] || 'Hookah');
+  const firstSuperId = superCategories[0] ? (typeof superCategories[0] === 'string' ? superCategories[0] : superCategories[0].id) : 'Hookah';
+  const [superCat, setSuperCat] = useState(firstSuperId);
   const [color, setColor] = useState('#FF5A1F');
   const [editId, setEditId] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
       alert('Please enter a category title');
       return;
     }
-    onSaveCategory({
-      id: editId || `cat_${Date.now()}`,
+
+    const parentId = mode === 'super' ? null : superCat;
+
+    await onSaveCategory({
+      id: editId || undefined,
       title: title.trim(),
+      name: title.trim(),
       subtitle: subtitle.trim(),
-      icon: icon.trim() || '💨',
+      description: subtitle.trim(),
+      icon: icon.trim() || (mode === 'super' ? '👑' : '📋'),
       color,
-      superCategory: mode === 'sub' ? superCat : undefined,
+      parent_id: parentId,
       isSuper: mode === 'super',
+      is_super: mode === 'super',
     });
+
     setTitle('');
     setSubtitle('');
     setIcon('💨');
@@ -318,11 +333,15 @@ export const MenuCategoryModal: React.FC<MenuCategoryModalProps> = ({
                       fontSize: '14px',
                     }}
                   >
-                    {superCategories.map((sc) => (
-                      <option key={sc} value={sc}>
-                        {sc}
-                      </option>
-                    ))}
+                    {superCategories.map((sc) => {
+                      const scId = typeof sc === 'string' ? sc : sc.id;
+                      const scTitle = typeof sc === 'string' ? sc : sc.title;
+                      return (
+                        <option key={scId} value={scId}>
+                          {scTitle}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
               )}

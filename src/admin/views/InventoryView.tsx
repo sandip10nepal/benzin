@@ -23,12 +23,14 @@ interface InventoryViewProps {
   onOpenAddCategory?: () => void;
   onOpenAddItem?: () => void;
   onOpenEditItem?: (item: InventoryItem) => void;
+  refreshKey?: number;
 }
 
 export const InventoryView: React.FC<InventoryViewProps> = ({
   onOpenAddCategory,
   onOpenAddItem,
   onOpenEditItem,
+  refreshKey,
 }) => {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [categories, setCategories] = useState<{ id: string; label: string; emoji: string }[]>([
@@ -96,7 +98,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
   useEffect(() => {
     loadInventory();
-  }, []);
+  }, [refreshKey]);
 
   const adjustStock = async (e: React.MouseEvent, id: string, delta: number) => {
     e.stopPropagation();

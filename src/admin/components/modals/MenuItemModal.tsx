@@ -1,6 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { MenuItem } from '../../types';
+import { apiClient } from '../../api/client';
+
+export interface SubCategoryWithParent {
+  id: string;
+  name: string;
+  title?: string;
+  icon?: string;
+  parent_id?: string | null;
+  parentTitle?: string;
+}
 
 interface ModifierOption {
   name: string;
@@ -25,25 +35,22 @@ interface RecipeIngredient {
   mode: 'g' | 'pct' | 'units';
 }
 
+interface LiveStockItem {
+  id: string;
+  name: string;
+  brand: string;
+  unit: string;
+  stock: number;
+}
+
 interface MenuItemModalProps {
   isOpen: boolean;
   onClose: () => void;
   item: MenuItem | null;
-  categories: Array<{ id: string; name: string }>;
+  categories: SubCategoryWithParent[];
   scopedCategory?: string;
-  onSaveMenuItem: (item: Partial<MenuItem>) => void;
+  onSaveMenuItem: (item: any) => Promise<void> | void;
 }
-
-const STOCK_CATALOG = [
-  { id: 'inv_1', name: 'Double Apple', brand: 'Al Fakher', unit: 'g', stock: 1200 },
-  { id: 'inv_2', name: 'Pan Ras', brand: 'Afzal', unit: 'g', stock: 1500 },
-  { id: 'inv_3', name: 'Lady Killer', brand: 'Adalya', unit: 'g', stock: 850 },
-  { id: 'inv_4', name: 'Mint Shisha', brand: 'Al Fakher', unit: 'g', stock: 950 },
-  { id: 'inv_5', name: 'Love 66', brand: 'Adalya', unit: 'g', stock: 1100 },
-  { id: 'inv_6', name: 'Artisan Flatbread Dough', brand: 'Bakery', unit: 'units', stock: 85 },
-  { id: 'inv_7', name: 'Turkish Cezve Coffee', brand: 'Mehmet Efendi', unit: 'g', stock: 420 },
-  { id: 'inv_8', name: 'Rose Syrup Base', brand: 'Cavalli Craft', unit: 'units', stock: 24 },
-];
 
 export const MenuItemModal: React.FC<MenuItemModalProps> = ({
   isOpen,
@@ -61,53 +68,106 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
   const [imageUrl, setImageUrl] = useState('');
   const [modifierGroups, setModifierGroups] = useState<ModifierGroup[]>([]);
   const [recipeIngredients, setRecipeIngredients] = useState<RecipeIngredient[]>([]);
+  const [liveInventory, setLiveInventory] = useState<LiveStockItem[]>([]);
   const [inventorySearch, setInventorySearch] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
+  // Fetch real inventory raw materials from MongoDB on modal open
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let mounted = true;
+    const fetchStock = async () => {
+      try {
+        const invData = await apiClient.getInventory();
+        if (mounted && invData && invData.inventory) {
+          const list: LiveStockItem[] = Object.values(invData.inventory).map((inv: any) => ({
+            id: inv.id || inv._id || inv.name,
+            name: inv.name || 'Raw Material',
+            brand: inv.brand || '',
+            unit: inv.unit || 'g',
+            stock: Number(inv.stock) || 0,
+          }));
+          setLiveInventory(list);
+        }
+      } catch (err) {
+        console.warn('Failed to load live inventory for recipe ingredients:', err);
+      }
+    };
+
+    fetchStock();
+    return () => {
+      mounted = false;
+    };
+  }, [isOpen]);
+
+  // Initialize form state when item or scoped category changes
   useEffect(() => {
     if (item) {
       setName(item.name || '');
-      setPrice(String(item.price || ''));
+      setPrice(item.price !== undefined ? String(item.price) : '');
       setEmoji(item.emoji || '👑');
-      setSelectedCats(item.category ? [item.category] : []);
-      setDesc(item.description || '');
-      setImageUrl(item.imageUrl || '');
-      setModifierGroups([
-        {
-          id: 'mg_1',
-          name: 'Flavor Strength & Ice Level',
-          required: false,
-          minSelections: 0,
-          maxSelections: 1,
-          options: [
-            { name: 'Regular Ice', priceDelta: 0 },
-            { name: 'Extra Icy Chill', priceDelta: 3.0 },
-          ],
-        },
-      ]);
-      setRecipeIngredients([
-        {
-          inventoryItemId: 'inv_2',
-          name: 'Pan Ras',
-          brand: 'Afzal',
-          amount: 12,
-          unit: 'g',
-          mode: 'g',
-        },
-        {
-          inventoryItemId: 'inv_3',
-          name: 'Lady Killer',
-          brand: 'Adalya',
-          amount: 8,
-          unit: 'g',
-          mode: 'g',
-        },
-      ]);
+
+      // Resolve category selection IDs
+      const rawCats = (Array.isArray(item.category_ids) && item.category_ids.length > 0)
+        ? item.category_ids
+        : (item.category ? [item.category] : []);
+      setSelectedCats(rawCats);
+
+      setDesc(item.description || (item as any).desc || '');
+      setImageUrl(item.imageUrl || (item as any).image_url || '');
+
+      // Load actual modifiers if present on the item
+      const itemMods = Array.isArray(item.modifier_groups)
+        ? item.modifier_groups
+        : (Array.isArray(item.modifierGroups) ? item.modifierGroups : []);
+      setModifierGroups(
+        itemMods.map((mg: any, idx: number) => ({
+          id: mg.id || `mg_${idx}`,
+          name: mg.name || mg.title || 'Choice Group',
+          required: Boolean(mg.required),
+          minSelections: mg.minSelections ?? mg.min_selections ?? 0,
+          maxSelections: mg.maxSelections ?? mg.max_selections ?? 1,
+          options: (mg.options || []).map((opt: any) => ({
+            name: opt.name || opt.label || 'Option',
+            priceDelta: Number(opt.priceDelta || opt.price_delta || opt.price || 0),
+          })),
+        }))
+      );
+
+      // Load actual recipe ingredients if present on the item
+      const itemRecipe = Array.isArray(item.recipe) ? item.recipe : [];
+      setRecipeIngredients(
+        itemRecipe.map((ing: any) => ({
+          inventoryItemId: ing.ingredient_id || ing.ingredientId || '',
+          name: ing.name || 'Raw Material',
+          brand: ing.brand || '',
+          amount: Number(ing.amount ?? ing.quantity ?? 10),
+          unit: ing.unit || 'g',
+          mode: (ing.percentage !== undefined && ing.percentage > 0 ? 'pct' : (ing.unit === 'g' ? 'g' : 'units')) as any,
+        }))
+      );
     } else {
+      // Adding new menu item
       setName('');
       setPrice('');
       setEmoji('👑');
-      setSelectedCats(scopedCategory ? [scopedCategory] : categories[0] ? [categories[0].name] : []);
+
+      // Default category from scopedCategory or first available subcategory
+      let defaultSelected: string[] = [];
+      if (scopedCategory && scopedCategory !== 'all') {
+        const matched = categories.find(
+          (c) =>
+            c.id.toLowerCase() === scopedCategory.toLowerCase() ||
+            c.name.toLowerCase() === scopedCategory.toLowerCase()
+        );
+        defaultSelected = matched ? [matched.id] : [scopedCategory];
+      } else if (categories.length > 0) {
+        defaultSelected = [categories[0].id];
+      }
+      setSelectedCats(defaultSelected);
+
       setDesc('');
       setImageUrl('');
       setModifierGroups([]);
@@ -117,12 +177,29 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
 
   if (!isOpen) return null;
 
-  const toggleCategory = (catName: string) => {
-    setSelectedCats((prev) =>
-      prev.includes(catName) ? prev.filter((c) => c !== catName) : [...prev, catName]
+  // Toggle category pill
+  const toggleCategory = (catIdOrName: string) => {
+    setSelectedCats((prev) => {
+      // Match either by ID or Name
+      const exists = prev.some((c) => c.toLowerCase() === catIdOrName.toLowerCase());
+      if (exists) {
+        return prev.filter((c) => c.toLowerCase() !== catIdOrName.toLowerCase());
+      } else {
+        return [...prev, catIdOrName];
+      }
+    });
+  };
+
+  const isCategorySelected = (cat: SubCategoryWithParent) => {
+    return selectedCats.some(
+      (c) =>
+        c.toLowerCase() === cat.id.toLowerCase() ||
+        c.toLowerCase() === cat.name.toLowerCase() ||
+        (cat.title && c.toLowerCase() === cat.title.toLowerCase())
     );
   };
 
+  // Modifier Groups Management
   const addModifierGroup = () => {
     setModifierGroups((prev) => [
       ...prev,
@@ -198,13 +275,14 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
     );
   };
 
+  // Recipe Ingredients Management (Auto Inventory Deduction)
   const addBlankRecipeRow = () => {
     setRecipeIngredients((prev) => [
       ...prev,
       {
-        inventoryItemId: `inv_${Date.now()}`,
-        name: 'Raw Material',
-        brand: 'Generic',
+        inventoryItemId: '',
+        name: 'Select Stock Material',
+        brand: '',
         amount: 10,
         unit: 'g',
         mode: 'g',
@@ -212,7 +290,7 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
     ]);
   };
 
-  const handleSelectInventoryItem = (stockItem: typeof STOCK_CATALOG[0]) => {
+  const handleSelectInventoryItem = (stockItem: LiveStockItem) => {
     setRecipeIngredients((prev) => [
       ...prev,
       {
@@ -242,13 +320,13 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
     );
   };
 
-  const filteredStock = STOCK_CATALOG.filter(
+  const filteredStock = liveInventory.filter(
     (item) =>
       item.name.toLowerCase().includes(inventorySearch.toLowerCase()) ||
       item.brand.toLowerCase().includes(inventorySearch.toLowerCase())
   );
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       alert('Please enter a menu item name');
@@ -259,19 +337,51 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
       alert('Please enter a valid price');
       return;
     }
+    if (selectedCats.length === 0) {
+      alert('Please select at least one category for this menu item');
+      return;
+    }
 
-    onSaveMenuItem({
-      id: item?.id,
-      name: name.trim(),
-      price: numPrice,
-      emoji: emoji.trim() || '👑',
-      category: selectedCats[0] || 'Hookah',
-      description: desc.trim(),
-      imageUrl: imageUrl.trim(),
-      recipeIngredientsCount: recipeIngredients.length,
-      modifierGroupsCount: modifierGroups.length,
-    });
-    onClose();
+    try {
+      setIsSaving(true);
+      const primaryCategory = selectedCats[0];
+      const payload = {
+        id: item?.id,
+        _id: item?.id,
+        name: name.trim(),
+        price: numPrice,
+        emoji: emoji.trim() || '👑',
+        category: primaryCategory,
+        category_id: primaryCategory,
+        category_ids: selectedCats,
+        categoryIds: selectedCats,
+        description: desc.trim(),
+        desc: desc.trim(),
+        imageUrl: imageUrl.trim(),
+        image_url: imageUrl.trim(),
+        modifier_groups: modifierGroups,
+        modifierGroups: modifierGroups,
+        recipe: recipeIngredients.map((ing) => ({
+          ingredient_id: ing.inventoryItemId,
+          ingredientId: ing.inventoryItemId,
+          name: ing.name,
+          brand: ing.brand,
+          amount: ing.amount,
+          quantity: ing.amount,
+          unit: ing.unit,
+          mode: ing.mode,
+          percentage: ing.mode === 'pct' ? ing.amount : undefined,
+        })),
+        ingredient_id: recipeIngredients.length > 0 ? recipeIngredients[0].inventoryItemId : undefined,
+        ingredient_amount: recipeIngredients.length > 0 ? recipeIngredients[0].amount : undefined,
+      };
+
+      await onSaveMenuItem(payload);
+    } catch (err: any) {
+      alert('Failed to save menu item: ' + err.message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -289,112 +399,128 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
         padding: '20px',
       }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget && !isSaving) onClose();
       }}
     >
       <div
         style={{
           width: '100%',
-          maxWidth: '560px',
-          maxHeight: '90vh',
+          maxWidth: '680px',
+          maxHeight: '92vh',
           overflowY: 'auto',
           background: 'var(--card)',
           border: '1.5px solid var(--gold)',
           borderRadius: '20px',
-          padding: '24px',
+          padding: '28px',
           textAlign: 'left',
           boxShadow: '0 20px 60px rgba(0,0,0,0.9)',
         }}
       >
-        <h3 id="menuModalTitle" style={{ color: 'var(--gold)', fontSize: '18px', fontWeight: 800, marginBottom: '16px' }}>
-          {item ? 'Edit Menu Item' : 'Add Menu Item'}
-        </h3>
-        <input type="hidden" id="menuEditId" value={item?.id || ''} />
-        <input type="hidden" id="menuEditScopedCategory" value={scopedCategory || ''} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h3 id="menuModalTitle" style={{ color: 'var(--gold)', fontSize: '20px', fontWeight: 800, margin: 0 }}>
+            {item ? 'Edit Menu Item' : 'Add Menu Item'}
+          </h3>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={onClose}
+            disabled={isSaving}
+            style={{ padding: '4px 10px', fontSize: '12px' }}
+          >
+            ✕ Close
+          </button>
+        </div>
 
-        {scopedCategory && (
+        {/* Scoped category notice */}
+        {scopedCategory && scopedCategory !== 'all' && (
           <div
             id="menuEditCategoryScopeNotice"
             style={{
               display: 'block',
-              background: 'rgba(229,177,58,0.12)',
-              border: '1px dashed var(--gold)',
+              background: 'rgba(56, 189, 248, 0.1)',
+              border: '1px dashed #38BDF8',
               borderRadius: '8px',
-              padding: '6px 12px',
-              marginBottom: '12px',
-              fontSize: '11px',
-              color: 'var(--gold)',
+              padding: '8px 12px',
+              marginBottom: '16px',
+              fontSize: '12px',
+              color: '#38BDF8',
               fontWeight: 700,
             }}
           >
-            🏷️ Editing within category: <span id="menuEditScopedCategoryName" style={{ color: 'var(--cream)' }}>{scopedCategory}</span> (Changes here are isolated to this category)
+            🏷️ Editing within category: <span style={{ color: 'var(--cream)', fontWeight: 800 }}>{scopedCategory}</span> (Changes here are isolated to this category)
           </div>
         )}
 
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '12px' }}>
+          {/* Item Name */}
+          <div style={{ marginBottom: '14px' }}>
             <label
               style={{
                 display: 'block',
                 fontSize: '11px',
-                fontWeight: 700,
+                fontWeight: 800,
                 color: 'var(--muted)',
                 textTransform: 'uppercase',
-                marginBottom: '4px',
+                marginBottom: '6px',
+                letterSpacing: '0.5px',
               }}
             >
-              Item Name *
+              ITEM NAME *
             </label>
             <input
               type="text"
               id="menuItemName"
               required
-              placeholder="e.g. Anarkali House Blend"
+              placeholder="e.g. Biscoff Cake or Anarkali House Blend"
               value={name}
               onChange={(e) => setName(e.target.value)}
               autoFocus
               style={{
                 width: '100%',
-                padding: '10px',
+                padding: '11px 14px',
                 background: 'var(--card2)',
                 border: '1px solid var(--line)',
                 borderRadius: '8px',
                 color: 'var(--cream)',
                 fontSize: '14px',
+                fontWeight: 600,
               }}
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+          {/* Price and Emoji */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '14px', marginBottom: '16px' }}>
             <div>
               <label
                 style={{
                   display: 'block',
                   fontSize: '11px',
-                  fontWeight: 700,
+                  fontWeight: 800,
                   color: 'var(--muted)',
                   textTransform: 'uppercase',
-                  marginBottom: '4px',
+                  marginBottom: '6px',
+                  letterSpacing: '0.5px',
                 }}
               >
-                Price ($) *
+                PRICE ($) *
               </label>
               <input
                 type="number"
                 step="0.01"
                 id="menuItemPrice"
                 required
-                placeholder="36.00"
+                placeholder="12"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '10px',
+                  padding: '11px 14px',
                   background: 'var(--card2)',
                   border: '1px solid var(--line)',
                   borderRadius: '8px',
                   color: 'var(--cream)',
                   fontSize: '14px',
+                  fontWeight: 700,
                 }}
               />
             </div>
@@ -403,13 +529,14 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
                 style={{
                   display: 'block',
                   fontSize: '11px',
-                  fontWeight: 700,
+                  fontWeight: 800,
                   color: 'var(--muted)',
                   textTransform: 'uppercase',
-                  marginBottom: '4px',
+                  marginBottom: '6px',
+                  letterSpacing: '0.5px',
                 }}
               >
-                Emoji / Icon
+                EMOJI / ICON
               </label>
               <input
                 type="text"
@@ -419,37 +546,46 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
                 onChange={(e) => setEmoji(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '10px',
+                  padding: '11px 14px',
                   background: 'var(--card2)',
                   border: '1px solid var(--line)',
                   borderRadius: '8px',
                   color: 'var(--cream)',
-                  fontSize: '14px',
+                  fontSize: '15px',
                   textAlign: 'center',
                 }}
               />
             </div>
           </div>
 
-          <div style={{ marginBottom: '14px' }}>
+          {/* Categories / Sub-Categories Multi-Select (Matches User Screenshot) */}
+          <div style={{ marginBottom: '18px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
               <label
                 style={{
                   display: 'block',
                   fontSize: '11px',
-                  fontWeight: 700,
+                  fontWeight: 800,
                   color: 'var(--muted)',
                   textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
                 }}
               >
-                Categories / Sub-Categories *
+                CATEGORIES / SUB-CATEGORIES *
               </label>
-              <span id="selectedCategoriesCount" style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 800 }}>
+              <span
+                id="selectedCategoriesCount"
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  color: selectedCats.length > 0 ? '#10B981' : 'var(--danger)',
+                }}
+              >
                 {selectedCats.length} Selected
               </span>
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>
-              Tap any category to toggle. An item can belong to multiple categories simultaneously.
+            <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '10px' }}>
+              Tap any category to toggle. An item can belong to multiple categories simultaneously (e.g. Appetizers &amp; Vegetarian, Wings &amp; Mains).
             </div>
             <div
               id="menuItemCategoriesGrid"
@@ -457,53 +593,91 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
                 display: 'flex',
                 flexWrap: 'wrap',
                 gap: '8px',
-                maxHeight: '160px',
+                maxHeight: '190px',
                 overflowY: 'auto',
-                padding: '10px',
+                padding: '12px',
                 background: 'var(--card2)',
                 border: '1px solid var(--line)',
-                borderRadius: '10px',
+                borderRadius: '12px',
               }}
             >
-              {categories.map((cat) => {
-                const isSelected = selectedCats.includes(cat.name);
-                return (
-                  <button
-                    type="button"
-                    key={cat.id}
-                    onClick={() => toggleCategory(cat.name)}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: '8px',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      border: isSelected ? '1.5px solid var(--gold)' : '1px solid var(--line)',
-                      background: isSelected ? 'rgba(229,177,58,0.18)' : 'var(--card)',
-                      color: isSelected ? 'var(--gold)' : 'var(--cream)',
-                    }}
-                  >
-                    {cat.name}
-                  </button>
-                );
-              })}
+              {categories.length > 0 ? (
+                categories.map((cat) => {
+                  const isSelected = isCategorySelected(cat);
+                  const parentLabel = cat.parentTitle ? cat.parentTitle.toUpperCase() : '';
+
+                  return (
+                    <button
+                      type="button"
+                      key={cat.id}
+                      onClick={() => toggleCategory(cat.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '6px 14px',
+                        borderRadius: '20px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        border: isSelected ? '1.5px solid #10B981' : '1px solid var(--line)',
+                        background: isSelected ? 'rgba(16, 185, 129, 0.2)' : 'var(--card)',
+                        color: isSelected ? '#10B981' : 'var(--cream)',
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: '13px',
+                          fontWeight: 900,
+                          width: '12px',
+                          textAlign: 'center',
+                          color: isSelected ? '#10B981' : 'var(--muted)',
+                        }}
+                      >
+                        {isSelected ? '✓' : '+'}
+                      </span>
+                      <span>
+                        {cat.icon || '📋'} {cat.title || cat.name}
+                      </span>
+                      {parentLabel && (
+                        <span
+                          style={{
+                            fontSize: '9px',
+                            opacity: 0.65,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px',
+                            marginLeft: '2px',
+                          }}
+                        >
+                          ({parentLabel})
+                        </span>
+                      )}
+                    </button>
+                  );
+                })
+              ) : (
+                <div style={{ color: 'var(--muted)', fontSize: '12px', padding: '8px' }}>
+                  No categories configured in MongoDB.
+                </div>
+              )}
             </div>
-            <input type="hidden" id="menuItemCategory" value={selectedCats.join(',')} />
           </div>
 
-          {/* Description Field */}
-          <div style={{ marginBottom: '12px' }}>
+          {/* Item Description */}
+          <div style={{ marginBottom: '14px' }}>
             <label
               style={{
                 display: 'block',
                 fontSize: '11px',
-                fontWeight: 700,
+                fontWeight: 800,
                 color: 'var(--muted)',
                 textTransform: 'uppercase',
-                marginBottom: '4px',
+                marginBottom: '6px',
+                letterSpacing: '0.5px',
               }}
             >
-              Item Description
+              ITEM DESCRIPTION
             </label>
             <textarea
               id="menuItemDesc"
@@ -513,7 +687,7 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
               onChange={(e) => setDesc(e.target.value)}
               style={{
                 width: '100%',
-                padding: '10px',
+                padding: '10px 14px',
                 background: 'var(--card2)',
                 border: '1px solid var(--line)',
                 borderRadius: '8px',
@@ -524,29 +698,30 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
             />
           </div>
 
-          {/* Image URL Field */}
-          <div style={{ marginBottom: '16px' }}>
+          {/* Item Image URL */}
+          <div style={{ marginBottom: '18px' }}>
             <label
               style={{
                 display: 'block',
                 fontSize: '11px',
-                fontWeight: 700,
+                fontWeight: 800,
                 color: 'var(--muted)',
                 textTransform: 'uppercase',
-                marginBottom: '4px',
+                marginBottom: '6px',
+                letterSpacing: '0.5px',
               }}
             >
-              Item Image URL
+              ITEM IMAGE URL
             </label>
             <input
               type="text"
               id="menuItemImageUrl"
-              placeholder="e.g. https://... or /images/menu/anarkali.png"
+              placeholder="https://... or /images/menu/item.png"
               value={imageUrl}
               onChange={(e) => setImageUrl(e.target.value)}
               style={{
                 width: '100%',
-                padding: '10px',
+                padding: '10px 14px',
                 background: 'var(--card2)',
                 border: '1px solid var(--line)',
                 borderRadius: '8px',
@@ -578,7 +753,7 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
             >
               <div>
                 <div style={{ fontSize: '12px', fontWeight: 800, color: '#10B981', textTransform: 'uppercase' }}>
-                  Choice Options &amp; Modifiers (e.g. Wing Sauces, Flavors)
+                  CHOICE OPTIONS &amp; MODIFIERS (E.G. WING SAUCES, FLAVORS)
                 </div>
                 <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
                   Prompts customer with choice popup when selecting this item.
@@ -714,7 +889,7 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
             </div>
           </div>
 
-          {/* Multi-Item Recipe Inventory Deduction Section */}
+          {/* Multi-Item Recipe Inventory Deduction Section (Live from Database) */}
           <div
             id="recipeIngredientsContainer"
             style={{
@@ -722,7 +897,7 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
               border: '1px dashed var(--gold)',
               borderRadius: '14px',
               padding: '14px',
-              marginBottom: '20px',
+              marginBottom: '22px',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
@@ -746,14 +921,15 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
               </button>
             </div>
             <p style={{ fontSize: '11px', color: 'var(--muted)', margin: '0 0 10px 0' }}>
-              Combine multiple raw stock materials to make a single menu item (e.g. House Mixes or Cocktail Recipes).
+              Combine multiple raw stock materials to make a single menu item. When an order is served, configured amounts automatically deduct from live inventory.
             </p>
 
+            {/* Live Inventory Stock Search */}
             <div style={{ position: 'relative', marginBottom: '12px' }}>
               <input
                 type="text"
                 id="recipeInventorySearchInput"
-                placeholder="🔍 Search inventory item by name or brand (e.g. Al Fakher, Pan Ras)..."
+                placeholder="🔍 Search live inventory stock by name or brand (e.g. Al Fakher, Rose Syrup)..."
                 value={inventorySearch}
                 onFocus={() => setShowSearchResults(true)}
                 onChange={(e) => {
@@ -807,22 +983,27 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
                       >
                         <div>
                           <span style={{ fontWeight: 800, color: 'var(--cream)' }}>{stock.name}</span>
-                          <span style={{ fontSize: '11px', color: 'var(--muted)', marginLeft: '6px' }}>[{stock.brand}]</span>
+                          {stock.brand && (
+                            <span style={{ fontSize: '11px', color: 'var(--muted)', marginLeft: '6px' }}>
+                              [{stock.brand}]
+                            </span>
+                          )}
                         </div>
                         <span style={{ color: 'var(--gold)', fontWeight: 700 }}>
-                          {stock.stock}{stock.unit} available
+                          {stock.stock} {stock.unit} available
                         </span>
                       </div>
                     ))
                   ) : (
                     <div style={{ padding: '8px 12px', fontSize: '12px', color: 'var(--muted)' }}>
-                      No matching raw materials found.
+                      No matching raw materials found in database stock.
                     </div>
                   )}
                 </div>
               )}
             </div>
 
+            {/* Configured Recipe Rows */}
             <div id="recipeRowsContainer" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {recipeIngredients.map((ing, idx) => (
                 <div
@@ -896,7 +1077,7 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
                         fontWeight: 700,
                       }}
                     >
-                      {ing.mode === 'pct' ? `${ing.amount}% ratio` : `${ing.amount}${ing.unit}`} deduction
+                      {ing.mode === 'pct' ? `${ing.amount}% ratio` : `${ing.amount} ${ing.unit}`} deduction
                     </span>
 
                     <button
@@ -913,12 +1094,18 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
             </div>
           </div>
 
+          {/* Action Buttons */}
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-            <button type="button" className="btn" onClick={onClose}>
+            <button type="button" className="btn" onClick={onClose} disabled={isSaving}>
               Cancel
             </button>
-            <button type="submit" className="btn btn-primary" style={{ fontWeight: 800 }}>
-              Save Menu Item
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={isSaving}
+              style={{ fontWeight: 800, background: 'var(--gold)', color: '#000', padding: '9px 20px' }}
+            >
+              {isSaving ? 'Saving to Database...' : 'Save Menu Item'}
             </button>
           </div>
         </form>

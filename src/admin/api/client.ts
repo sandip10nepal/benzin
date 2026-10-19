@@ -219,7 +219,7 @@ export class AdminApiClient {
 
   async updateOrderStatus(orderId: string, status: string): Promise<any> {
     const res = await fetch(`${this.baseUrl}/api/orders/${orderId}/status`, {
-      method: 'PUT',
+      method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ status }),
     });
@@ -256,6 +256,34 @@ export class AdminApiClient {
     return res.json();
   }
 
+  async saveInventoryCategory(cat: { id?: string; title: string; icon: string }): Promise<any> {
+    const { restaurantSlug, restaurantId } = this.getTenantParams();
+    const pin = typeof window !== 'undefined' ? (localStorage.getItem('benzin_user_pin') || localStorage.getItem('benzin_admin_pin') || '1234') : '1234';
+    const url = cat.id
+      ? `${this.baseUrl}/api/orders/inventory/categories/update?restaurant_slug=${encodeURIComponent(restaurantSlug)}&restaurant_id=${encodeURIComponent(restaurantId)}`
+      : `${this.baseUrl}/api/orders/inventory/categories?restaurant_slug=${encodeURIComponent(restaurantSlug)}&restaurant_id=${encodeURIComponent(restaurantId)}`;
+    const body = cat.id
+      ? { id: cat.id, title: cat.title, icon: cat.icon, authPin: pin, pin }
+      : { title: cat.title, icon: cat.icon, authPin: pin, pin };
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(body),
+    });
+    return await res.json();
+  }
+
+  async deleteInventoryCategory(id: string): Promise<any> {
+    const { restaurantSlug, restaurantId } = this.getTenantParams();
+    const pin = typeof window !== 'undefined' ? (localStorage.getItem('benzin_user_pin') || localStorage.getItem('benzin_admin_pin') || '1234') : '1234';
+    const res = await fetch(`${this.baseUrl}/api/orders/inventory/categories/delete?restaurant_slug=${encodeURIComponent(restaurantSlug)}&restaurant_id=${encodeURIComponent(restaurantId)}`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ id, authPin: pin, pin }),
+    });
+    return await res.json();
+  }
+
   /* ═══════════════════════════════════════════════════════════════════════════ */
   /*                         MENU CATALOG                                        */
   /* ═══════════════════════════════════════════════════════════════════════════ */
@@ -275,6 +303,66 @@ export class AdminApiClient {
     const categories = catData.success && Array.isArray(catData.categories) ? catData.categories : (Array.isArray(catData) ? catData : []);
 
     return { items, categories };
+  }
+
+  async saveMenuItem(item: any): Promise<any> {
+    const { restaurantSlug, restaurantId } = this.getTenantParams();
+    const id = item.id || item._id;
+    const url = id
+      ? `${this.baseUrl}/api/menu/${encodeURIComponent(id)}?restaurant_slug=${encodeURIComponent(restaurantSlug)}&restaurant_id=${encodeURIComponent(restaurantId)}`
+      : `${this.baseUrl}/api/menu?restaurant_slug=${encodeURIComponent(restaurantSlug)}&restaurant_id=${encodeURIComponent(restaurantId)}`;
+    const method = id ? 'PATCH' : 'POST';
+    const res = await fetch(url, {
+      method,
+      headers: this.getHeaders(),
+      body: JSON.stringify(item),
+    });
+    return await res.json();
+  }
+
+  async deleteMenuItem(id: string): Promise<any> {
+    const { restaurantSlug, restaurantId } = this.getTenantParams();
+    const res = await fetch(`${this.baseUrl}/api/menu/${encodeURIComponent(id)}?restaurant_slug=${encodeURIComponent(restaurantSlug)}&restaurant_id=${encodeURIComponent(restaurantId)}`, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
+    });
+    return await res.json();
+  }
+
+  async saveMenuCategory(cat: any): Promise<any> {
+    const { restaurantSlug, restaurantId } = this.getTenantParams();
+    const id = cat.id || cat._id;
+    const isSuper = cat.isSuper || cat.is_super || cat.parent_id === null;
+    const payload = {
+      name: cat.title || cat.name,
+      title: cat.title || cat.name,
+      description: cat.subtitle || cat.description || '',
+      subtitle: cat.subtitle || cat.description || '',
+      icon: cat.icon || (isSuper ? '👑' : '📋'),
+      color: cat.color || '#6366F1',
+      is_super: isSuper,
+      parent_id: cat.parent_id !== undefined ? cat.parent_id : (isSuper ? null : null),
+      menu_type: cat.menu_type || (isSuper ? (cat.title || '').toLowerCase().replace(/[^a-z0-9]/g, '_') : 'hookah'),
+    };
+    const url = id
+      ? `${this.baseUrl}/api/v2/menu/categories/${encodeURIComponent(id)}?restaurant_slug=${encodeURIComponent(restaurantSlug)}&restaurant_id=${encodeURIComponent(restaurantId)}`
+      : `${this.baseUrl}/api/v2/menu/categories?restaurant_slug=${encodeURIComponent(restaurantSlug)}&restaurant_id=${encodeURIComponent(restaurantId)}`;
+    const method = id ? 'PATCH' : 'POST';
+    const res = await fetch(url, {
+      method,
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    return await res.json();
+  }
+
+  async deleteMenuCategory(id: string): Promise<any> {
+    const { restaurantSlug, restaurantId } = this.getTenantParams();
+    const res = await fetch(`${this.baseUrl}/api/v2/menu/categories/${encodeURIComponent(id)}?restaurant_slug=${encodeURIComponent(restaurantSlug)}&restaurant_id=${encodeURIComponent(restaurantId)}`, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
+    });
+    return await res.json();
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════ */
@@ -323,6 +411,21 @@ export class AdminApiClient {
   async getVibeQuest(): Promise<any[]> {
     const { restaurantSlug, restaurantId } = this.getTenantParams();
     try {
+      const adminRes = await fetch(`${this.baseUrl}/api/vibe-quest/admin/settings?restaurant_slug=${encodeURIComponent(restaurantSlug)}&restaurant_id=${encodeURIComponent(restaurantId)}`, {
+        headers: this.getHeaders(),
+      });
+      if (adminRes.ok) {
+        const data = await adminRes.json();
+        const rawQuestions = data.draft?.questions || data.questions || data.published?.questions || data.settings?.draft?.questions || [];
+        if (Array.isArray(rawQuestions) && rawQuestions.length > 0) {
+          return rawQuestions;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed admin/settings for vibe quest, falling back to public config:', e);
+    }
+
+    try {
       const res = await fetch(`${this.baseUrl}/api/vibe-quest?restaurant_slug=${encodeURIComponent(restaurantSlug)}&restaurant_id=${encodeURIComponent(restaurantId)}`, {
         headers: this.getHeaders(),
       });
@@ -334,6 +437,16 @@ export class AdminApiClient {
       console.warn('Failed to fetch vibe-quest questions:', e);
     }
     return [];
+  }
+
+  async saveVibeQuest(questions: any[], settings?: any): Promise<any> {
+    const { restaurantSlug, restaurantId } = this.getTenantParams();
+    const res = await fetch(`${this.baseUrl}/api/vibe-quest/admin/save-questions?restaurant_slug=${encodeURIComponent(restaurantSlug)}&restaurant_id=${encodeURIComponent(restaurantId)}`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ questions, settings }),
+    });
+    return await res.json();
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════ */

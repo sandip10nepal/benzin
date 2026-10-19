@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import './styles/legacy-admin.css';
 import { AdminLayout } from './components/layout/AdminLayout';
 import { KdsView } from './views/KdsView';
@@ -10,6 +10,7 @@ import { SalesView } from './views/SalesView';
 import { StaffView } from './views/StaffView';
 import { AdminTabId, RestaurantVenue, StaffUser, MenuItem } from './types';
 import { apiClient } from './api/client';
+import { SubCategoryWithParent } from './components/modals/MenuItemModal';
 
 const DEFAULT_VENUE: RestaurantVenue = {
   id: 'RES_EED4E9D266DF',
@@ -131,31 +132,89 @@ export const App: React.FC = () => {
   const [selectedProfileUser, setSelectedProfileUser] = useState<StaffUser | null>(user);
 
   const [isMenuCategoryOpen, setIsMenuCategoryOpen] = useState(false);
-  const [menuCategories, setMenuCategories] = useState<Array<{
-    id: string;
-    title: string;
-    subtitle?: string;
-    icon?: string;
-    color?: string;
-    superCategory?: string;
-    isSuper?: boolean;
-  }>>([
-    { id: 'c1', title: 'Signature Mixes', subtitle: 'Artisan House Blends', icon: '👑', color: '#FF5A1F', superCategory: 'Hookah' },
-    { id: 'c2', title: 'Classic Flavors', subtitle: 'Timeless favorites', icon: '💨', color: '#38BDF8', superCategory: 'Hookah' },
-    { id: 'c3', title: 'Warm Appetizers', subtitle: 'Freshly baked bites', icon: '🫓', color: '#F59E0B', superCategory: 'Food' },
-    { id: 'c4', title: 'Hot Beverages', subtitle: 'Turkish coffee & teas', icon: '☕', color: '#10B981', superCategory: 'Drinks' },
-    { id: 'c5', title: 'Hookah', isSuper: true, icon: '💨' },
-    { id: 'c6', title: 'Food', isSuper: true, icon: '🍔' },
-    { id: 'c7', title: 'Drinks', isSuper: true, icon: '🍸' },
-  ]);
+  const [menuCategories, setMenuCategories] = useState<any[]>([]);
 
   const [isInventoryCategoryOpen, setIsInventoryCategoryOpen] = useState(false);
-  const [invCategories, setInvCategories] = useState([
-    { id: 'ic1', title: 'Hookah Tobacco', icon: '💨' },
-    { id: 'ic2', title: 'Coals & Heads', icon: '🔥' },
-    { id: 'ic3', title: 'Beverages & Syrups', icon: '🥤' },
-    { id: 'ic4', title: 'Kitchen Materials', icon: '🍔' },
-  ]);
+  const [invCategories, setInvCategories] = useState<any[]>([]);
+
+  const [scopedCategoryForModal, setScopedCategoryForModal] = useState<string | undefined>(undefined);
+
+  // Load real menu and inventory categories from MongoDB Atlas
+  useEffect(() => {
+    let mounted = true;
+    const fetchCatalogData = async () => {
+      try {
+        const [menuData, invData] = await Promise.all([
+          apiClient.getMenu(),
+          apiClient.getInventory(),
+        ]);
+        if (mounted) {
+          if (menuData && Array.isArray(menuData.categories)) {
+            setMenuCategories(menuData.categories);
+          }
+          if (invData && Array.isArray(invData.categories)) {
+            setInvCategories(invData.categories);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch initial categories from MongoDB:', err);
+      }
+    };
+    fetchCatalogData();
+    return () => {
+      mounted = false;
+    };
+  }, [sessionKey, venue.id]);
+
+  // Derived subcategories with uppercase parent titles for MenuItemModal pills
+  const subCategoriesWithParents: SubCategoryWithParent[] = useMemo(() => {
+    const superCats = menuCategories.filter(
+      (c: any) => c.is_super || c.isSuper || c.parent_id === null
+    );
+    const superMap = new Map<string, string>();
+    superCats.forEach((s: any) => {
+      const id = s.id || s._id;
+      superMap.set(id, s.title || s.name || '');
+    });
+
+    const subs = menuCategories.filter(
+      (c: any) => !c.is_super && !c.isSuper && c.parent_id !== null && c.parent_id !== undefined
+    );
+
+    if (subs.length > 0) {
+      return subs.map((c: any) => {
+        const parentTitle = c.parent_id ? (superMap.get(c.parent_id) || '') : '';
+        return {
+          id: c.id || c._id,
+          name: c.title || c.name,
+          title: c.title || c.name,
+          icon: c.icon || '📋',
+          parent_id: c.parent_id,
+          parentTitle: parentTitle || (c.menu_type ? c.menu_type.toUpperCase() : undefined),
+        };
+      });
+    }
+
+    return menuCategories.map((c: any) => ({
+      id: c.id || c._id,
+      name: c.title || c.name,
+      title: c.title || c.name,
+      icon: c.icon || '📋',
+      parent_id: c.parent_id,
+      parentTitle: c.superCategory || (c.menu_type ? c.menu_type.toUpperCase() : undefined),
+    }));
+  }, [menuCategories]);
+
+  // Super categories options for MenuCategoryModal parent picker
+  const superCategoryOptions = useMemo(() => {
+    return menuCategories
+      .filter((c: any) => c.is_super || c.isSuper || c.parent_id === null)
+      .map((s: any) => ({
+        id: s.id || s._id,
+        name: s.title || s.name || '',
+        title: s.title || s.name || '',
+      }));
+  }, [menuCategories]);
 
   const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<StaffUser | null>(null);
@@ -221,9 +280,103 @@ export const App: React.FC = () => {
     setIsEditTableOpen(true);
   };
 
-  const handleOpenEditMenuItem = (item: MenuItem) => {
-    setSelectedMenuItem(item);
+  const handleOpenAddItem = (scopedCat?: string) => {
+    setSelectedMenuItem(null);
+    setScopedCategoryForModal(scopedCat);
     setIsMenuItemOpen(true);
+  };
+
+  const handleOpenEditMenuItem = (item: MenuItem, scopedCat?: string) => {
+    setSelectedMenuItem(item);
+    setScopedCategoryForModal(scopedCat);
+    setIsMenuItemOpen(true);
+  };
+
+  const handleSaveMenuItem = async (savedItem: any) => {
+    try {
+      const res = await apiClient.saveMenuItem(savedItem);
+      if (res && (res.success || res.item || res._id)) {
+        alert(`Menu item "${savedItem.name}" saved successfully to database!`);
+        setIsMenuItemOpen(false);
+        setSessionKey((prev) => prev + 1);
+      } else {
+        alert('Could not save menu item: ' + (res?.error || res?.message || 'Error'));
+      }
+    } catch (err: any) {
+      alert('Error saving menu item: ' + err.message);
+    }
+  };
+
+  const handleSaveMenuCategory = async (cat: any) => {
+    try {
+      const res = await apiClient.saveMenuCategory(cat);
+      if (res && (res.success || res.category)) {
+        alert(`Category "${cat.title || cat.name}" saved!`);
+        const refreshed = await apiClient.getMenu();
+        if (refreshed && Array.isArray(refreshed.categories)) {
+          setMenuCategories(refreshed.categories);
+        }
+        setSessionKey((prev) => prev + 1);
+      } else {
+        alert('Could not save menu category: ' + (res?.error || res?.message || 'Error'));
+      }
+    } catch (err: any) {
+      alert('Error saving category: ' + err.message);
+    }
+  };
+
+  const handleDeleteMenuCategory = async (catId: string) => {
+    try {
+      const res = await apiClient.deleteMenuCategory(catId);
+      if (res && res.success) {
+        alert('Category deleted.');
+        const refreshed = await apiClient.getMenu();
+        if (refreshed && Array.isArray(refreshed.categories)) {
+          setMenuCategories(refreshed.categories);
+        }
+        setSessionKey((prev) => prev + 1);
+      } else {
+        alert('Could not delete category: ' + (res?.error || res?.message || 'Error'));
+      }
+    } catch (err: any) {
+      alert('Error deleting category: ' + err.message);
+    }
+  };
+
+  const handleSaveInventoryCategory = async (cat: { id?: string; title: string; icon: string }) => {
+    try {
+      const res = await apiClient.saveInventoryCategory(cat);
+      if (res && (res.success || res.category)) {
+        alert(`Inventory category "${cat.title}" saved!`);
+        const refreshed = await apiClient.getInventory();
+        if (refreshed && Array.isArray(refreshed.categories)) {
+          setInvCategories(refreshed.categories);
+        }
+        setSessionKey((prev) => prev + 1);
+      } else {
+        alert('Could not save inventory category: ' + (res?.error || res?.message || 'Error'));
+      }
+    } catch (err: any) {
+      alert('Error saving inventory category: ' + err.message);
+    }
+  };
+
+  const handleDeleteInventoryCategory = async (id: string) => {
+    try {
+      const res = await apiClient.deleteInventoryCategory(id);
+      if (res && res.success) {
+        alert('Inventory category deleted.');
+        const refreshed = await apiClient.getInventory();
+        if (refreshed && Array.isArray(refreshed.categories)) {
+          setInvCategories(refreshed.categories);
+        }
+        setSessionKey((prev) => prev + 1);
+      } else {
+        alert('Could not delete inventory category: ' + (res?.error || res?.message || 'Error'));
+      }
+    } catch (err: any) {
+      alert('Error deleting inventory category: ' + err.message);
+    }
   };
 
   const handleOpenEditInventory = (item: InventoryItem) => {
@@ -315,6 +468,7 @@ export const App: React.FC = () => {
                   onOpenAddCategory={() => setIsInventoryCategoryOpen(true)}
                   onOpenAddItem={() => setIsAddInventoryOpen(true)}
                   onOpenEditItem={handleOpenEditInventory}
+                  refreshKey={sessionKey}
                 />
               );
             case 'menu':
@@ -323,11 +477,9 @@ export const App: React.FC = () => {
                   onOpenHookahConfig={() => setIsHookahConfigOpen(true)}
                   onOpenSpecials={() => setIsSpecialsOpen(true)}
                   onOpenAddCategory={() => setIsMenuCategoryOpen(true)}
-                  onOpenAddItem={() => {
-                    setSelectedMenuItem(null);
-                    setIsMenuItemOpen(true);
-                  }}
+                  onOpenAddItem={handleOpenAddItem}
                   onOpenEditItem={handleOpenEditMenuItem}
+                  refreshKey={sessionKey}
                 />
               );
             case 'sales':
@@ -402,17 +554,9 @@ export const App: React.FC = () => {
         isOpen={isMenuItemOpen}
         onClose={() => setIsMenuItemOpen(false)}
         item={selectedMenuItem}
-        categories={[
-          { id: 'c1', name: 'Signature Mixes' },
-          { id: 'c2', name: 'Classic Flavors' },
-          { id: 'c3', name: 'Exotic Flavors' },
-          { id: 'c4', name: 'Warm Appetizers' },
-          { id: 'c5', name: 'Hot Beverages' },
-          { id: 'c6', name: 'Mocktails & Sodas' },
-        ]}
-        onSaveMenuItem={(saved) => {
-          alert(`Menu item "${saved.name}" saved!`);
-        }}
+        categories={subCategoriesWithParents}
+        scopedCategory={scopedCategoryForModal}
+        onSaveMenuItem={handleSaveMenuItem}
       />
 
       {/* 3. Add Inventory Item Modal (#addInventoryModal) */}
@@ -465,14 +609,9 @@ export const App: React.FC = () => {
         isOpen={isMenuCategoryOpen}
         onClose={() => setIsMenuCategoryOpen(false)}
         categories={menuCategories}
-        superCategories={['Hookah', 'Food', 'Drinks']}
-        onSaveCategory={(cat) => {
-          setMenuCategories((prev) => [...prev, cat]);
-          alert(`Category "${cat.title}" saved!`);
-        }}
-        onDeleteCategory={(catId) => {
-          setMenuCategories((prev) => prev.filter((c) => c.id !== catId));
-        }}
+        superCategories={superCategoryOptions}
+        onSaveCategory={handleSaveMenuCategory}
+        onDeleteCategory={handleDeleteMenuCategory}
       />
 
       {/* 8. Manage Inventory Categories Modal (#invCatModal) */}
@@ -480,16 +619,8 @@ export const App: React.FC = () => {
         isOpen={isInventoryCategoryOpen}
         onClose={() => setIsInventoryCategoryOpen(false)}
         categories={invCategories}
-        onSaveCategory={(cat) => {
-          setInvCategories((prev) => [
-            ...prev,
-            { id: cat.id || `ic_${Date.now()}`, title: cat.title, icon: cat.icon },
-          ]);
-          alert(`Inventory category "${cat.title}" saved!`);
-        }}
-        onDeleteCategory={(id) => {
-          setInvCategories((prev) => prev.filter((c) => c.id !== id));
-        }}
+        onSaveCategory={handleSaveInventoryCategory}
+        onDeleteCategory={handleDeleteInventoryCategory}
       />
 
       {/* 9. Add / Edit Staff Modal (#empModal) */}
