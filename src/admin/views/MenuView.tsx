@@ -8,18 +8,35 @@ import {
   PlusCircle,
   Edit2,
   Trash2,
+  ArrowUp,
+  ArrowDown,
+  Plus,
 } from 'lucide-react';
 import { MenuItem } from '../types';
 
-interface VibeQuestQuestion {
+export type NavigationTrigger =
+  | 'start_order'
+  | 'next_food'
+  | 'next_drinks'
+  | 'cart_dessert'
+  | 'cart_drinks';
+
+export interface VibeQuestOption {
+  text: string;
+  emoji: string;
+  hostReply: string;
+  destination: string;
+}
+
+export interface VibeQuestQuestion {
   id: string;
+  trigger: NavigationTrigger;
+  active: boolean;
   title: string;
   prompt: string;
-  options: Array<{
-    text: string;
-    emoji: string;
-    targetCategory: string;
-  }>;
+  subtitle: string;
+  curatedProductIds: string[];
+  options: VibeQuestOption[];
 }
 
 interface MenuViewProps {
@@ -40,6 +57,8 @@ const INITIAL_MENU: MenuItem[] = [
     emoji: '👑',
     description: 'Our house-crafted blend of Pan Ras, Lady Killer & Bagdadi with iced base.',
     isSpecial: true,
+    recipeIngredientsCount: 3,
+    modifierGroupsCount: 1,
   },
   {
     id: 'm2',
@@ -49,6 +68,8 @@ const INITIAL_MENU: MenuItem[] = [
     superCategory: 'Hookah',
     emoji: '🫐',
     description: 'Sweet blueberry flavor with a cool, refined mint finish.',
+    recipeIngredientsCount: 2,
+    modifierGroupsCount: 1,
   },
   {
     id: 'm3',
@@ -58,6 +79,7 @@ const INITIAL_MENU: MenuItem[] = [
     superCategory: 'Hookah',
     emoji: '❤️',
     description: 'Passion fruit, honeydew melon, watermelon with gentle cool menthol.',
+    recipeIngredientsCount: 2,
   },
   {
     id: 'm4',
@@ -67,6 +89,8 @@ const INITIAL_MENU: MenuItem[] = [
     superCategory: 'Food',
     emoji: '🫓',
     description: 'Stone-baked artisan flatbread with wild thyme zaatar and melted akkawi cheese.',
+    recipeIngredientsCount: 4,
+    modifierGroupsCount: 1,
   },
   {
     id: 'm5',
@@ -76,6 +100,7 @@ const INITIAL_MENU: MenuItem[] = [
     superCategory: 'Food',
     emoji: '🧆',
     description: 'Six house-ground crispy falafels served with tahini sauce and pickled turnips.',
+    recipeIngredientsCount: 3,
   },
   {
     id: 'm6',
@@ -85,6 +110,8 @@ const INITIAL_MENU: MenuItem[] = [
     superCategory: 'Drinks',
     emoji: '☕',
     description: 'Traditionally prepared in cezve sand with crushed green cardamom pods.',
+    recipeIngredientsCount: 2,
+    modifierGroupsCount: 1,
   },
   {
     id: 'm7',
@@ -94,28 +121,157 @@ const INITIAL_MENU: MenuItem[] = [
     superCategory: 'Drinks',
     emoji: '🍋',
     description: 'Freshly squeezed lemon juice blended with garden mint and simple syrup.',
+    recipeIngredientsCount: 3,
   },
 ];
 
+const SUB_CATEGORIES_BY_SUPER: Record<string, string[]> = {
+  All: [
+    'All Sub-Categories',
+    'Signature Mixes',
+    'Classic Flavors',
+    'Exotic Flavors',
+    'Warm Appetizers',
+    'Hot Beverages',
+    'Mocktails & Sodas',
+  ],
+  Hookah: ['All Hookah', 'Signature Mixes', 'Classic Flavors', 'Exotic Flavors'],
+  Food: ['All Food', 'Warm Appetizers', 'Cold Mezze', 'Desserts'],
+  Drinks: ['All Drinks', 'Hot Beverages', 'Mocktails & Sodas', 'Cocktails'],
+};
+
 const INITIAL_QUESTIONS: VibeQuestQuestion[] = [
   {
-    id: 'q1',
-    title: 'Experience Type',
-    prompt: 'What are you in the mood for tonight?',
+    id: 'q_start_order',
+    trigger: 'start_order',
+    active: true,
+    title: 'Initial Hookah Experience Discovery',
+    prompt: 'What kind of hookah experience are you in the mood for tonight?',
+    subtitle: 'Guides guests to curated signature blends or fruit profiles on arrival.',
+    curatedProductIds: ['m1', 'm2'],
     options: [
-      { text: 'Hookah Chill', emoji: '💨', targetCategory: 'Hookah' },
-      { text: 'Refreshing Drinks', emoji: '🍹', targetCategory: 'Drinks' },
-      { text: 'Bites & Appetizers', emoji: '🫓', targetCategory: 'Food' },
+      {
+        text: 'Signature House Blends',
+        emoji: '👑',
+        hostReply: 'Our master hookah mixologists recommend the Anarkali Blend tonight.',
+        destination: 'cat:Signature Mixes',
+      },
+      {
+        text: 'Cool & Fruity Classics',
+        emoji: '🫐',
+        hostReply: 'Blue Mist and iced mint are perfect for chilling.',
+        destination: 'cat:Classic Flavors',
+      },
+      {
+        text: 'Make It Daku VIP Unlimited',
+        emoji: '👑',
+        hostReply: 'VIP unlimited refill experience unlocked for your table.',
+        destination: 'package:daku',
+      },
     ],
   },
   {
-    id: 'q2',
-    title: 'Flavor Profile',
-    prompt: 'What flavor notes do you prefer?',
+    id: 'q_next_food',
+    trigger: 'next_food',
+    active: true,
+    title: 'Food Craving Discovery',
+    prompt: 'Any artisan kitchen bites to pair with your hookah?',
+    subtitle: 'Appears after choosing hookah to drive appetizer and kitchen orders.',
+    curatedProductIds: ['m4', 'm5'],
     options: [
-      { text: 'Fruity & Sweet', emoji: '🍉', targetCategory: 'Exotic Flavors' },
-      { text: 'Cool & Minty', emoji: '❄️', targetCategory: 'Classic Flavors' },
-      { text: 'Paan & Spiced', emoji: '🌿', targetCategory: 'Signature Mixes' },
+      {
+        text: 'Fresh Stone-Baked Flatbread',
+        emoji: '🫓',
+        hostReply: 'Crispy thyme zaatar with warm melted akkawi cheese coming right up!',
+        destination: 'item:m4',
+      },
+      {
+        text: 'Crispy Falafel Platter',
+        emoji: '🧆',
+        hostReply: 'House-made falafels with tahini and pickles.',
+        destination: 'item:m5',
+      },
+      {
+        text: 'Browse All Kitchen Plates',
+        emoji: '🍽️',
+        hostReply: 'Opening full kitchen appetizer and dining menu.',
+        destination: 'cat:Food',
+      },
+    ],
+  },
+  {
+    id: 'q_next_drinks',
+    trigger: 'next_drinks',
+    active: true,
+    title: 'Beverage Pairing & Refreshments',
+    prompt: 'What would you like to drink with your session?',
+    subtitle: 'Upsells Turkish coffee, mint lemonades, mocktails, and cocktails.',
+    curatedProductIds: ['m6', 'm7'],
+    options: [
+      {
+        text: 'Hot Sand-Brewed Turkish Coffee',
+        emoji: '☕',
+        hostReply: 'Freshly ground Mehmet Efendi cardamom coffee.',
+        destination: 'item:m6',
+      },
+      {
+        text: 'Iced Garden Mint Lemonade',
+        emoji: '🍋',
+        hostReply: 'Chilled freshly squeezed lemon and garden mint.',
+        destination: 'item:m7',
+      },
+      {
+        text: 'Explore Beverage Menu',
+        emoji: '🍹',
+        hostReply: 'Opening refreshing mocktails, coffees, and teas.',
+        destination: 'cat:Drinks',
+      },
+    ],
+  },
+  {
+    id: 'q_cart_dessert',
+    trigger: 'cart_dessert',
+    active: true,
+    title: 'Dessert Reminder Before Checkout',
+    prompt: 'Would you like something sweet before finalizing your order?',
+    subtitle: 'Cart conditional reminder shown when no desserts are in cart.',
+    curatedProductIds: ['m4'],
+    options: [
+      {
+        text: 'Artisan Warm Pastries',
+        emoji: '🥮',
+        hostReply: 'Adding our chef dessert selection.',
+        destination: 'cat:Desserts',
+      },
+      {
+        text: 'No Thanks, Continue',
+        emoji: '⏭️',
+        hostReply: 'Proceeding to table checkout.',
+        destination: 'cart:checkout',
+      },
+    ],
+  },
+  {
+    id: 'q_cart_drinks',
+    trigger: 'cart_drinks',
+    active: true,
+    title: 'Hydration & Extra Ice Reminder',
+    prompt: 'Stay refreshed! Need extra sparkling water or an iced beverage?',
+    subtitle: 'Prompts guests at cart review to add water or drink refuels.',
+    curatedProductIds: ['m7'],
+    options: [
+      {
+        text: 'Add Iced Mint Lemonade',
+        emoji: '🍋',
+        hostReply: 'Adding ice cold lemonade to your tray.',
+        destination: 'item:m7',
+      },
+      {
+        text: 'Tray Is Ready',
+        emoji: '✅',
+        hostReply: 'Sending order straight to lounge staff.',
+        destination: 'cart:checkout',
+      },
     ],
   },
 ];
@@ -129,13 +285,30 @@ export const MenuView: React.FC<MenuViewProps> = ({
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'items' | 'vibeQuest'>('items');
   const [superCat, setSuperCat] = useState<'All' | 'Hookah' | 'Food' | 'Drinks'>('All');
+  const [subCat, setSubCat] = useState<string>('All Sub-Categories');
   const [searchTerm, setSearchTerm] = useState('');
   const [items] = useState<MenuItem[]>(INITIAL_MENU);
   const [questions, setQuestions] = useState<VibeQuestQuestion[]>(INITIAL_QUESTIONS);
+  const [saveToast, setSaveToast] = useState(false);
+
+  const availableSubCats = SUB_CATEGORIES_BY_SUPER[superCat] || SUB_CATEGORIES_BY_SUPER.All;
+
+  const handleSuperCatChange = (sc: 'All' | 'Hookah' | 'Food' | 'Drinks') => {
+    setSuperCat(sc);
+    const subList = SUB_CATEGORIES_BY_SUPER[sc] || SUB_CATEGORIES_BY_SUPER.All;
+    setSubCat(subList[0] || 'All Sub-Categories');
+  };
 
   const filteredItems = items.filter((item) => {
     if (superCat !== 'All' && item.superCategory !== superCat) return false;
-    if (searchTerm && !item.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+    if (subCat && !subCat.startsWith('All') && item.category !== subCat) return false;
+    if (
+      searchTerm &&
+      !item.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+      !item.description?.toLowerCase().includes(searchTerm.toLowerCase())
+    ) {
+      return false;
+    }
     return true;
   });
 
@@ -144,18 +317,126 @@ export const MenuView: React.FC<MenuViewProps> = ({
       ...prev,
       {
         id: `q_${Date.now()}`,
-        title: `Question ${prev.length + 1}`,
-        prompt: 'Select your preference:',
+        trigger: 'start_order',
+        active: true,
+        title: `Custom Question ${prev.length + 1}`,
+        prompt: 'What would you like to select?',
+        subtitle: 'Custom ordering prompt configured by admin.',
+        curatedProductIds: [],
         options: [
-          { text: 'Option A', emoji: '⭐', targetCategory: 'Hookah' },
-          { text: 'Option B', emoji: '✨', targetCategory: 'Drinks' },
+          {
+            text: 'Option A',
+            emoji: '⭐',
+            hostReply: 'Great choice!',
+            destination: 'cat:Hookah',
+          },
+          {
+            text: 'Option B',
+            emoji: '✨',
+            hostReply: 'Selected Option B.',
+            destination: 'cat:Drinks',
+          },
         ],
       },
     ]);
   };
 
+  const handleDeleteQuestion = (id: string) => {
+    setQuestions((prev) => prev.filter((q) => q.id !== id));
+  };
+
+  const handleMoveQuestion = (index: number, dir: -1 | 1) => {
+    const target = index + dir;
+    if (target < 0 || target >= questions.length) return;
+    setQuestions((prev) => {
+      const copy = [...prev];
+      const temp = copy[index];
+      copy[index] = copy[target];
+      copy[target] = temp;
+      return copy;
+    });
+  };
+
+  const handleToggleQuestionActive = (index: number, active: boolean) => {
+    setQuestions((prev) =>
+      prev.map((q, idx) => (idx === index ? { ...q, active } : q))
+    );
+  };
+
+  const handleUpdateQuestionField = (
+    index: number,
+    field: 'title' | 'prompt' | 'subtitle' | 'trigger',
+    val: string
+  ) => {
+    setQuestions((prev) =>
+      prev.map((q, idx) => (idx === index ? { ...q, [field]: val } : q))
+    );
+  };
+
+  const handleAddOptionToQuestion = (qIndex: number) => {
+    setQuestions((prev) =>
+      prev.map((q, idx) => {
+        if (idx !== qIndex) return q;
+        return {
+          ...q,
+          options: [
+            ...q.options,
+            {
+              text: 'New Choice Option',
+              emoji: '🎯',
+              hostReply: 'Thank you for your choice!',
+              destination: 'cat:Hookah',
+            },
+          ],
+        };
+      })
+    );
+  };
+
+  const handleUpdateOption = (
+    qIndex: number,
+    optIndex: number,
+    field: keyof VibeQuestOption,
+    val: string
+  ) => {
+    setQuestions((prev) =>
+      prev.map((q, idx) => {
+        if (idx !== qIndex) return q;
+        const newOpts = q.options.map((opt, oI) =>
+          oI === optIndex ? { ...opt, [field]: val } : opt
+        );
+        return { ...q, options: newOpts };
+      })
+    );
+  };
+
+  const handleMoveOption = (qIndex: number, optIndex: number, dir: -1 | 1) => {
+    setQuestions((prev) =>
+      prev.map((q, idx) => {
+        if (idx !== qIndex) return q;
+        const target = optIndex + dir;
+        if (target < 0 || target >= q.options.length) return q;
+        const newOpts = [...q.options];
+        const temp = newOpts[optIndex];
+        newOpts[optIndex] = newOpts[target];
+        newOpts[target] = temp;
+        return { ...q, options: newOpts };
+      })
+    );
+  };
+
+  const handleDeleteOption = (qIndex: number, optIndex: number) => {
+    setQuestions((prev) =>
+      prev.map((q, idx) => {
+        if (idx !== qIndex) return q;
+        return { ...q, options: q.options.filter((_, oI) => oI !== optIndex) };
+      })
+    );
+  };
+
   const handleSaveQuestions = () => {
-    alert('Ordering Questions saved successfully!');
+    setSaveToast(true);
+    setTimeout(() => setSaveToast(false), 3000);
   };
 
   return (
@@ -378,13 +659,13 @@ export const MenuView: React.FC<MenuViewProps> = ({
             </div>
           </div>
 
-          {/* Super-Category Tabs Bar */}
+          {/* Super-Category Tabs Bar (Hookah, Food, Drinks) */}
           <div
             id="superCategoryHeaderNav"
             style={{
               display: 'flex',
               gap: '10px',
-              marginBottom: '16px',
+              marginBottom: '12px',
               overflowX: 'auto',
               paddingBottom: '4px',
             }}
@@ -393,16 +674,49 @@ export const MenuView: React.FC<MenuViewProps> = ({
               <button
                 key={sc}
                 className={`sub-tab ${superCat === sc ? 'active' : ''}`}
-                onClick={() => setSuperCat(sc)}
-                style={{ padding: '7px 16px', fontSize: '13px' }}
+                onClick={() => handleSuperCatChange(sc)}
+                style={{ padding: '7px 16px', fontSize: '13px', fontWeight: 800 }}
               >
                 {sc === 'All' ? 'All Sections' : sc}
               </button>
             ))}
           </div>
 
-          {/* Sub-Category Pill Filters Bar placeholder */}
-          <div id="subCategoryHeaderNav" style={{ marginBottom: '20px' }} />
+          {/* Sub-Category Pill Filters Bar */}
+          <div
+            id="subCategoryHeaderNav"
+            style={{
+              display: 'flex',
+              gap: '8px',
+              marginBottom: '20px',
+              overflowX: 'auto',
+              paddingBottom: '4px',
+            }}
+          >
+            {availableSubCats.map((sub) => {
+              const isSelected = subCat === sub;
+              return (
+                <button
+                  key={sub}
+                  onClick={() => setSubCat(sub)}
+                  style={{
+                    padding: '5px 12px',
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    border: isSelected ? '1.5px solid var(--gold)' : '1px solid var(--line)',
+                    background: isSelected ? 'rgba(229,177,58,0.15)' : 'var(--card)',
+                    color: isSelected ? 'var(--gold)' : 'var(--muted)',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  {sub}
+                </button>
+              );
+            })}
+          </div>
 
           {/* Menu Items Grid */}
           <div
@@ -420,41 +734,88 @@ export const MenuView: React.FC<MenuViewProps> = ({
                 style={{
                   background: 'var(--card)',
                   border: '1px solid var(--line)',
-                  borderRadius: '12px',
+                  borderRadius: '14px',
                   padding: '16px',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+                  transition: 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
                 }}
               >
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '24px' }}>{item.emoji}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '26px' }}>{item.emoji}</span>
                       <div>
-                        <h4 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--cream)', margin: 0 }}>
-                          {item.name}
-                        </h4>
-                        <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{item.category}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <h4 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--cream)', margin: 0 }}>
+                            {item.name}
+                          </h4>
+                          {item.isSpecial && (
+                            <span style={{ fontSize: '10px', background: 'rgba(168,85,247,0.18)', color: '#c084fc', border: '1px solid #a855f7', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                              ⭐ Special
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 700, marginTop: '2px' }}>
+                          {item.superCategory} • {item.category}
+                        </div>
                       </div>
                     </div>
                     <div style={{ fontSize: '16px', fontWeight: 900, color: 'var(--gold)' }}>
                       ${item.price.toFixed(2)}
                     </div>
                   </div>
+
                   <p style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: '1.4', margin: '8px 0' }}>
                     {item.description}
                   </p>
+
+                  {/* Feature Badges (Recipe Inventory & Choice Modifiers) */}
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '10px' }}>
+                    {item.recipeIngredientsCount && item.recipeIngredientsCount > 0 ? (
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          background: 'rgba(229,177,58,0.12)',
+                          color: 'var(--gold)',
+                          border: '1px dashed var(--gold)',
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                        }}
+                      >
+                        📦 {item.recipeIngredientsCount} Ingredients Deducted
+                      </span>
+                    ) : null}
+
+                    {item.modifierGroupsCount && item.modifierGroupsCount > 0 ? (
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          background: 'rgba(16,185,129,0.12)',
+                          color: '#10B981',
+                          border: '1px dashed #10B981',
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                        }}
+                      >
+                        ⚡ {item.modifierGroupsCount} Choice Group{item.modifierGroupsCount > 1 ? 's' : ''}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px', paddingTop: '10px', borderTop: '1px dashed var(--line)' }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '14px', paddingTop: '10px', borderTop: '1px dashed var(--line)' }}>
                   <button
                     className="btn"
                     onClick={() => onOpenEditItem && onOpenEditItem(item)}
-                    style={{ padding: '6px 10px', fontSize: '11px' }}
+                    style={{ padding: '6px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}
                   >
                     <Edit2 style={{ width: '12px', height: '12px' }} />
-                    Edit
+                    Edit Item
                   </button>
                 </div>
               </div>
@@ -518,6 +879,24 @@ export const MenuView: React.FC<MenuViewProps> = ({
             </button>
           </div>
 
+          {saveToast && (
+            <div
+              style={{
+                background: 'rgba(16,185,129,0.15)',
+                border: '1.5px solid #10B981',
+                borderRadius: '10px',
+                padding: '10px 16px',
+                marginBottom: '16px',
+                color: '#10B981',
+                fontWeight: 800,
+                fontSize: '13px',
+                textAlign: 'center',
+              }}
+            >
+              ✅ Ordering Question Configuration saved successfully!
+            </div>
+          )}
+
           {/* Question Cards List Container */}
           <div
             id="questionConfigCardsContainer"
@@ -529,48 +908,269 @@ export const MenuView: React.FC<MenuViewProps> = ({
                 style={{
                   background: 'var(--card)',
                   border: '1.5px solid var(--line)',
-                  borderRadius: '14px',
+                  borderRadius: '16px',
                   padding: '20px',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--gold)' }}>
-                    Q{idx + 1}: {q.title}
+                {/* Card Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <button
+                        type="button"
+                        className="btn"
+                        disabled={idx === 0}
+                        onClick={() => handleMoveQuestion(idx, -1)}
+                        style={{ padding: '2px 6px', fontSize: '10px', minHeight: 'unset', opacity: idx === 0 ? 0.3 : 1 }}
+                      >
+                        <ArrowUp style={{ width: '10px', height: '10px' }} />
+                      </button>
+                      <button
+                        type="button"
+                        className="btn"
+                        disabled={idx === questions.length - 1}
+                        onClick={() => handleMoveQuestion(idx, 1)}
+                        style={{ padding: '2px 6px', fontSize: '10px', minHeight: 'unset', opacity: idx === questions.length - 1 ? 0.3 : 1 }}
+                      >
+                        <ArrowDown style={{ width: '10px', height: '10px' }} />
+                      </button>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 800, textTransform: 'uppercase' }}>
+                        QUESTION #{idx + 1}
+                      </div>
+                      <input
+                        type="text"
+                        value={q.title}
+                        onChange={(e) => handleUpdateQuestionField(idx, 'title', e.target.value)}
+                        placeholder="Internal Question Title"
+                        style={{
+                          fontSize: '16px',
+                          fontWeight: 800,
+                          color: 'var(--cream)',
+                          background: 'transparent',
+                          border: 'none',
+                          borderBottom: '1px dashed var(--line)',
+                          padding: '2px 4px',
+                        }}
+                      />
+                    </div>
                   </div>
-                  <button
-                    className="btn btn-danger"
-                    onClick={() => setQuestions((prev) => prev.filter((item) => item.id !== q.id))}
-                    style={{ padding: '4px 8px', fontSize: '11px' }}
-                  >
-                    <Trash2 style={{ width: '12px', height: '12px' }} />
-                  </button>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    {/* Trigger Selector */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 700 }}>STAGE:</span>
+                      <select
+                        value={q.trigger}
+                        onChange={(e) => handleUpdateQuestionField(idx, 'trigger', e.target.value)}
+                        style={{
+                          padding: '6px 10px',
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          background: 'var(--card2)',
+                          border: '1px solid var(--line)',
+                          borderRadius: '6px',
+                          color: 'var(--gold)',
+                        }}
+                      >
+                        <option value="start_order">start_order (Hookah Experience)</option>
+                        <option value="next_food">next_food (Food Suggestions)</option>
+                        <option value="next_drinks">next_drinks (Drink Pairings)</option>
+                        <option value="cart_dessert">cart_dessert (Dessert Reminder)</option>
+                        <option value="cart_drinks">cart_drinks (Hydration Reminder)</option>
+                      </select>
+                    </div>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 800, color: 'var(--cream)', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={q.active}
+                        onChange={(e) => handleToggleQuestionActive(idx, e.target.checked)}
+                        style={{ accentColor: 'var(--gold)', width: '15px', height: '15px' }}
+                      />
+                      Active
+                    </label>
+
+                    <button
+                      className="btn btn-danger"
+                      onClick={() => handleDeleteQuestion(q.id)}
+                      style={{ padding: '6px 10px', fontSize: '11px' }}
+                      title="Delete Question"
+                    >
+                      <Trash2 style={{ width: '12px', height: '12px' }} />
+                    </button>
+                  </div>
                 </div>
-                <div style={{ fontSize: '13px', color: 'var(--cream)', fontWeight: 700, marginBottom: '12px' }}>
-                  {q.prompt}
-                </div>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  {q.options.map((opt, oIdx) => (
-                    <div
-                      key={oIdx}
+
+                {/* Prompt & Subtitle Inputs */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      Customer Prompt *
+                    </label>
+                    <input
+                      type="text"
+                      value={q.prompt}
+                      onChange={(e) => handleUpdateQuestionField(idx, 'prompt', e.target.value)}
+                      placeholder="e.g. What are you in the mood for tonight?"
                       style={{
+                        width: '100%',
+                        padding: '8px 12px',
                         background: 'var(--card2)',
                         border: '1px solid var(--line)',
                         borderRadius: '8px',
-                        padding: '8px 12px',
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
+                        color: 'var(--cream)',
+                        fontSize: '13px',
                       }}
-                    >
-                      <span>{opt.emoji}</span>
-                      <span>{opt.text}</span>
-                      <span style={{ fontSize: '10px', color: 'var(--gold)', marginLeft: '4px' }}>
-                        → {opt.targetCategory}
-                      </span>
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      Host Explanatory Subtitle
+                    </label>
+                    <input
+                      type="text"
+                      value={q.subtitle}
+                      onChange={(e) => handleUpdateQuestionField(idx, 'subtitle', e.target.value)}
+                      placeholder="e.g. Guides guest to signature mixes..."
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        background: 'var(--card2)',
+                        border: '1px solid var(--line)',
+                        borderRadius: '8px',
+                        color: 'var(--cream)',
+                        fontSize: '13px',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Answer Options List */}
+                <div style={{ background: 'var(--card2)', borderRadius: '12px', padding: '14px', border: '1px solid var(--line)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--gold)', textTransform: 'uppercase' }}>
+                      🎯 Customer Options &amp; Navigation Destinations ({q.options.length})
                     </div>
-                  ))}
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => handleAddOptionToQuestion(idx)}
+                      style={{ padding: '4px 10px', fontSize: '11px', background: 'rgba(229,177,58,0.15)', border: '1px solid var(--gold)', color: 'var(--gold)', fontWeight: 800 }}
+                    >
+                      <Plus style={{ width: '10px', height: '10px' }} /> Add Option
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {q.options.map((opt, oIdx) => (
+                      <div
+                        key={oIdx}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          background: 'var(--card)',
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: '1px solid var(--line)',
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <button
+                            type="button"
+                            className="btn"
+                            disabled={oIdx === 0}
+                            onClick={() => handleMoveOption(idx, oIdx, -1)}
+                            style={{ padding: '2px 4px', fontSize: '8px', minHeight: 'unset', opacity: oIdx === 0 ? 0.3 : 1 }}
+                          >
+                            ▲
+                          </button>
+                          <button
+                            type="button"
+                            className="btn"
+                            disabled={oIdx === q.options.length - 1}
+                            onClick={() => handleMoveOption(idx, oIdx, 1)}
+                            style={{ padding: '2px 4px', fontSize: '8px', minHeight: 'unset', opacity: oIdx === q.options.length - 1 ? 0.3 : 1 }}
+                          >
+                            ▼
+                          </button>
+                        </div>
+
+                        {/* Emoji */}
+                        <input
+                          type="text"
+                          value={opt.emoji}
+                          onChange={(e) => handleUpdateOption(idx, oIdx, 'emoji', e.target.value)}
+                          placeholder="💨"
+                          style={{ width: '36px', padding: '6px 4px', textAlign: 'center', fontSize: '14px', background: 'var(--card2)', border: '1px solid var(--line)', borderRadius: '6px', color: 'var(--cream)' }}
+                        />
+
+                        {/* Label */}
+                        <input
+                          type="text"
+                          value={opt.text}
+                          onChange={(e) => handleUpdateOption(idx, oIdx, 'text', e.target.value)}
+                          placeholder="Option Label"
+                          style={{ flex: 1, minWidth: '130px', padding: '6px 8px', fontSize: '12px', fontWeight: 700, background: 'var(--card2)', border: '1px solid var(--line)', borderRadius: '6px', color: 'var(--cream)' }}
+                        />
+
+                        {/* Host Reply Bubble */}
+                        <input
+                          type="text"
+                          value={opt.hostReply}
+                          onChange={(e) => handleUpdateOption(idx, oIdx, 'hostReply', e.target.value)}
+                          placeholder="Host Reply Bubble Text"
+                          style={{ flex: 1.2, minWidth: '150px', padding: '6px 8px', fontSize: '11px', background: 'var(--card2)', border: '1px solid var(--line)', borderRadius: '6px', color: 'var(--muted)' }}
+                        />
+
+                        {/* Destination */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 800 }}>→</span>
+                          <select
+                            value={opt.destination}
+                            onChange={(e) => handleUpdateOption(idx, oIdx, 'destination', e.target.value)}
+                            style={{
+                              padding: '6px 8px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              background: 'var(--card2)',
+                              border: '1px solid var(--gold)',
+                              borderRadius: '6px',
+                              color: 'var(--gold)',
+                            }}
+                          >
+                            <option value="cat:Signature Mixes">cat: Signature Mixes</option>
+                            <option value="cat:Classic Flavors">cat: Classic Flavors</option>
+                            <option value="cat:Exotic Flavors">cat: Exotic Flavors</option>
+                            <option value="cat:Food">cat: Kitchen Food</option>
+                            <option value="cat:Drinks">cat: Drinks</option>
+                            <option value="cat:Desserts">cat: Desserts</option>
+                            <option value="item:m1">item: m1 (Anarkali House Blend)</option>
+                            <option value="item:m4">item: m4 (Zaatar Flatbread)</option>
+                            <option value="item:m5">item: m5 (Crispy Falafel)</option>
+                            <option value="item:m6">item: m6 (Turkish Coffee)</option>
+                            <option value="item:m7">item: m7 (Mint Lemonade)</option>
+                            <option value="package:daku">package: Make It Daku VIP</option>
+                            <option value="cart:checkout">cart: Checkout Flow</option>
+                          </select>
+                        </div>
+
+                        <button
+                          type="button"
+                          className="btn btn-danger"
+                          onClick={() => handleDeleteOption(idx, oIdx)}
+                          style={{ padding: '4px 8px', fontSize: '11px' }}
+                          title="Delete Option"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             ))}

@@ -19,8 +19,10 @@ interface ModifierGroup {
 interface RecipeIngredient {
   inventoryItemId: string;
   name: string;
+  brand?: string;
   amount: number;
   unit: string;
+  mode: 'g' | 'pct' | 'units';
 }
 
 interface MenuItemModalProps {
@@ -28,14 +30,27 @@ interface MenuItemModalProps {
   onClose: () => void;
   item: MenuItem | null;
   categories: Array<{ id: string; name: string }>;
+  scopedCategory?: string;
   onSaveMenuItem: (item: Partial<MenuItem>) => void;
 }
+
+const STOCK_CATALOG = [
+  { id: 'inv_1', name: 'Double Apple', brand: 'Al Fakher', unit: 'g', stock: 1200 },
+  { id: 'inv_2', name: 'Pan Ras', brand: 'Afzal', unit: 'g', stock: 1500 },
+  { id: 'inv_3', name: 'Lady Killer', brand: 'Adalya', unit: 'g', stock: 850 },
+  { id: 'inv_4', name: 'Mint Shisha', brand: 'Al Fakher', unit: 'g', stock: 950 },
+  { id: 'inv_5', name: 'Love 66', brand: 'Adalya', unit: 'g', stock: 1100 },
+  { id: 'inv_6', name: 'Artisan Flatbread Dough', brand: 'Bakery', unit: 'units', stock: 85 },
+  { id: 'inv_7', name: 'Turkish Cezve Coffee', brand: 'Mehmet Efendi', unit: 'g', stock: 420 },
+  { id: 'inv_8', name: 'Rose Syrup Base', brand: 'Cavalli Craft', unit: 'units', stock: 24 },
+];
 
 export const MenuItemModal: React.FC<MenuItemModalProps> = ({
   isOpen,
   onClose,
   item,
   categories,
+  scopedCategory,
   onSaveMenuItem,
 }) => {
   const [name, setName] = useState('');
@@ -47,6 +62,7 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
   const [modifierGroups, setModifierGroups] = useState<ModifierGroup[]>([]);
   const [recipeIngredients, setRecipeIngredients] = useState<RecipeIngredient[]>([]);
   const [inventorySearch, setInventorySearch] = useState('');
+  const [showSearchResults, setShowSearchResults] = useState(false);
 
   useEffect(() => {
     if (item) {
@@ -56,19 +72,48 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
       setSelectedCats(item.category ? [item.category] : []);
       setDesc(item.description || '');
       setImageUrl(item.imageUrl || '');
-      setModifierGroups([]);
-      setRecipeIngredients([]);
+      setModifierGroups([
+        {
+          id: 'mg_1',
+          name: 'Flavor Strength & Ice Level',
+          required: false,
+          minSelections: 0,
+          maxSelections: 1,
+          options: [
+            { name: 'Regular Ice', priceDelta: 0 },
+            { name: 'Extra Icy Chill', priceDelta: 3.0 },
+          ],
+        },
+      ]);
+      setRecipeIngredients([
+        {
+          inventoryItemId: 'inv_2',
+          name: 'Pan Ras',
+          brand: 'Afzal',
+          amount: 12,
+          unit: 'g',
+          mode: 'g',
+        },
+        {
+          inventoryItemId: 'inv_3',
+          name: 'Lady Killer',
+          brand: 'Adalya',
+          amount: 8,
+          unit: 'g',
+          mode: 'g',
+        },
+      ]);
     } else {
       setName('');
       setPrice('');
       setEmoji('👑');
-      setSelectedCats(categories[0] ? [categories[0].name] : []);
+      setSelectedCats(scopedCategory ? [scopedCategory] : categories[0] ? [categories[0].name] : []);
       setDesc('');
       setImageUrl('');
       setModifierGroups([]);
       setRecipeIngredients([]);
     }
-  }, [item, isOpen, categories]);
+  }, [item, isOpen, categories, scopedCategory]);
 
   if (!isOpen) return null;
 
@@ -83,11 +128,14 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
       ...prev,
       {
         id: `mod_${Date.now()}`,
-        name: 'Choice Option',
+        name: 'Choice Group (e.g. Wing Sauces)',
         required: false,
         minSelections: 0,
         maxSelections: 1,
-        options: [{ name: 'Option 1', priceDelta: 0 }],
+        options: [
+          { name: 'Option 1', priceDelta: 0 },
+          { name: 'Option 2', priceDelta: 0 },
+        ],
       },
     ]);
   };
@@ -96,12 +144,56 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
     setModifierGroups((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  const updateModifierGroupName = (idx: number, newName: string) => {
+    setModifierGroups((prev) =>
+      prev.map((g, i) => (i === idx ? { ...g, name: newName } : g))
+    );
+  };
+
+  const updateModifierGroupRequired = (idx: number, required: boolean) => {
+    setModifierGroups((prev) =>
+      prev.map((g, i) => (i === idx ? { ...g, required } : g))
+    );
+  };
+
+  const updateModifierGroupLimits = (idx: number, min: number, max: number) => {
+    setModifierGroups((prev) =>
+      prev.map((g, i) => (i === idx ? { ...g, minSelections: min, maxSelections: max } : g))
+    );
+  };
+
   const addModifierOption = (groupIdx: number) => {
     setModifierGroups((prev) =>
       prev.map((g, i) =>
         i === groupIdx
-          ? { ...g, options: [...g.options, { name: 'New Choice', priceDelta: 0 }] }
+          ? { ...g, options: [...g.options, { name: 'New Choice Option', priceDelta: 0 }] }
           : g
+      )
+    );
+  };
+
+  const updateModifierOption = (
+    groupIdx: number,
+    optIdx: number,
+    field: 'name' | 'priceDelta',
+    val: string | number
+  ) => {
+    setModifierGroups((prev) =>
+      prev.map((g, i) => {
+        if (i !== groupIdx) return g;
+        const newOpts = g.options.map((opt, oI) => {
+          if (oI !== optIdx) return opt;
+          return { ...opt, [field]: val };
+        });
+        return { ...g, options: newOpts };
+      })
+    );
+  };
+
+  const removeModifierOption = (groupIdx: number, optIdx: number) => {
+    setModifierGroups((prev) =>
+      prev.map((g, i) =>
+        i === groupIdx ? { ...g, options: g.options.filter((_, oI) => oI !== optIdx) } : g
       )
     );
   };
@@ -111,16 +203,50 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
       ...prev,
       {
         inventoryItemId: `inv_${Date.now()}`,
-        name: 'Ingredient',
-        amount: 20,
+        name: 'Raw Material',
+        brand: 'Generic',
+        amount: 10,
         unit: 'g',
+        mode: 'g',
       },
     ]);
+  };
+
+  const handleSelectInventoryItem = (stockItem: typeof STOCK_CATALOG[0]) => {
+    setRecipeIngredients((prev) => [
+      ...prev,
+      {
+        inventoryItemId: stockItem.id,
+        name: stockItem.name,
+        brand: stockItem.brand,
+        amount: stockItem.unit === 'g' ? 10 : 1,
+        unit: stockItem.unit,
+        mode: stockItem.unit === 'g' ? 'g' : 'units',
+      },
+    ]);
+    setInventorySearch('');
+    setShowSearchResults(false);
   };
 
   const removeRecipeRow = (idx: number) => {
     setRecipeIngredients((prev) => prev.filter((_, i) => i !== idx));
   };
+
+  const updateRecipeRow = (
+    idx: number,
+    field: 'amount' | 'mode',
+    val: number | 'g' | 'pct' | 'units'
+  ) => {
+    setRecipeIngredients((prev) =>
+      prev.map((row, i) => (i === idx ? { ...row, [field]: val } : row))
+    );
+  };
+
+  const filteredStock = STOCK_CATALOG.filter(
+    (item) =>
+      item.name.toLowerCase().includes(inventorySearch.toLowerCase()) ||
+      item.brand.toLowerCase().includes(inventorySearch.toLowerCase())
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,6 +268,8 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
       category: selectedCats[0] || 'Hookah',
       description: desc.trim(),
       imageUrl: imageUrl.trim(),
+      recipeIngredientsCount: recipeIngredients.length,
+      modifierGroupsCount: modifierGroups.length,
     });
     onClose();
   };
@@ -167,7 +295,7 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
       <div
         style={{
           width: '100%',
-          maxWidth: '520px',
+          maxWidth: '560px',
           maxHeight: '90vh',
           overflowY: 'auto',
           background: 'var(--card)',
@@ -182,7 +310,26 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
           {item ? 'Edit Menu Item' : 'Add Menu Item'}
         </h3>
         <input type="hidden" id="menuEditId" value={item?.id || ''} />
-        <input type="hidden" id="menuEditScopedCategory" value="" />
+        <input type="hidden" id="menuEditScopedCategory" value={scopedCategory || ''} />
+
+        {scopedCategory && (
+          <div
+            id="menuEditCategoryScopeNotice"
+            style={{
+              display: 'block',
+              background: 'rgba(229,177,58,0.12)',
+              border: '1px dashed var(--gold)',
+              borderRadius: '8px',
+              padding: '6px 12px',
+              marginBottom: '12px',
+              fontSize: '11px',
+              color: 'var(--gold)',
+              fontWeight: 700,
+            }}
+          >
+            🏷️ Editing within category: <span id="menuEditScopedCategoryName" style={{ color: 'var(--cream)' }}>{scopedCategory}</span> (Changes here are isolated to this category)
+          </div>
+        )}
 
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: '12px' }}>
@@ -461,54 +608,105 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
                   key={group.id}
                   style={{
                     background: 'var(--card2)',
-                    padding: '10px',
-                    borderRadius: '8px',
+                    padding: '12px',
+                    borderRadius: '10px',
                     border: '1px solid var(--line)',
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', gap: '8px', flexWrap: 'wrap' }}>
                     <input
                       type="text"
                       value={group.name}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setModifierGroups((prev) =>
-                          prev.map((g, i) => (i === groupIdx ? { ...g, name: val } : g))
-                        );
-                      }}
-                      style={{ padding: '6px', fontSize: '12px', fontWeight: 700, borderRadius: '6px' }}
+                      onChange={(e) => updateModifierGroupName(groupIdx, e.target.value)}
+                      placeholder="Group Title (e.g. Sauce Selection)"
+                      style={{ flex: 1, minWidth: '160px', padding: '6px 8px', fontSize: '12px', fontWeight: 700, borderRadius: '6px', background: 'var(--card)', border: '1px solid var(--line)', color: 'var(--cream)' }}
                     />
-                    <button
-                      type="button"
-                      className="btn btn-danger"
-                      onClick={() => removeModifierGroup(groupIdx)}
-                      style={{ padding: '3px 8px', fontSize: '11px' }}
-                    >
-                      <Trash2 style={{ width: '12px', height: '12px' }} />
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 700, color: 'var(--cream)', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={group.required}
+                          onChange={(e) => updateModifierGroupRequired(groupIdx, e.target.checked)}
+                          style={{ accentColor: '#10B981' }}
+                        />
+                        Required
+                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--muted)' }}>
+                        <span>Min:</span>
+                        <input
+                          type="number"
+                          value={group.minSelections}
+                          onChange={(e) => updateModifierGroupLimits(groupIdx, parseInt(e.target.value, 10) || 0, group.maxSelections)}
+                          style={{ width: '40px', padding: '2px 4px', textAlign: 'center', borderRadius: '4px', background: 'var(--card)', border: '1px solid var(--line)', color: 'var(--cream)' }}
+                        />
+                        <span>Max:</span>
+                        <input
+                          type="number"
+                          value={group.maxSelections}
+                          onChange={(e) => updateModifierGroupLimits(groupIdx, group.minSelections, parseInt(e.target.value, 10) || 1)}
+                          style={{ width: '40px', padding: '2px 4px', textAlign: 'center', borderRadius: '4px', background: 'var(--card)', border: '1px solid var(--line)', color: 'var(--cream)' }}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        onClick={() => removeModifierGroup(groupIdx)}
+                        style={{ padding: '3px 8px', fontSize: '11px' }}
+                      >
+                        <Trash2 style={{ width: '12px', height: '12px' }} />
+                      </button>
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+
+                  {/* Options List */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px' }}>
                     {group.options.map((opt, optIdx) => (
-                      <span
+                      <div
                         key={optIdx}
                         style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
                           background: 'var(--card)',
-                          padding: '4px 8px',
+                          padding: '6px 10px',
                           borderRadius: '6px',
-                          fontSize: '11px',
                           border: '1px solid var(--line)',
                         }}
                       >
-                        {opt.name}
-                      </span>
+                        <input
+                          type="text"
+                          value={opt.name}
+                          onChange={(e) => updateModifierOption(groupIdx, optIdx, 'name', e.target.value)}
+                          placeholder="Option Name (e.g. Buffalo Sauce)"
+                          style={{ flex: 1, padding: '4px 8px', fontSize: '11px', background: 'var(--card2)', border: '1px solid var(--line)', borderRadius: '4px', color: 'var(--cream)' }}
+                        />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>+$</span>
+                          <input
+                            type="number"
+                            step="0.5"
+                            value={opt.priceDelta}
+                            onChange={(e) => updateModifierOption(groupIdx, optIdx, 'priceDelta', parseFloat(e.target.value) || 0)}
+                            style={{ width: '60px', padding: '4px', fontSize: '11px', textAlign: 'center', background: 'var(--card2)', border: '1px solid var(--line)', borderRadius: '4px', color: '#10B981', fontWeight: 700 }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          className="btn"
+                          onClick={() => removeModifierOption(groupIdx, optIdx)}
+                          style={{ padding: '2px 6px', fontSize: '10px' }}
+                        >
+                          ✕
+                        </button>
+                      </div>
                     ))}
                     <button
                       type="button"
                       className="btn"
                       onClick={() => addModifierOption(groupIdx)}
-                      style={{ padding: '2px 8px', fontSize: '10px' }}
+                      style={{ alignSelf: 'flex-start', padding: '4px 10px', fontSize: '11px', background: 'rgba(16,185,129,0.1)', border: '1px dashed #10B981', color: '#10B981' }}
                     >
-                      <Plus style={{ width: '10px', height: '10px' }} /> Option
+                      <Plus style={{ width: '10px', height: '10px' }} /> Add Choice Option
                     </button>
                   </div>
                 </div>
@@ -557,7 +755,11 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
                 id="recipeInventorySearchInput"
                 placeholder="🔍 Search inventory item by name or brand (e.g. Al Fakher, Pan Ras)..."
                 value={inventorySearch}
-                onChange={(e) => setInventorySearch(e.target.value)}
+                onFocus={() => setShowSearchResults(true)}
+                onChange={(e) => {
+                  setInventorySearch(e.target.value);
+                  setShowSearchResults(true);
+                }}
                 style={{
                   width: '100%',
                   padding: '9px 12px',
@@ -568,6 +770,57 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
                   fontSize: '13px',
                 }}
               />
+
+              {showSearchResults && inventorySearch.trim() && (
+                <div
+                  id="recipeInventorySearchResults"
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 4px)',
+                    left: 0,
+                    right: 0,
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    background: 'var(--card)',
+                    border: '1.5px solid var(--gold)',
+                    borderRadius: '10px',
+                    zIndex: 10000,
+                    boxShadow: '0 10px 30px rgba(0,0,0,0.9)',
+                    padding: '4px',
+                  }}
+                >
+                  {filteredStock.length > 0 ? (
+                    filteredStock.map((stock) => (
+                      <div
+                        key={stock.id}
+                        onClick={() => handleSelectInventoryItem(stock)}
+                        style={{
+                          padding: '8px 12px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          borderBottom: '1px solid var(--line)',
+                        }}
+                      >
+                        <div>
+                          <span style={{ fontWeight: 800, color: 'var(--cream)' }}>{stock.name}</span>
+                          <span style={{ fontSize: '11px', color: 'var(--muted)', marginLeft: '6px' }}>[{stock.brand}]</span>
+                        </div>
+                        <span style={{ color: 'var(--gold)', fontWeight: 700 }}>
+                          {stock.stock}{stock.unit} available
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ padding: '8px 12px', fontSize: '12px', color: 'var(--muted)' }}>
+                      No matching raw materials found.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div id="recipeRowsContainer" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -582,22 +835,70 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
                     background: 'var(--card2)',
                     borderRadius: '8px',
                     border: '1px solid var(--line)',
+                    gap: '10px',
+                    flexWrap: 'wrap',
                   }}
                 >
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--cream)' }}>{ing.name}</span>
+                  <div style={{ flex: 1, minWidth: '140px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--cream)' }}>
+                      {ing.name}
+                    </span>
+                    {ing.brand && (
+                      <span style={{ fontSize: '11px', color: 'var(--muted)', marginLeft: '6px' }}>
+                        [{ing.brand}]
+                      </span>
+                    )}
+                  </div>
+
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <select
+                      value={ing.mode}
+                      onChange={(e) => updateRecipeRow(idx, 'mode', e.target.value as any)}
+                      style={{
+                        padding: '4px 8px',
+                        fontSize: '11px',
+                        background: 'var(--card)',
+                        border: '1px solid var(--line)',
+                        borderRadius: '4px',
+                        color: 'var(--cream)',
+                      }}
+                    >
+                      <option value="g">Grams (g)</option>
+                      <option value="pct">Ratio (%)</option>
+                      <option value="units">Units</option>
+                    </select>
+
                     <input
                       type="number"
+                      step={ing.mode === 'pct' ? '5' : '1'}
                       value={ing.amount}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value) || 0;
-                        setRecipeIngredients((prev) =>
-                          prev.map((itemRow, i) => (i === idx ? { ...itemRow, amount: val } : itemRow))
-                        );
+                      onChange={(e) => updateRecipeRow(idx, 'amount', parseFloat(e.target.value) || 0)}
+                      style={{
+                        width: '65px',
+                        padding: '4px',
+                        textAlign: 'center',
+                        borderRadius: '4px',
+                        background: 'var(--card)',
+                        border: '1px solid var(--line)',
+                        color: 'var(--gold)',
+                        fontWeight: 700,
                       }}
-                      style={{ width: '60px', padding: '4px', textAlign: 'center', borderRadius: '4px' }}
                     />
-                    <span style={{ fontSize: '12px', color: 'var(--muted)' }}>{ing.unit}</span>
+
+                    {/* Preview Pill */}
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        background: 'rgba(229,177,58,0.15)',
+                        color: 'var(--gold)',
+                        padding: '3px 6px',
+                        borderRadius: '4px',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {ing.mode === 'pct' ? `${ing.amount}% ratio` : `${ing.amount}${ing.unit}`} deduction
+                    </span>
+
                     <button
                       type="button"
                       className="btn btn-danger"

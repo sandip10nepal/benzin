@@ -9,6 +9,7 @@ interface SpecialItem {
   subtitle: string;
   price: number;
   emoji?: string;
+  active?: boolean;
 }
 
 interface SpecialsModalProps {
@@ -34,6 +35,7 @@ export const SpecialsModal: React.FC<SpecialsModalProps> = ({
       subtitle: "Chef's Signature Pick",
       price: 36.0,
       emoji: '👑',
+      active: true,
     },
     {
       id: 'sp_2',
@@ -42,6 +44,7 @@ export const SpecialsModal: React.FC<SpecialsModalProps> = ({
       subtitle: 'Limited Midnight Special',
       price: 14.5,
       emoji: '🍕',
+      active: true,
     },
   ]);
 
@@ -64,6 +67,7 @@ export const SpecialsModal: React.FC<SpecialsModalProps> = ({
         subtitle: subtitle.trim() || 'Featured Special',
         price: menuItem.price,
         emoji: menuItem.emoji,
+        active: true,
       },
     ]);
     setSelectedItemId('');
@@ -72,6 +76,24 @@ export const SpecialsModal: React.FC<SpecialsModalProps> = ({
 
   const handleDeleteSpecial = (id: string) => {
     setSpecials((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  const handleMoveSpecial = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= specials.length) return;
+    setSpecials((prev) => {
+      const next = [...prev];
+      const temp = next[index];
+      next[index] = next[target];
+      next[target] = temp;
+      return next;
+    });
+  };
+
+  const handleToggleActive = (index: number, checked: boolean) => {
+    setSpecials((prev) =>
+      prev.map((s, idx) => (idx === index ? { ...s, active: checked } : s))
+    );
   };
 
   const handleSave = () => {
@@ -212,7 +234,7 @@ export const SpecialsModal: React.FC<SpecialsModalProps> = ({
           Currently Featured Specials
         </div>
         <div id="specialsListContainer" style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '320px', overflowY: 'auto' }}>
-          {specials.map((s) => (
+          {specials.map((s, idx) => (
             <div
               key={s.id}
               style={{
@@ -226,13 +248,42 @@ export const SpecialsModal: React.FC<SpecialsModalProps> = ({
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={idx === 0}
+                    onClick={() => handleMoveSpecial(idx, -1)}
+                    style={{ padding: '2px 6px', fontSize: '10px', minHeight: 'unset', opacity: idx === 0 ? 0.3 : 1 }}
+                  >
+                    ▲
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={idx === specials.length - 1}
+                    onClick={() => handleMoveSpecial(idx, 1)}
+                    style={{ padding: '2px 6px', fontSize: '10px', minHeight: 'unset', opacity: idx === specials.length - 1 ? 0.3 : 1 }}
+                  >
+                    ▼
+                  </button>
+                </div>
                 <span style={{ fontSize: '20px' }}>{s.emoji || '⭐'}</span>
                 <div>
                   <div style={{ fontWeight: 800, color: 'var(--cream)', fontSize: '13px' }}>{s.name}</div>
                   <div style={{ fontSize: '11px', color: '#c084fc', fontWeight: 700 }}>{s.subtitle}</div>
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: 'var(--muted)', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={s.active !== false}
+                    onChange={(e) => handleToggleActive(idx, e.target.checked)}
+                    style={{ accentColor: '#a855f7' }}
+                  />
+                  Active
+                </label>
                 <span style={{ fontWeight: 800, color: 'var(--gold)', fontSize: '13px' }}>${s.price.toFixed(2)}</span>
                 <button
                   type="button"
