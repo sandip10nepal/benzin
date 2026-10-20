@@ -11,7 +11,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname),
-      '@backend': path.resolve(__dirname, '..'),
+      '@shared': path.resolve(__dirname, '../shared'),
+      '@backend': path.resolve(__dirname, '../backend/src'),
     },
   },
   server: {
@@ -32,7 +33,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: path.resolve(__dirname, '../../public/admin_react'),
+    outDir: path.resolve(__dirname, '../backend/public/admin_react'),
     emptyOutDir: true,
     sourcemap: false,
     rollupOptions: {

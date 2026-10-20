@@ -239,7 +239,7 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({
         </div>
 
         {/* Mode Switcher Tabs */}
-        <div style={{ display: 'flex', gap: '6px', background: 'var(--card2, #0d131f)', padding: '4px', borderborderRadius: '12px', border: '1px solid var(--line, #233044)', marginBottom: '24px' }}>
+        <div style={{ display: 'flex', gap: '6px', background: 'var(--card2, #0d131f)', padding: '4px', borderRadius: '12px', border: '1px solid var(--line, #233044)', marginBottom: '24px' }}>
           <button
             type="button"
             className={`sub-tab ${mode === 'pin' ? 'active' : ''}`}

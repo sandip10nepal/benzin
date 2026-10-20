@@ -33,6 +33,7 @@ export interface StaffUser {
   pin?: string;
   hourlyWage?: number;
   isClockedIn?: boolean;
+  weeklyHours?: string;
 }
 
 export interface RestaurantVenue {

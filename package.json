@@ -1,0 +1,16 @@
+{
+  "name": "benzin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Benzin Multi-Tenant Restaurant Hospitality Platform",
+  "scripts": {
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:admin": "npm --prefix admin-app run dev",
+    "dev:customer": "npm --prefix customer-app run web",
+    "build:backend": "npm --prefix backend run build",
+    "build:admin": "npm --prefix admin-app run build",
+    "build:all": "npm run build:backend && npm run build:admin",
+    "test:backend": "npm --prefix backend test",
+    "test": "npm run test:backend"
+  }
+}

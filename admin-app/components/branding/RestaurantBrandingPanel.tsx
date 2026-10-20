@@ -13,7 +13,7 @@ import {
   Building,
 } from 'lucide-react';
 import { apiClient } from '../../api/client';
-import { THEME_PRESETS, ThemePresetId, RestaurantBranding } from '../../../models/types';
+import { THEME_PRESETS, ThemePresetId, RestaurantBranding } from '@shared/types/branding';
 
 interface RestaurantBrandingPanelProps {
   userRole?: string;

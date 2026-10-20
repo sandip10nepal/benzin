@@ -1,15 +1,30 @@
+# Dependencies
 node_modules/
+*/node_modules/
+
+# Production builds
 dist/
-.DS_Store
-db.json
+*/dist/
+.expo/
+*/.expo/
+
+# Environment files and secrets
 .env
-*.txt
+.env.*
+*/.env
+*/.env.*
+
+# Backups and temporary files
+backups/
+backups_external/
+*.log
 *.bak
+*.txt
+.DS_Store
+
+# Legacy temporary dumps
 subagent_step_dump.json
 vindu_menu_raw.html
 check_db.ts
 drop_index.ts
 scripts-tmp/
-backups/
-*.log
-

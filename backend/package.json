@@ -13,9 +13,9 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "dev": "ts-node src/server.ts",
-    "admin:dev": "vite src/admin --config src/admin/vite.config.ts",
-    "admin:build": "vite build src/admin --config src/admin/vite.config.ts",
-    "admin:preview": "vite preview src/admin --config src/admin/vite.config.ts"
+    "admin:dev": "npm --prefix ../admin-app run dev",
+    "admin:build": "npm --prefix ../admin-app run build",
+    "admin:preview": "npm --prefix ../admin-app run preview"
   },
   "keywords": [],
   "author": "",
