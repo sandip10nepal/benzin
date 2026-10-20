@@ -40,7 +40,7 @@ export const SpecialsModal: React.FC<SpecialsModalProps> = ({
             name: s.name || s.title || '',
             subtitle: s.subtitle || s.description || '',
             price: Number(s.price) || 0,
-            emoji: s.emoji || '✨',
+            emoji: s.emoji || '',
             active: s.active !== false,
           })));
         }
@@ -153,9 +153,6 @@ export const SpecialsModal: React.FC<SpecialsModalProps> = ({
             >
               <span>⭐</span> Restaurant Specials
             </h3>
-            <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
-              Choose existing menu items to feature as restaurant specials.
-            </div>
           </div>
           <button className="btn" onClick={onClose} style={{ padding: '6px 10px', fontSize: '12px', borderRadius: '8px' }}>
             ✕
@@ -202,7 +199,7 @@ export const SpecialsModal: React.FC<SpecialsModalProps> = ({
               <input
                 type="text"
                 id="specialSubtitleInput"
-                placeholder="Badge subtitle (e.g. Chef's Pick, Limited)"
+                placeholder="Badge subtitle"
                 value={subtitle}
                 onChange={(e) => setSubtitle(e.target.value)}
                 style={{

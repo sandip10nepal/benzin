@@ -33,6 +33,8 @@ import {
   Timecard,
   HookahConfig,
   DEFAULT_HOOKAH_CONFIG,
+  RestaurantMedia,
+  MediaCategory,
 } from '../models/types';
 
 const DB_FILE = path.join(__dirname, '../../multi_tenant_db.json');
@@ -56,6 +58,7 @@ export const COLLECTIONS = {
   timecards: 'timecards',
   leads: 'leads',
   service_requests: 'service_requests',
+  restaurant_media: 'restaurant_media',
 } as const;
 
 interface LocalSchema {
@@ -63,6 +66,7 @@ interface LocalSchema {
   users: User[];
   devices: Device[];
   device_activation_codes: DeviceActivationCode[];
+  restaurant_media?: RestaurantMedia[];
   tables: RestaurantTable[];
   menu_categories: MenuCategory[];
   menu_items: MenuItemModel[];
@@ -302,6 +306,8 @@ export class MultiTenantDbService {
         this.db.collection<any>(COLLECTIONS.audit_logs).createIndex({ restaurant_id: 1, timestamp: -1 }),
         this.db.collection<any>(COLLECTIONS.timecards).createIndex({ restaurant_id: 1, user_id: 1, clock_in: -1 }),
         this.db.collection<any>(COLLECTIONS.timecards).createIndex({ restaurant_id: 1, status: 1 }),
+        this.db.collection<any>(COLLECTIONS.restaurant_media).createIndex({ restaurant_id: 1, category: 1, created_at: -1 }),
+        this.db.collection<any>(COLLECTIONS.restaurant_media).createIndex({ restaurant_id: 1, object_key: 1 }, { sparse: true }),
       ]);
     } catch (e) {}
   }
@@ -3055,8 +3061,21 @@ export class MultiTenantDbService {
   static async listOrders(restaurantId: string, filters?: { status?: OrderStatus; limit?: number }): Promise<Order[]> {
     if (!restaurantId) return [];
 
+    const EIGHT_DAYS_MS = 8 * 24 * 60 * 60 * 1000;
+    const eightDaysAgoIso = new Date(Date.now() - EIGHT_DAYS_MS).toISOString();
+
     if (env.isMongoMode) {
       const db = this.assertDbReady();
+      // Auto-delete archived orders older than 8 days
+      db.collection<any>(COLLECTIONS.orders).deleteMany({
+        restaurant_id: restaurantId,
+        status: { $in: ['completed', 'fulfilled', 'cancelled'] },
+        $or: [
+          { updated_at: { $lt: eightDaysAgoIso } },
+          { created_at: { $lt: eightDaysAgoIso } }
+        ]
+      }).catch(err => console.warn('[Archive Auto-Delete 8d] Mongo pruning error:', err.message));
+
       const query: any = { restaurant_id: restaurantId };
       if (filters?.status) query.status = filters.status;
       const limit = filters?.limit || 100;
@@ -3071,6 +3090,19 @@ export class MultiTenantDbService {
         _id: (d._id as any).toString(),
         id: (d._id as any).toString(),
       })) as unknown as Order[];
+    }
+
+    const cutoffMs = Date.now() - EIGHT_DAYS_MS;
+    const all = this.getCollection('orders');
+    const remaining = all.filter(o => {
+      if (o.restaurant_id === restaurantId && (['completed', 'fulfilled', 'cancelled', 'served'] as string[]).includes(o.status as string)) {
+        const orderTime = new Date(o.updated_at || o.created_at || 0).getTime();
+        if (orderTime && orderTime < cutoffMs) return false;
+      }
+      return true;
+    });
+    if (remaining.length !== all.length) {
+      this.saveCollection('orders', remaining);
     }
 
     let list = this.getCollection('orders').filter(o => o.restaurant_id === restaurantId);
@@ -3781,6 +3813,112 @@ export class MultiTenantDbService {
     }
 
     return (this.getCollection('leads') as any[]).slice(0, limit);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════ */
+  /*                       RESTAURANT MEDIA PERSISTENCE                          */
+  /* ═══════════════════════════════════════════════════════════════════════════ */
+
+  static async saveMediaRecord(media: RestaurantMedia): Promise<RestaurantMedia> {
+    if (env.isMongoMode) {
+      const db = this.assertDbReady();
+      await db.collection<any>(COLLECTIONS.restaurant_media).updateOne(
+        { _id: media._id },
+        { $set: { ...media } },
+        { upsert: true }
+      );
+      return media;
+    }
+
+    const list = (this.getCollection('restaurant_media' as any) || []) as RestaurantMedia[];
+    const idx = list.findIndex(m => m._id === media._id);
+    if (idx >= 0) {
+      list[idx] = media;
+    } else {
+      list.unshift(media);
+    }
+    this.saveCollection('restaurant_media' as any, list as any);
+    return media;
+  }
+
+  static async listMediaRecords(params: {
+    restaurantId: string;
+    category?: MediaCategory;
+    limit?: number;
+    skip?: number;
+  }): Promise<{ media: RestaurantMedia[]; total: number }> {
+    const { restaurantId, category, limit = 50, skip = 0 } = params;
+
+    if (env.isMongoMode) {
+      const db = this.assertDbReady();
+      const query: any = { restaurant_id: restaurantId };
+      if (category) {
+        query.category = category;
+      }
+
+      const [docs, total] = await Promise.all([
+        db.collection<any>(COLLECTIONS.restaurant_media)
+          .find(query)
+          .sort({ created_at: -1 })
+          .skip(skip)
+          .limit(limit)
+          .toArray(),
+        db.collection<any>(COLLECTIONS.restaurant_media).countDocuments(query),
+      ]);
+
+      const media = docs.map(d => ({
+        ...d,
+        _id: d._id.toString(),
+      }));
+
+      return { media, total };
+    }
+
+    let list = ((this.getCollection('restaurant_media' as any) || []) as RestaurantMedia[])
+      .filter(m => m.restaurant_id === restaurantId);
+
+    if (category) {
+      list = list.filter(m => m.category === category);
+    }
+
+    const total = list.length;
+    const media = list.slice(skip, skip + limit);
+    return { media, total };
+  }
+
+  static async getMediaRecordById(mediaId: string): Promise<RestaurantMedia | null> {
+    if (env.isMongoMode) {
+      const db = this.assertDbReady();
+      const doc = await db.collection<any>(COLLECTIONS.restaurant_media).findOne({ _id: mediaId });
+      if (!doc) return null;
+      return {
+        ...doc,
+        _id: doc._id.toString(),
+      };
+    }
+
+    const list = (this.getCollection('restaurant_media' as any) || []) as RestaurantMedia[];
+    return list.find(m => m._id === mediaId) || null;
+  }
+
+  static async deleteMediaRecord(restaurantId: string, mediaId: string): Promise<boolean> {
+    if (env.isMongoMode) {
+      const db = this.assertDbReady();
+      const res = await db.collection<any>(COLLECTIONS.restaurant_media).deleteOne({
+        _id: mediaId,
+        restaurant_id: restaurantId,
+      });
+      return (res.deletedCount ?? 0) > 0;
+    }
+
+    const list = (this.getCollection('restaurant_media' as any) || []) as RestaurantMedia[];
+    const idx = list.findIndex(m => m._id === mediaId && m.restaurant_id === restaurantId);
+    if (idx >= 0) {
+      list.splice(idx, 1);
+      this.saveCollection('restaurant_media' as any, list as any);
+      return true;
+    }
+    return false;
   }
 
   static async close(): Promise<void> {

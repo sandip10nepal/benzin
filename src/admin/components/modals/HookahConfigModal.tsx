@@ -184,9 +184,6 @@ export const HookahConfigModal: React.FC<HookahConfigModalProps> = ({
             >
               <span>💨</span> Hookah Configuration
             </h3>
-            <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
-              Configure bases, flavors, add-ons, and packages for customer ordering.
-            </div>
           </div>
           <button className="btn" onClick={onClose} style={{ padding: '6px 10px', fontSize: '12px', borderRadius: '8px' }}>
             ✕
@@ -207,9 +204,6 @@ export const HookahConfigModal: React.FC<HookahConfigModalProps> = ({
             <div style={{ flex: 1, minWidth: '220px' }}>
               <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--gold)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span>⚖️</span> Total Hookah Flavor Weight (100%)
-              </div>
-              <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
-                Standard single-bowl capacity in grams used to calculate flavor deductions in Custom Mix Lab.
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -298,7 +292,7 @@ export const HookahConfigModal: React.FC<HookahConfigModalProps> = ({
                 <input
                   type="text"
                   id="newHkBaseName"
-                  placeholder="Base name (e.g. Rooh Afza, Watermelon Syrup)"
+                  placeholder="Base name"
                   value={newBaseName}
                   onChange={(e) => setNewBaseName(e.target.value)}
                   style={{ flex: 2, minWidth: '180px', padding: '8px 12px', borderRadius: '8px', fontSize: '13px' }}
@@ -371,7 +365,7 @@ export const HookahConfigModal: React.FC<HookahConfigModalProps> = ({
                 <input
                   type="text"
                   id="newHkFlavorName"
-                  placeholder="Flavor name (e.g. Love 66, Blue Mist)"
+                  placeholder="Flavor name"
                   value={newFlavorName}
                   onChange={(e) => setNewFlavorName(e.target.value)}
                   style={{ flex: 2, minWidth: '180px', padding: '8px 12px', borderRadius: '8px', fontSize: '13px' }}
@@ -379,7 +373,7 @@ export const HookahConfigModal: React.FC<HookahConfigModalProps> = ({
                 <input
                   type="text"
                   id="newHkFlavorBrand"
-                  placeholder="Brand (e.g. Al Fakher, Adalya)"
+                  placeholder="Brand"
                   value={newFlavorBrand}
                   onChange={(e) => setNewFlavorBrand(e.target.value)}
                   style={{ flex: 1, minWidth: '120px', padding: '8px 12px', borderRadius: '8px', fontSize: '13px' }}
@@ -454,7 +448,7 @@ export const HookahConfigModal: React.FC<HookahConfigModalProps> = ({
                 <input
                   type="text"
                   id="newHkAddonName"
-                  placeholder="Add-on name (e.g. Ice Base, Ice Hose)"
+                  placeholder="Add-on name"
                   value={newAddonName}
                   onChange={(e) => setNewAddonName(e.target.value)}
                   style={{ flex: 2, minWidth: '180px', padding: '8px 12px', borderRadius: '8px', fontSize: '13px' }}

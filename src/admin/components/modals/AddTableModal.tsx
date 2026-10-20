@@ -66,12 +66,9 @@ export const AddTableModal: React.FC<AddTableModalProps> = ({
           boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
         }}
       >
-        <h3 style={{ color: 'var(--gold)', fontSize: '18px', fontWeight: 800, marginBottom: '6px' }}>
+        <h3 style={{ color: 'var(--gold)', fontSize: '18px', fontWeight: 800, marginBottom: '16px' }}>
           ➕ Add Floor Table
         </h3>
-        <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '16px' }}>
-          Create a new table for guest orders and floor management.
-        </div>
 
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: '14px' }}>
@@ -91,7 +88,7 @@ export const AddTableModal: React.FC<AddTableModalProps> = ({
               type="text"
               id="addTableNumber"
               required
-              placeholder="e.g. 15, P1, P2, VIP1"
+              placeholder="Table number"
               value={tableNumber}
               onChange={(e) => setTableNumber(e.target.value)}
               autoFocus
@@ -122,7 +119,7 @@ export const AddTableModal: React.FC<AddTableModalProps> = ({
               type="text"
               id="newTableLabel"
               data-alias-id="addTableLabel"
-              placeholder="e.g. Table 15, P1, Patio 2, VIP Booth"
+              placeholder="Table label"
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               style={{

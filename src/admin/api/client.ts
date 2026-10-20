@@ -632,6 +632,128 @@ export class AdminApiClient {
       localStorage.removeItem('benzin_restaurant_name');
     }
   }
+
+  /* ═══════════════════════════════════════════════════════════════════════════ */
+  /*                         MEDIA MANAGEMENT & GCS                              */
+  /* ═══════════════════════════════════════════════════════════════════════════ */
+
+  async uploadMediaFile(
+    file: File,
+    category: 'menu' | 'logo' | 'branding' | 'other' = 'menu'
+  ): Promise<{ success: boolean; media?: any; url?: string; error?: string }> {
+    try {
+      const headers = { ...this.getHeaders() };
+      delete headers['Content-Type']; // Let browser set multipart boundary
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('category', category);
+
+      const res = await fetch(`${this.baseUrl}/api/media/upload`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error during image upload' };
+    }
+  }
+
+  async saveExternalMediaUrl(
+    url: string,
+    category: 'menu' | 'logo' | 'branding' | 'other' = 'menu',
+    name?: string
+  ): Promise<{ success: boolean; media?: any; url?: string; error?: string }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/media/external`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ url: url.trim(), category, name }),
+      });
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error saving external image URL' };
+    }
+  }
+
+  async listRestaurantMedia(
+    category?: string,
+    limit = 50,
+    skip = 0
+  ): Promise<{ success: boolean; media: any[]; total: number; error?: string }> {
+    try {
+      const params = new URLSearchParams();
+      if (category) params.set('category', category);
+      params.set('limit', String(limit));
+      params.set('skip', String(skip));
+
+      const res = await fetch(`${this.baseUrl}/api/media?${params.toString()}`, {
+        headers: this.getHeaders(),
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.media)) {
+        return { success: true, media: data.media, total: data.total ?? data.media.length };
+      }
+      return { success: false, media: [], total: 0, error: data.error || 'Failed to list media' };
+    } catch (err: any) {
+      return { success: false, media: [], total: 0, error: err.message || 'Network error listing media' };
+    }
+  }
+
+  async deleteRestaurantMedia(mediaId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/media/${mediaId}`, {
+        method: 'DELETE',
+        headers: this.getHeaders(),
+      });
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error deleting media' };
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════ */
+  /*                     RESTAURANT BRANDING & THEMES                            */
+  /* ═══════════════════════════════════════════════════════════════════════════ */
+
+  async getRestaurantDetails(
+    restaurantId?: string
+  ): Promise<{ success: boolean; restaurant?: any; error?: string }> {
+    try {
+      const rid = restaurantId || this.getTenantParams().restaurantId;
+      if (!rid) return { success: false, error: 'Restaurant ID missing' };
+
+      const res = await fetch(`${this.baseUrl}/api/restaurants/${rid}`, {
+        headers: this.getHeaders(),
+      });
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error fetching restaurant details' };
+    }
+  }
+
+  async updateRestaurantBranding(
+    restaurantId: string,
+    branding: any,
+    name?: string
+  ): Promise<{ success: boolean; restaurant?: any; error?: string }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/restaurants/${restaurantId}`, {
+        method: 'PATCH',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ branding, name }),
+      });
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error saving restaurant branding' };
+    }
+  }
 }
 
 export const apiClient = new AdminApiClient();

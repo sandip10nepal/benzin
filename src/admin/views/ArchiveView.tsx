@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, Archive } from 'lucide-react';
+import { Archive } from 'lucide-react';
 import { apiClient } from '../api/client';
 
 interface ArchivedTicket {
@@ -24,8 +24,17 @@ export const ArchiveView: React.FC = () => {
       try {
         const orders = await apiClient.getOrders();
         if (mounted && Array.isArray(orders)) {
+          const EIGHT_DAYS_MS = 8 * 24 * 60 * 60 * 1000;
+          const cutoffTime = Date.now() - EIGHT_DAYS_MS;
+
           const archived = orders
             .filter((o: any) => o.status === 'completed' || o.status === 'cancelled' || o.status === 'fulfilled')
+            .filter((o: any) => {
+              const dt = o.updatedAt || o.updated_at || o.createdAt || o.created_at
+                ? new Date(o.updatedAt || o.updated_at || o.createdAt || o.created_at)
+                : new Date();
+              return !isNaN(dt.getTime()) && dt.getTime() >= cutoffTime;
+            })
             .map((o: any) => {
               const dt = o.updatedAt || o.updated_at || o.createdAt || o.created_at
                 ? new Date(o.updatedAt || o.updated_at || o.createdAt || o.created_at)
@@ -64,12 +73,6 @@ export const ArchiveView: React.FC = () => {
     };
   }, []);
 
-  const clearArchive = () => {
-    if (confirm('Are you sure you want to permanently clear the order archive?')) {
-      setArchivedTickets([]);
-    }
-  };
-
   return (
     <div id="archivePageLayout" style={{ display: 'block' }}>
       <section className="tickets-section">
@@ -85,14 +88,9 @@ export const ArchiveView: React.FC = () => {
           <div>
             <span>Completed &amp; Cancelled Order Archive</span>
           </div>
-          <button
-            className="btn btn-danger"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, fontSize: '13px' }}
-            onClick={clearArchive}
-          >
-            <Trash2 style={{ width: '14px', height: '14px' }} />
-            Clear Archive Permanently
-          </button>
+          <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600 }}>
+            <span>Auto-deleted after 8 days</span>
+          </div>
         </h2>
 
         <div className="tickets-grid" id="archiveTicketsGrid">

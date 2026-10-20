@@ -226,7 +226,7 @@ export const MenuCategoryModal: React.FC<MenuCategoryModalProps> = ({
                 type="text"
                 id="menuCatTitle"
                 required
-                placeholder={mode === 'super' ? 'e.g. Hookah Lounge' : 'e.g. Appetizers & Starters'}
+                placeholder={mode === 'super' ? 'Category group title' : 'Sub-category title'}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 style={{
@@ -257,7 +257,7 @@ export const MenuCategoryModal: React.FC<MenuCategoryModalProps> = ({
               <input
                 type="text"
                 id="menuCatSubtitle"
-                placeholder="e.g. Small Plates to Share"
+                placeholder="Subtitle or tagline"
                 value={subtitle}
                 onChange={(e) => setSubtitle(e.target.value)}
                 style={{

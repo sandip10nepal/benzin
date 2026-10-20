@@ -90,12 +90,9 @@ export const EditTableModal: React.FC<EditTableModalProps> = ({
           boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
         }}
       >
-        <h3 style={{ color: 'var(--gold)', fontSize: '18px', fontWeight: 800, marginBottom: '6px' }}>
+        <h3 style={{ color: 'var(--gold)', fontSize: '18px', fontWeight: 800, marginBottom: '16px' }}>
           ✏️ Edit Floor Table
         </h3>
-        <div id="editTableModalSub" style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '16px' }}>
-          Modify table label, number, capacity, or remove table.
-        </div>
         <input type="hidden" id="editTableId" value={table.id} />
 
         <form onSubmit={handleSubmit}>
@@ -116,7 +113,7 @@ export const EditTableModal: React.FC<EditTableModalProps> = ({
               type="text"
               id="editTableNumber"
               required
-              placeholder="e.g. 15, P1, P2"
+              placeholder="Table number"
               value={tableNumber}
               onChange={(e) => setTableNumber(e.target.value)}
               style={{
@@ -145,7 +142,7 @@ export const EditTableModal: React.FC<EditTableModalProps> = ({
             <input
               type="text"
               id="editTableLabel"
-              placeholder="e.g. Table 15, P1, Patio 2"
+              placeholder="Table label"
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               style={{

@@ -6,6 +6,7 @@ import {
   PlusCircle,
   XCircle,
   RefreshCw,
+  Archive,
 } from 'lucide-react';
 import { apiClient } from '../api/client';
 
@@ -55,6 +56,7 @@ export interface ServerCallRequest {
 interface KdsViewProps {
   onOpenCollectCash?: (orderId: string, grandTotal: number, totalPaid: number, totalDue: number) => void;
   onOpenReassignServer?: (orderId: string, tableLabel: string, currentServerId?: string, currentServerName?: string) => void;
+  onNavigateToArchive?: () => void;
   currentUserRole?: string;
   currentUserId?: string;
   currentUserName?: string;
@@ -66,6 +68,7 @@ const SAMPLE_SERVER_CALLS: ServerCallRequest[] = [];
 export const KdsView: React.FC<KdsViewProps> = ({
   onOpenCollectCash,
   onOpenReassignServer,
+  onNavigateToArchive,
   currentUserRole = 'staff',
   currentUserId = '',
   currentUserName = '',
@@ -241,25 +244,30 @@ export const KdsView: React.FC<KdsViewProps> = ({
         <h2
           style={{
             display: 'flex',
-            justifyContent: 'space-between',
+            justifyContent: 'flex-end',
             alignItems: 'center',
             marginBottom: '16px',
             flexWrap: 'wrap',
             gap: '10px',
           }}
         >
-          <div>
-            <span>Active Live KDS Tickets</span>
-          </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
-              className="btn btn-primary"
-              onClick={loadOrdersAndCalls}
-              disabled={loading}
-              style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 800 }}
+              className="btn btn-secondary touch-target"
+              id="kdsArchiveTicketsBtn"
+              onClick={onNavigateToArchive}
+              style={{
+                padding: '7px 14px',
+                fontSize: '12px',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                borderRadius: '8px',
+              }}
             >
-              <RefreshCw style={{ width: '13px', height: '13px', animation: loading ? 'spin 1s linear infinite' : 'none' }} />
-              <span>{loading ? 'Refreshing...' : 'Refresh Live Orders'}</span>
+              <Archive style={{ width: '14px', height: '14px' }} />
+              <span>Archive Tickets</span>
             </button>
           </div>
         </h2>
@@ -386,7 +394,7 @@ export const KdsView: React.FC<KdsViewProps> = ({
                 }}
               />
               <div>
-                No active live tickets. New orders will appear here automatically in real time!
+                No active live tickets
               </div>
             </div>
           ) : (

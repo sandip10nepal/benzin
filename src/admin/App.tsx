@@ -545,6 +545,7 @@ export const App: React.FC = () => {
                 <KdsView
                   onOpenCollectCash={handleOpenCollectCash}
                   onOpenReassignServer={handleOpenReassignServer}
+                  onNavigateToArchive={() => handleSelectTab('archive')}
                   currentUserRole={user.role}
                   currentUserId={user.id}
                   currentUserName={user.name}
@@ -560,6 +561,7 @@ export const App: React.FC = () => {
                   onSelectTab={handleSelectTab}
                   currentUserId={user.id}
                   currentUserName={user.name}
+                  userRole={user.role}
                 />
               );
             case 'archive':

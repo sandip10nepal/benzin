@@ -21,7 +21,8 @@ export type NavigationTrigger =
   | 'next_food'
   | 'next_drinks'
   | 'cart_dessert'
-  | 'cart_drinks';
+  | 'cart_drinks'
+  | string;
 
 export interface VibeQuestOption {
   text: string;
@@ -33,6 +34,9 @@ export interface VibeQuestOption {
 export interface VibeQuestQuestion {
   id: string;
   trigger: NavigationTrigger;
+  stage?: string;
+  repeatPolicy?: string;
+  isCartConditioned?: boolean;
   active: boolean;
   title: string;
   prompt: string;
@@ -75,6 +79,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
   const [questions, setQuestions] = useState<VibeQuestQuestion[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [saveToast, setSaveToast] = useState(false);
+  const [selectedItemToAdd, setSelectedItemToAdd] = useState<{ [qIdx: number]: string }>({});
 
   useEffect(() => {
     let mounted = true;
@@ -123,21 +128,41 @@ export const MenuView: React.FC<MenuViewProps> = ({
           }
 
           if (Array.isArray(vqData) && vqData.length > 0) {
-            const mappedQuestions: VibeQuestQuestion[] = vqData.map((q: any) => ({
-              id: q.id || q._id,
-              trigger: (q.navigation_trigger || q.trigger || 'start_order') as NavigationTrigger,
-              active: q.active !== false,
-              title: q.title || q.question_text || 'Ordering Discovery',
-              prompt: q.question_text || q.prompt || q.title || '',
-              subtitle: q.subtitle || q.helper_text || '',
-              curatedProductIds: Array.isArray(q.curated_product_ids) ? q.curated_product_ids : (Array.isArray(q.pinned_product_ids) ? q.pinned_product_ids : []),
-              options: (q.answers || q.options || []).map((a: any) => ({
-                text: a.label || a.text || a.answer_text || '',
-                emoji: a.emoji || '✨',
-                hostReply: a.host_reply || a.hostReply || a.reaction_message || '',
-                destination: typeof a.destination === 'string' ? a.destination : (a.destination?.ref_id ? `${a.destination.type}:${a.destination.ref_id}` : (a.destination || 'skip')),
-              })),
-            }));
+            const mappedQuestions: VibeQuestQuestion[] = vqData.map((q: any) => {
+              const isCartCond =
+                q.repeat_policy === 'cart_conditional' ||
+                q.is_cart_conditioned === true ||
+                q.navigation_trigger === 'cart_dessert' ||
+                q.navigation_trigger === 'cart_drinks';
+
+              return {
+                id: q.id || q._id,
+                trigger: (q.navigation_trigger || q.trigger || 'start_order') as NavigationTrigger,
+                stage: q.stage || 'hookah',
+                repeatPolicy: q.repeat_policy || (isCartCond ? 'cart_conditional' : 'show_always'),
+                isCartConditioned: isCartCond,
+                active: q.active !== false,
+                title: q.title || q.question_text || 'Ordering Discovery',
+                prompt: q.question_text || q.prompt || q.title || '',
+                subtitle: q.subtitle || q.helper_text || '',
+                curatedProductIds: Array.isArray(q.curated_product_ids)
+                  ? q.curated_product_ids
+                  : Array.isArray(q.pinned_product_ids)
+                  ? q.pinned_product_ids
+                  : [],
+                options: (q.answers || q.options || []).map((a: any) => ({
+                  text: a.label || a.text || a.answer_text || '',
+                  emoji: a.emoji || '',
+                  hostReply: a.host_reply || a.hostReply || a.reaction_message || '',
+                  destination:
+                    typeof a.destination === 'string'
+                      ? a.destination
+                      : a.destination?.ref_id
+                      ? `${a.destination.type}:${a.destination.ref_id}`
+                      : a.destination || 'skip',
+                })),
+              };
+            });
             setQuestions(mappedQuestions);
           }
         }
@@ -168,6 +193,25 @@ export const MenuView: React.FC<MenuViewProps> = ({
     }
   };
 
+  const getCategoryTitle = (catKeyOrId: string): string => {
+    if (!catKeyOrId) return '';
+    const found = categories.find(
+      (c: any) =>
+        c.id === catKeyOrId ||
+        c._id === catKeyOrId ||
+        c.name === catKeyOrId ||
+        c.title === catKeyOrId
+    );
+    if (found) return found.title || found.name;
+    // Format snake_case identifiers like 'drinks_refreshers' -> 'Refreshers'
+    return catKeyOrId
+      .replace(/^(drinks_|food_|hookah_)/i, '')
+      .split('_')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ')
+      .replace(/Tea Coffee/i, 'Tea & Coffee');
+  };
+
   const superCategoryList = categories.filter((c: any) => c.parent_id === null || c.is_super);
   const subCategoryList = categories.filter((c: any) => c.parent_id !== null && !c.is_super);
 
@@ -189,7 +233,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
       ...matchedSubCatsFromDb,
       ...items
         .filter((it) => superCat === 'All' || it.superCategory === superCat)
-        .map((it) => it.category)
+        .map((it) => getCategoryTitle(it.category))
         .filter(Boolean),
     ])
   );
@@ -221,7 +265,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
           ...subCats,
           ...items
             .filter((it) => sc === 'All' || it.superCategory === sc)
-            .map((it) => it.category)
+            .map((it) => getCategoryTitle(it.category))
             .filter(Boolean),
         ])
       ),
@@ -257,7 +301,8 @@ export const MenuView: React.FC<MenuViewProps> = ({
         (cid) =>
           cid === targetLower ||
           (matchedCat && (cid === (matchedCat.id || matchedCat._id)?.toLowerCase() || cid === (matchedCat.name || matchedCat.title)?.toLowerCase())) ||
-          (item.category && item.category.toLowerCase() === targetLower)
+          (item.category && item.category.toLowerCase() === targetLower) ||
+          (item.category && getCategoryTitle(item.category).toLowerCase() === targetLower)
       );
 
       if (!matches) return false;
@@ -279,23 +324,26 @@ export const MenuView: React.FC<MenuViewProps> = ({
       {
         id: `q_${Date.now()}`,
         trigger: 'start_order',
+        stage: 'hookah',
+        repeatPolicy: 'show_always',
+        isCartConditioned: false,
         active: true,
-        title: `Custom Question ${prev.length + 1}`,
+        title: `Question #${prev.length + 1}`,
         prompt: 'What would you like to select?',
-        subtitle: 'Custom ordering prompt configured by admin.',
+        subtitle: '',
         curatedProductIds: [],
         options: [
           {
-            text: 'Option A',
-            emoji: '⭐',
-            hostReply: 'Great choice!',
-            destination: 'cat:Hookah',
+            text: 'Browse Menu',
+            emoji: '',
+            hostReply: 'Taking you to the menu!',
+            destination: 'skip',
           },
           {
-            text: 'Option B',
-            emoji: '✨',
-            hostReply: 'Selected Option B.',
-            destination: 'cat:Drinks',
+            text: 'Skip & Review Order',
+            emoji: '',
+            hostReply: 'Skipping to checkout!',
+            destination: 'stage:checkout',
           },
         ],
       },
@@ -326,11 +374,56 @@ export const MenuView: React.FC<MenuViewProps> = ({
 
   const handleUpdateQuestionField = (
     index: number,
-    field: 'title' | 'prompt' | 'subtitle' | 'trigger',
-    val: string
+    field: 'title' | 'prompt' | 'subtitle' | 'trigger' | 'repeatPolicy' | 'isCartConditioned',
+    val: any
   ) => {
     setQuestions((prev) =>
-      prev.map((q, idx) => (idx === index ? { ...q, [field]: val } : q))
+      prev.map((q, idx) => {
+        if (idx !== index) return q;
+        const updated = { ...q, [field]: val };
+        if (field === 'trigger') {
+          if (val === 'start_order') updated.stage = 'hookah';
+          else if (val === 'next_food') updated.stage = 'food';
+          else if (val === 'next_drinks' || val === 'cart_drinks') updated.stage = 'drinks';
+          else if (val === 'cart_dessert') updated.stage = 'dessert';
+          if (val === 'cart_dessert' || val === 'cart_drinks') {
+            updated.isCartConditioned = true;
+            updated.repeatPolicy = 'cart_conditional';
+          }
+        }
+        if (field === 'isCartConditioned') {
+          updated.repeatPolicy = val ? 'cart_conditional' : 'show_always';
+        }
+        return updated;
+      })
+    );
+  };
+
+  const handleAddCuratedItem = (qIndex: number, itemId: string) => {
+    if (!itemId) return;
+    setQuestions((prev) =>
+      prev.map((q, idx) => {
+        if (idx !== qIndex) return q;
+        const currentList = Array.isArray(q.curatedProductIds) ? q.curatedProductIds : [];
+        if (currentList.includes(itemId)) return q;
+        return {
+          ...q,
+          curatedProductIds: [...currentList, itemId],
+        };
+      })
+    );
+  };
+
+  const handleRemoveCuratedItem = (qIndex: number, itemId: string) => {
+    setQuestions((prev) =>
+      prev.map((q, idx) => {
+        if (idx !== qIndex) return q;
+        const currentList = Array.isArray(q.curatedProductIds) ? q.curatedProductIds : [];
+        return {
+          ...q,
+          curatedProductIds: currentList.filter((id) => id !== itemId),
+        };
+      })
     );
   };
 
@@ -344,7 +437,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
             ...q.options,
             {
               text: 'New Choice Option',
-              emoji: '🎯',
+              emoji: '',
               hostReply: 'Thank you for your choice!',
               destination: 'cat:Hookah',
             },
@@ -400,9 +493,14 @@ export const MenuView: React.FC<MenuViewProps> = ({
       const formattedQuestions = questions.map((q, idx) => ({
         id: q.id,
         navigation_trigger: q.trigger,
+        stage: q.stage || (q.trigger === 'start_order' ? 'hookah' : q.trigger === 'next_food' ? 'food' : q.trigger === 'next_drinks' ? 'drinks' : q.trigger === 'cart_dessert' ? 'dessert' : 'drinks'),
         question_text: q.prompt,
+        title: q.prompt || q.title || '',
         subtitle: q.subtitle,
+        helper_text: q.subtitle,
+        description: q.subtitle,
         active: q.active,
+        repeat_policy: q.isCartConditioned ? 'cart_conditional' : (q.repeatPolicy || 'show_always'),
         curated_product_ids: q.curatedProductIds,
         pinned_product_ids: q.curatedProductIds,
         answers: q.options.map((opt, aIdx) => ({
@@ -411,7 +509,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
           host_reply: opt.hostReply.trim(),
           reaction_message: opt.hostReply.trim(),
           destination: opt.destination || 'skip',
-          emoji: opt.emoji || '✨',
+          emoji: opt.emoji || '',
           curated_product_ids: q.curatedProductIds,
           pinned_product_ids: q.curatedProductIds,
         })),
@@ -432,38 +530,6 @@ export const MenuView: React.FC<MenuViewProps> = ({
 
   return (
     <div id="menuPageLayout" style={{ display: 'block' }}>
-      {/* Menu Catalog Sub-Navigation (Items vs Vibe Quest) */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '8px',
-          marginBottom: '20px',
-          borderBottom: '1.5px solid var(--line)',
-          paddingBottom: '12px',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-        }}
-      >
-        <button
-          className={`sub-tab ${activeSubTab === 'items' ? 'active' : ''}`}
-          id="menuSubTab-items"
-          onClick={() => setActiveSubTab('items')}
-          style={{
-            fontWeight: 800,
-            fontSize: '13px',
-            padding: '8px 18px',
-            borderRadius: '10px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            cursor: 'pointer',
-          }}
-        >
-          <BookOpen style={{ width: '15px', height: '15px' }} />
-          <span>Menu Items &amp; Categories</span>
-        </button>
-      </div>
-
       {activeSubTab === 'items' ? (
         <div id="menuCatalogItemsView">
           {/* Row 1: Title & Toolbar */}
@@ -835,7 +901,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
                         }}
                       >
                         <span>{item.emoji}</span>
-                        <span>{item.category.toUpperCase()}</span>
+                        <span>{getCategoryTitle(item.category).toUpperCase()}</span>
                       </span>
 
                       {/* Status Pill */}
@@ -1050,7 +1116,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
                   letterSpacing: '-0.2px',
                 }}
               >
-                🎯 Ordering Questions
+                Ordering Questions
               </h2>
             </div>
 
@@ -1133,31 +1199,16 @@ export const MenuView: React.FC<MenuViewProps> = ({
                       </button>
                     </div>
                     <div>
-                      <div style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 800, textTransform: 'uppercase' }}>
+                      <div style={{ fontSize: '13px', color: 'var(--gold)', fontWeight: 900, textTransform: 'uppercase' }}>
                         QUESTION #{idx + 1}
                       </div>
-                      <input
-                        type="text"
-                        value={q.title}
-                        onChange={(e) => handleUpdateQuestionField(idx, 'title', e.target.value)}
-                        placeholder="Internal Question Title"
-                        style={{
-                          fontSize: '16px',
-                          fontWeight: 800,
-                          color: 'var(--cream)',
-                          background: 'transparent',
-                          border: 'none',
-                          borderBottom: '1px dashed var(--line)',
-                          padding: '2px 4px',
-                        }}
-                      />
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    {/* Trigger Selector */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                    {/* Navigation Trigger Selector */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 700 }}>STAGE:</span>
+                      <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 800 }}>NAVIGATION TRIGGER:</span>
                       <select
                         value={q.trigger}
                         onChange={(e) => handleUpdateQuestionField(idx, 'trigger', e.target.value)}
@@ -1171,11 +1222,32 @@ export const MenuView: React.FC<MenuViewProps> = ({
                           color: 'var(--gold)',
                         }}
                       >
-                        <option value="start_order">start_order (Hookah Experience)</option>
-                        <option value="next_food">next_food (Food Suggestions)</option>
-                        <option value="next_drinks">next_drinks (Drink Pairings)</option>
-                        <option value="cart_dessert">cart_dessert (Dessert Reminder)</option>
-                        <option value="cart_drinks">cart_drinks (Hydration Reminder)</option>
+                        <option value="start_order">start_order (Hookah Experience / Start Order)</option>
+                        <option value="next_food">next_food (Food Suggestions / Next Stage)</option>
+                        <option value="next_drinks">next_drinks (Drink Pairings / Next Stage)</option>
+                        <option value="cart_dessert">cart_dessert (Dessert Reminder / Checkout)</option>
+                        <option value="cart_drinks">cart_drinks (Hydration Reminder / Checkout)</option>
+                      </select>
+                    </div>
+
+                    {/* Cart Conditioned Selector */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 800 }}>CART CONDITION:</span>
+                      <select
+                        value={q.isCartConditioned ? 'cart_conditional' : 'show_always'}
+                        onChange={(e) => handleUpdateQuestionField(idx, 'isCartConditioned', e.target.value === 'cart_conditional')}
+                        style={{
+                          padding: '6px 10px',
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          background: 'var(--card2)',
+                          border: '1px solid var(--line)',
+                          borderRadius: '6px',
+                          color: q.isCartConditioned ? '#38BDF8' : 'var(--muted)',
+                        }}
+                      >
+                        <option value="cart_conditional">Cart Conditioned (Only if missing from cart)</option>
+                        <option value="show_always">Always Show (Unconditional)</option>
                       </select>
                     </div>
 
@@ -1200,144 +1272,292 @@ export const MenuView: React.FC<MenuViewProps> = ({
                   </div>
                 </div>
 
-                {/* Prompt & Subtitle Inputs */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px', marginBottom: '16px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
-                      Customer Prompt *
-                    </label>
-                    <input
-                      type="text"
-                      value={q.prompt}
-                      onChange={(e) => handleUpdateQuestionField(idx, 'prompt', e.target.value)}
-                      placeholder="e.g. What are you in the mood for tonight?"
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        background: 'var(--card2)',
-                        border: '1px solid var(--line)',
-                        borderRadius: '8px',
-                        color: 'var(--cream)',
-                        fontSize: '13px',
-                      }}
-                    />
+                {/* Question Prompt & Subheading Inputs */}
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
+                    QUESTION TEXT *
+                  </label>
+                  <input
+                    type="text"
+                    value={q.prompt}
+                    onChange={(e) => handleUpdateQuestionField(idx, 'prompt', e.target.value)}
+                    placeholder="Question prompt displayed to customer"
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      background: 'var(--card2)',
+                      border: '1.5px solid var(--line)',
+                      borderRadius: '8px',
+                      color: 'var(--cream)',
+                      fontSize: '14px',
+                      fontWeight: 700,
+                    }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
+                    SUBHEADING / DESCRIPTION
+                  </label>
+                  <input
+                    type="text"
+                    value={q.subtitle}
+                    onChange={(e) => handleUpdateQuestionField(idx, 'subtitle', e.target.value)}
+                    placeholder="Subheading or helper text"
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      background: 'var(--card2)',
+                      border: '1.5px solid var(--line)',
+                      borderRadius: '8px',
+                      color: 'var(--cream)',
+                      fontSize: '13px',
+                    }}
+                  />
+                </div>
+
+                {/* Featured Menu Items (Popular Table Pairings) Section */}
+                <div
+                  style={{
+                    background: 'rgba(15, 23, 42, 0.45)',
+                    border: '1.5px solid rgba(56, 189, 248, 0.28)',
+                    borderRadius: '12px',
+                    padding: '16px',
+                    marginBottom: '18px',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '12px',
+                      flexWrap: 'wrap',
+                      gap: '8px',
+                    }}
+                  >
+                    <div style={{ fontSize: '11px', fontWeight: 900, color: '#38BDF8', letterSpacing: '0.4px', textTransform: 'uppercase' }}>
+                      FEATURED MENU ITEMS{' '}
+                      <span style={{ color: 'var(--muted)', fontWeight: 600 }}>({(q.curatedProductIds || []).length} added)</span>
+                    </div>
                   </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
-                      Host Explanatory Subtitle
-                    </label>
-                    <input
-                      type="text"
-                      value={q.subtitle}
-                      onChange={(e) => handleUpdateQuestionField(idx, 'subtitle', e.target.value)}
-                      placeholder="e.g. Guides guest to signature mixes..."
+
+                  {/* Added Cards List */}
+                  {(q.curatedProductIds || []).length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                      {q.curatedProductIds.map((curId) => {
+                        const it = items.find((item) => item.id === curId || String((item as any)._id) === curId);
+                        return (
+                          <div
+                            key={curId}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              padding: '6px 12px',
+                              background: 'rgba(30, 41, 59, 0.85)',
+                              border: '1.5px solid #0284c7',
+                              borderRadius: '8px',
+                              fontSize: '12px',
+                              color: 'var(--cream)',
+                              fontWeight: 700,
+                            }}
+                          >
+                            {it?.imageUrl ? (
+                              <img
+                                src={resolveImageUrl(it.imageUrl)}
+                                alt={it.name}
+                                style={{ width: '22px', height: '22px', objectFit: 'cover', borderRadius: '4px' }}
+                              />
+                            ) : (
+                              <span style={{ fontSize: '14px' }}>{it?.emoji || '🍽️'}</span>
+                            )}
+                            <span>{it?.name || `Item ${curId.slice(-4)}`}</span>
+                            <span style={{ color: '#38BDF8', fontWeight: 800 }}>
+                              ${it ? (Number(it.price) || 0).toFixed(2) : '0.00'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveCuratedItem(idx, curId)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#F87171',
+                                cursor: 'pointer',
+                                padding: '0 2px',
+                                fontSize: '13px',
+                                lineHeight: 1,
+                                fontWeight: 800,
+                                marginLeft: '2px',
+                              }}
+                              title="Remove item"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Dropdown & Add Button Row */}
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <select
+                      value={selectedItemToAdd[idx] || ''}
+                      onChange={(e) => setSelectedItemToAdd((prev) => ({ ...prev, [idx]: e.target.value }))}
                       style={{
-                        width: '100%',
+                        flex: 1,
                         padding: '8px 12px',
                         background: 'var(--card2)',
                         border: '1px solid var(--line)',
                         borderRadius: '8px',
                         color: 'var(--cream)',
-                        fontSize: '13px',
+                        fontSize: '12px',
+                        fontWeight: 600,
                       }}
-                    />
+                    >
+                      <option value="">-- Select a Menu Item to Add --</option>
+                      {items.map((it) => (
+                        <option key={it.id} value={it.id}>
+                          {it.name} (${(Number(it.price) || 0).toFixed(2)})
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      className="btn btn-primary touch-target"
+                      onClick={() => {
+                        const curVal = selectedItemToAdd[idx];
+                        if (curVal) {
+                          handleAddCuratedItem(idx, curVal);
+                          setSelectedItemToAdd((prev) => ({ ...prev, [idx]: '' }));
+                        }
+                      }}
+                      style={{
+                        padding: '8px 16px',
+                        fontSize: '12px',
+                        fontWeight: 800,
+                        background: '#0284c7',
+                        borderColor: '#0284c7',
+                        whiteSpace: 'nowrap',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      + Add Item
+                    </button>
                   </div>
                 </div>
 
                 {/* Answer Options List */}
-                <div style={{ background: 'var(--card2)', borderRadius: '12px', padding: '14px', border: '1px solid var(--line)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <div style={{ background: 'var(--card2)', borderRadius: '12px', padding: '16px', border: '1px solid var(--line)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                     <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--gold)', textTransform: 'uppercase' }}>
-                      🎯 Customer Options &amp; Navigation Destinations ({q.options.length})
+                      ANSWER OPTIONS ({q.options.length})
                     </div>
                     <button
                       type="button"
                       className="btn"
                       onClick={() => handleAddOptionToQuestion(idx)}
-                      style={{ padding: '4px 10px', fontSize: '11px', background: 'rgba(229,177,58,0.15)', border: '1px solid var(--gold)', color: 'var(--gold)', fontWeight: 800 }}
+                      style={{
+                        padding: '5px 12px',
+                        fontSize: '11px',
+                        background: 'rgba(229,177,58,0.15)',
+                        border: '1px solid var(--gold)',
+                        color: 'var(--gold)',
+                        fontWeight: 800,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
                     >
-                      <Plus style={{ width: '10px', height: '10px' }} /> Add Option
+                      <Plus style={{ width: '12px', height: '12px' }} /> Add Option
                     </button>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {q.options.map((opt, oIdx) => (
                       <div
                         key={oIdx}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '8px',
+                          gap: '12px',
                           background: 'var(--card)',
-                          padding: '8px 10px',
-                          borderRadius: '8px',
+                          padding: '10px 14px',
+                          borderRadius: '10px',
                           border: '1px solid var(--line)',
                           flexWrap: 'wrap',
                         }}
                       >
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                          <button
-                            type="button"
-                            className="btn"
-                            disabled={oIdx === 0}
-                            onClick={() => handleMoveOption(idx, oIdx, -1)}
-                            style={{ padding: '2px 4px', fontSize: '8px', minHeight: 'unset', opacity: oIdx === 0 ? 0.3 : 1 }}
-                          >
-                            ▲
-                          </button>
-                          <button
-                            type="button"
-                            className="btn"
-                            disabled={oIdx === q.options.length - 1}
-                            onClick={() => handleMoveOption(idx, oIdx, 1)}
-                            style={{ padding: '2px 4px', fontSize: '8px', minHeight: 'unset', opacity: oIdx === q.options.length - 1 ? 0.3 : 1 }}
-                          >
-                            ▼
-                          </button>
+                        <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--muted)', minWidth: '22px' }}>
+                          #{oIdx + 1}
+                        </span>
+
+                        {/* Choice Label */}
+                        <div style={{ flex: 1.2, minWidth: '180px' }}>
+                          <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
+                            CHOICE LABEL
+                          </label>
+                          <input
+                            type="text"
+                            value={opt.text}
+                            onChange={(e) => handleUpdateOption(idx, oIdx, 'text', e.target.value)}
+                            placeholder="Choice label"
+                            style={{
+                              width: '100%',
+                              padding: '8px 10px',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              background: 'var(--card2)',
+                              border: '1px solid var(--line)',
+                              borderRadius: '6px',
+                              color: 'var(--cream)',
+                            }}
+                          />
                         </div>
 
-                        {/* Emoji */}
-                        <input
-                          type="text"
-                          value={opt.emoji}
-                          onChange={(e) => handleUpdateOption(idx, oIdx, 'emoji', e.target.value)}
-                          placeholder="💨"
-                          style={{ width: '36px', padding: '6px 4px', textAlign: 'center', fontSize: '14px', background: 'var(--card2)', border: '1px solid var(--line)', borderRadius: '6px', color: 'var(--cream)' }}
-                        />
+                        {/* Host Reply */}
+                        <div style={{ flex: 1.5, minWidth: '220px' }}>
+                          <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
+                            💬 HOST REPLY (ANIMATED TRANSITION)
+                          </label>
+                          <input
+                            type="text"
+                            value={opt.hostReply}
+                            onChange={(e) => handleUpdateOption(idx, oIdx, 'hostReply', e.target.value)}
+                            placeholder="Host reply bubble text"
+                            style={{
+                              width: '100%',
+                              padding: '8px 10px',
+                              fontSize: '11px',
+                              background: 'var(--card2)',
+                              border: '1px solid var(--line)',
+                              borderRadius: '6px',
+                              color: 'var(--cream)',
+                            }}
+                          />
+                        </div>
 
-                        {/* Label */}
-                        <input
-                          type="text"
-                          value={opt.text}
-                          onChange={(e) => handleUpdateOption(idx, oIdx, 'text', e.target.value)}
-                          placeholder="Option Label"
-                          style={{ flex: 1, minWidth: '130px', padding: '6px 8px', fontSize: '12px', fontWeight: 700, background: 'var(--card2)', border: '1px solid var(--line)', borderRadius: '6px', color: 'var(--cream)' }}
-                        />
-
-                        {/* Host Reply Bubble */}
-                        <input
-                          type="text"
-                          value={opt.hostReply}
-                          onChange={(e) => handleUpdateOption(idx, oIdx, 'hostReply', e.target.value)}
-                          placeholder="Host Reply Bubble Text"
-                          style={{ flex: 1.2, minWidth: '150px', padding: '6px 8px', fontSize: '11px', background: 'var(--card2)', border: '1px solid var(--line)', borderRadius: '6px', color: 'var(--muted)' }}
-                        />
-
-                        {/* Destination */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 800 }}>→</span>
+                        {/* Destination Navigation */}
+                        <div style={{ flex: 1.2, minWidth: '180px' }}>
+                          <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '4px' }}>
+                            DESTINATION NAVIGATION
+                          </label>
                           <select
                             value={opt.destination}
                             onChange={(e) => handleUpdateOption(idx, oIdx, 'destination', e.target.value)}
                             style={{
-                              padding: '6px 8px',
+                              width: '100%',
+                              padding: '8px 10px',
                               fontSize: '11px',
                               fontWeight: 700,
                               background: 'var(--card2)',
-                              border: '1px solid var(--gold)',
+                              border: '1px solid var(--line)',
                               borderRadius: '6px',
                               color: 'var(--gold)',
-                              maxWidth: '220px',
                             }}
                           >
                             <optgroup label="Standard Actions">
@@ -1355,7 +1575,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
                                   const val = `category:${cid}`;
                                   return (
                                     <option key={cid} value={val}>
-                                      Category: {c.title || c.name || cid} ({cid})
+                                      Category: {c.title || c.name || cid}
                                     </option>
                                   );
                                 })}
@@ -1379,15 +1599,38 @@ export const MenuView: React.FC<MenuViewProps> = ({
                           </select>
                         </div>
 
-                        <button
-                          type="button"
-                          className="btn btn-danger"
-                          onClick={() => handleDeleteOption(idx, oIdx)}
-                          style={{ padding: '4px 8px', fontSize: '11px' }}
-                          title="Delete Option"
-                        >
-                          ✕
-                        </button>
+                        {/* Action Controls */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '16px' }}>
+                          <button
+                            type="button"
+                            className="btn"
+                            disabled={oIdx === 0}
+                            onClick={() => handleMoveOption(idx, oIdx, -1)}
+                            style={{ padding: '6px 8px', fontSize: '10px', minHeight: 'unset', opacity: oIdx === 0 ? 0.3 : 1 }}
+                            title="Move Up"
+                          >
+                            <ArrowUp style={{ width: '12px', height: '12px' }} />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn"
+                            disabled={oIdx === q.options.length - 1}
+                            onClick={() => handleMoveOption(idx, oIdx, 1)}
+                            style={{ padding: '6px 8px', fontSize: '10px', minHeight: 'unset', opacity: oIdx === q.options.length - 1 ? 0.3 : 1 }}
+                            title="Move Down"
+                          >
+                            <ArrowDown style={{ width: '12px', height: '12px' }} />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-danger"
+                            onClick={() => handleDeleteOption(idx, oIdx)}
+                            style={{ padding: '6px 8px', fontSize: '11px' }}
+                            title="Delete Option"
+                          >
+                            <Trash2 style={{ width: '12px', height: '12px' }} />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

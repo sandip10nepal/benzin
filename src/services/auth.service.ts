@@ -255,7 +255,7 @@ export class AuthService {
   private static readonly PERMISSIONS: Record<string, (UserRole | 'device')[]> = {
     // Restaurant management
     'restaurant:read':          ['platform_admin', 'owner', 'manager'],
-    'restaurant:update':        ['platform_admin', 'owner'],
+    'restaurant:update':        ['platform_admin', 'owner', 'manager'],
     'restaurant:create':        ['platform_admin'],
 
     // Staff management (Manager/Owner only)

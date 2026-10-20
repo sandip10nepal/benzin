@@ -19,6 +19,7 @@ import { MultiTenantDbService } from './services/multi-tenant-db.service';
 
 import tablesRouter from './routes/tables';
 import vibeQuestRouter from './routes/vibe-quest';
+import mediaRouter from './routes/media';
 import { MongoSyncService } from './services/mongo-sync.service';
 
 const app = express();
@@ -53,6 +54,7 @@ app.use('/api/payment-sessions', paymentsRouter);
 app.use('/api/employees', employeesRouter);
 app.use('/api/menu', menuRouter);
 app.use('/api/vibe-quest', vibeQuestRouter);
+app.use('/api/media', mediaRouter);
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*                   MULTI-TENANT v2 ROUTES                                    */
@@ -65,9 +67,11 @@ app.use('/api/v2/menu', menuV2Router);
 // Serve Admin Dashboard (React Admin Command Suite)
 const publicPath = path.resolve(process.cwd(), 'public');
 const adminReactPath = path.resolve(publicPath, 'admin_react');
+const uploadsPath = path.resolve(publicPath, 'uploads');
 
-// Mount React Admin Static Assets & Public Root
+// Mount React Admin Static Assets, Local Uploads & Public Root
 app.use('/admin_react', express.static(adminReactPath));
+app.use('/uploads', express.static(uploadsPath));
 app.use(express.static(publicPath));
 
 // Route /admin, /admin/, and /staff to the modern Benzin React Admin Dashboard

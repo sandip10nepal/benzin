@@ -166,7 +166,7 @@ export const EditInventoryModal: React.FC<EditInventoryModalProps> = ({
               <input
                 type="text"
                 id="invEditBrand"
-                placeholder="e.g. Al Fakher, Adalya, Afzal, Starbuzz"
+                placeholder="Brand"
                 value={brand}
                 onChange={(e) => setBrand(e.target.value)}
                 style={{
@@ -233,7 +233,7 @@ export const EditInventoryModal: React.FC<EditInventoryModalProps> = ({
               <input
                 type="text"
                 id="invEditUnit"
-                placeholder="e.g. g, ml, pcs"
+                placeholder="Unit of measure"
                 value={unit}
                 onChange={(e) => setUnit(e.target.value)}
                 style={{

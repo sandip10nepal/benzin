@@ -486,7 +486,7 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({
             </div>
             <div style={{ marginBottom: '14px', textAlign: 'left' }}>
               <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--muted, #94a3b8)', textTransform: 'uppercase', marginBottom: '4px' }}>
-                Passcode / Password * (4-Digit PIN e.g. 1234 or 2448)
+                Passcode / Password * (4-Digit PIN)
               </label>
               <input
                 type="password"

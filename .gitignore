@@ -10,3 +10,6 @@ vindu_menu_raw.html
 check_db.ts
 drop_index.ts
 scripts-tmp/
+backups/
+*.log
+

@@ -128,4 +128,9 @@ export const env = {
   get SQUARE_LOCATION_ID(): string {
     return process.env.SQUARE_LOCATION_ID || '';
   },
+
+  /** Google Cloud Storage Media Bucket name */
+  get GCS_MEDIA_BUCKET(): string {
+    return (process.env.GCS_MEDIA_BUCKET || '').trim();
+  },
 };

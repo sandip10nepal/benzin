@@ -154,8 +154,18 @@ export class VibeQuestEngine {
       }
     }
 
-    // Dessert specific cart condition check
-    if (question.stage === 'dessert' || question.repeat_policy === 'cart_conditional') {
+    // Cart condition checks (drinks or dessert)
+    if (question.navigation_trigger === 'cart_drinks' || (question.repeat_policy === 'cart_conditional' && question.stage === 'drinks')) {
+      if (session.questions_dismissed.includes(question.id)) return false;
+      const drinkCatIds = settings?.drink_category_ids || ['CAT_DRINKS_REFRESHERS', 'CAT_DRINKS_TEA_COFFEE', 'CAT_DRINKS_SOFT', 'cat_super_drinks'];
+      const hasDrinkInCart = cart.some((item) => {
+        const cids = Array.isArray(item.category_ids) && item.category_ids.length > 0
+          ? item.category_ids
+          : [item.category_id || ''];
+        return (item.category || '').toLowerCase() === 'drinks' || (item.category || '').toLowerCase().includes('drink') || drinkCatIds.some((dcid) => cids.includes(dcid)) || drinkCatIds.includes(item.category || '');
+      });
+      if (hasDrinkInCart) return false;
+    } else if (question.stage === 'dessert' || question.navigation_trigger === 'cart_dessert' || question.repeat_policy === 'cart_conditional') {
       if (session.questions_dismissed.includes(question.id)) return false;
 
       // Check if dessert already in cart

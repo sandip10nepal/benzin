@@ -2,7 +2,6 @@ import React from 'react';
 import {
   LayoutGrid,
   TableProperties,
-  Archive,
   Package,
   BookOpen,
   BarChart3,
@@ -175,16 +174,7 @@ export const MobileNavigationDrawer: React.FC<MobileNavigationDrawerProps> = ({
             style={{ width: '100%', justifyContent: 'flex-start', padding: '12px 16px', fontSize: '14px', fontWeight: 800, borderRadius: '10px' }}
           >
             <TableProperties style={{ width: '18px', height: '18px', marginRight: '10px' }} />
-            <span>Tables Overview</span>
-          </button>
-          <button
-            className={`nav-tab ${activeTab === 'archive' ? 'active' : ''}`}
-            id="drawerNavTab-archive"
-            onClick={() => handleTabClick('archive')}
-            style={{ width: '100%', justifyContent: 'flex-start', padding: '12px 16px', fontSize: '14px', fontWeight: 800, borderRadius: '10px' }}
-          >
-            <Archive style={{ width: '18px', height: '18px', marginRight: '10px' }} />
-            <span>Archive Tickets</span>
+            <span>Restaurant Overview</span>
           </button>
           <button
             className={`nav-tab ${activeTab === 'inventory' ? 'active' : ''}`}

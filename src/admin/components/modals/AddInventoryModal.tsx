@@ -101,7 +101,7 @@ export const AddInventoryModal: React.FC<AddInventoryModalProps> = ({
                 type="text"
                 id="invNewName"
                 required
-                placeholder="e.g. Pan Ras or Love 66"
+                placeholder="Item name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 autoFocus
@@ -132,7 +132,7 @@ export const AddInventoryModal: React.FC<AddInventoryModalProps> = ({
               <input
                 type="text"
                 id="invNewBrand"
-                placeholder="e.g. Al Fakher, Adalya, Afzal, Starbuzz"
+                placeholder="Brand"
                 value={brand}
                 onChange={(e) => setBrand(e.target.value)}
                 style={{

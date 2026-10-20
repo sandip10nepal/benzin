@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { RefreshCw, PlusCircle, Edit2, RotateCcw } from 'lucide-react';
 import { AdminTabId } from '../types';
 import { apiClient } from '../api/client';
+import { RestaurantBrandingPanel } from '../components/branding/RestaurantBrandingPanel';
 
 export interface FloorTable {
   id: string;
@@ -36,6 +37,7 @@ interface TablesViewProps {
   onSelectTab?: (tabId: AdminTabId) => void;
   currentUserId?: string;
   currentUserName?: string;
+  userRole?: string;
 }
 
 export const TablesView: React.FC<TablesViewProps> = ({
@@ -46,6 +48,7 @@ export const TablesView: React.FC<TablesViewProps> = ({
   onSelectTab,
   currentUserId = '',
   currentUserName = '',
+  userRole = 'staff',
 }) => {
   const [tables, setTables] = useState<FloorTable[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -253,6 +256,9 @@ export const TablesView: React.FC<TablesViewProps> = ({
 
   return (
     <div id="tablesPageLayout" style={{ padding: '20px 24px 60px 24px' }}>
+      {/* Restaurant Visual Identity, Logo & Theme Preset Section */}
+      <RestaurantBrandingPanel userRole={userRole} />
+
       {/* Top Header & Live Indicator */}
       <div
         style={{

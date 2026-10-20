@@ -551,11 +551,27 @@ router.patch('/:id', requireAuth, requirePermission('restaurant:update'), async 
       return;
     }
 
+    const existing = await MultiTenantDbService.getRestaurant(id);
+    if (!existing) {
+      res.status(404).json({ success: false, error: 'Restaurant not found.' });
+      return;
+    }
+
     const { name, branding, settings } = req.body;
     const update: any = {};
     if (name) update.name = name;
-    if (branding) update.branding = branding;
-    if (settings) update.settings = settings;
+    if (branding) {
+      update.branding = {
+        ...(existing.branding || {}),
+        ...branding,
+      };
+    }
+    if (settings) {
+      update.settings = {
+        ...(existing.settings || {}),
+        ...settings,
+      };
+    }
 
     const updated = await MultiTenantDbService.updateRestaurant(id, update);
     if (!updated) {

@@ -115,7 +115,7 @@ export const InventoryCategoryModal: React.FC<InventoryCategoryModalProps> = ({
                   type="text"
                   id="invCatTitle"
                   required
-                  placeholder="e.g. Shisha Flavors"
+                  placeholder="Category name"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   style={{

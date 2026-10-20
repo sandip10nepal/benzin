@@ -155,7 +155,7 @@ export const CollectCashModal: React.FC<CollectCashModalProps> = ({
               type="number"
               step="0.01"
               id="cashTenderedInput"
-              placeholder="e.g. 50.00"
+              placeholder="0.00"
               value={tendered}
               onChange={(e) => setTendered(e.target.value)}
               autoFocus

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Upload, Link as LinkIcon, Image as ImageIcon, X, RefreshCw, FolderOpen, CheckCircle, AlertCircle } from 'lucide-react';
 import { MenuItem } from '../../types';
 import { apiClient } from '../../api/client';
 
@@ -66,12 +66,48 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
   const [desc, setDesc] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [imageTab, setImageTab] = useState<'upload' | 'url' | 'library'>('upload');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imageUploadError, setImageUploadError] = useState<string | null>(null);
+  const [mediaLibrary, setMediaLibrary] = useState<any[]>([]);
+  const [isLoadingMedia, setIsLoadingMedia] = useState(false);
   const [modifierGroups, setModifierGroups] = useState<ModifierGroup[]>([]);
   const [recipeIngredients, setRecipeIngredients] = useState<RecipeIngredient[]>([]);
   const [liveInventory, setLiveInventory] = useState<LiveStockItem[]>([]);
   const [inventorySearch, setInventorySearch] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  const handleFileUpload = async (file: File) => {
+    try {
+      setIsUploadingImage(true);
+      setImageUploadError(null);
+      const res = await apiClient.uploadMediaFile(file, 'menu');
+      if (res.success && res.url) {
+        setImageUrl(res.url);
+      } else {
+        setImageUploadError(res.error || 'Failed to upload image.');
+      }
+    } catch (err: any) {
+      setImageUploadError(err.message || 'Image upload failed.');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
+  const loadMediaLibrary = async () => {
+    try {
+      setIsLoadingMedia(true);
+      const res = await apiClient.listRestaurantMedia('menu', 30);
+      if (res.success && Array.isArray(res.media)) {
+        setMediaLibrary(res.media);
+      }
+    } catch (err) {
+      console.warn('Failed to load media library:', err);
+    } finally {
+      setIsLoadingMedia(false);
+    }
+  };
 
   // Fetch real inventory raw materials from MongoDB on modal open
   useEffect(() => {
@@ -205,7 +241,7 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
       ...prev,
       {
         id: `mod_${Date.now()}`,
-        name: 'Choice Group (e.g. Wing Sauces)',
+        name: 'Choice Group',
         required: false,
         minSelections: 0,
         maxSelections: 1,
@@ -431,26 +467,6 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
           </button>
         </div>
 
-        {/* Scoped category notice */}
-        {scopedCategory && scopedCategory !== 'all' && (
-          <div
-            id="menuEditCategoryScopeNotice"
-            style={{
-              display: 'block',
-              background: 'rgba(56, 189, 248, 0.1)',
-              border: '1px dashed #38BDF8',
-              borderRadius: '8px',
-              padding: '8px 12px',
-              marginBottom: '16px',
-              fontSize: '12px',
-              color: '#38BDF8',
-              fontWeight: 700,
-            }}
-          >
-            🏷️ Editing within category: <span style={{ color: 'var(--cream)', fontWeight: 800 }}>{scopedCategory}</span> (Changes here are isolated to this category)
-          </div>
-        )}
-
         <form onSubmit={handleSubmit}>
           {/* Item Name */}
           <div style={{ marginBottom: '14px' }}>
@@ -471,7 +487,7 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
               type="text"
               id="menuItemName"
               required
-              placeholder="e.g. Biscoff Cake or Anarkali House Blend"
+              placeholder="Item name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               autoFocus
@@ -584,9 +600,6 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
                 {selectedCats.length} Selected
               </span>
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '10px' }}>
-              Tap any category to toggle. An item can belong to multiple categories simultaneously (e.g. Appetizers &amp; Vegetarian, Wings &amp; Mains).
-            </div>
             <div
               id="menuItemCategoriesGrid"
               style={{
@@ -682,7 +695,7 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
             <textarea
               id="menuItemDesc"
               rows={2}
-              placeholder="e.g. Signature blend of Pan Ras, Lady Killer & Bagdadi with iced base..."
+              placeholder="Item description"
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
               style={{
@@ -698,8 +711,8 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
             />
           </div>
 
-          {/* Item Image URL */}
-          <div style={{ marginBottom: '18px' }}>
+          {/* Item Photo & Media Management */}
+          <div style={{ marginBottom: '22px' }}>
             <label
               style={{
                 display: 'block',
@@ -707,28 +720,331 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
                 fontWeight: 800,
                 color: 'var(--muted)',
                 textTransform: 'uppercase',
-                marginBottom: '6px',
+                marginBottom: '8px',
                 letterSpacing: '0.5px',
               }}
             >
-              ITEM IMAGE URL
+              ITEM PHOTO / MEDIA
             </label>
-            <input
-              type="text"
-              id="menuItemImageUrl"
-              placeholder="https://... or /images/menu/item.png"
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                background: 'var(--card2)',
-                border: '1px solid var(--line)',
-                borderRadius: '8px',
-                color: 'var(--cream)',
-                fontSize: '13px',
-              }}
-            />
+
+            {/* Current Image Display & Controls */}
+            {imageUrl ? (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '14px',
+                  padding: '12px 14px',
+                  background: 'var(--card2)',
+                  border: '1px solid var(--line)',
+                  borderRadius: '10px',
+                  marginBottom: '12px',
+                }}
+              >
+                <div
+                  style={{
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '8px',
+                    background: '#0C0806',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    flexShrink: 0,
+                  }}
+                >
+                  <img
+                    src={imageUrl}
+                    alt={name || 'Menu preview'}
+                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'cover' }}
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--cream)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <CheckCircle style={{ width: '14px', height: '14px', color: '#10B981' }} />
+                    Photo Attached
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '11px',
+                      color: 'var(--muted)',
+                      marginTop: '2px',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                    title={imageUrl}
+                  >
+                    {imageUrl}
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setImageUrl('')}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#EF4444',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        padding: 0,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      <X style={{ width: '12px', height: '12px' }} />
+                      Remove
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setImageTab('upload');
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--gold)',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        padding: 0,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      <RefreshCw style={{ width: '11px', height: '11px' }} />
+                      Replace
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Sub-tabs: Upload File | External URL | Media Library */}
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setImageTab('upload')}
+                style={{
+                  flex: 1,
+                  padding: '7px 10px',
+                  borderRadius: '6px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  border: imageTab === 'upload' ? '1px solid var(--gold)' : '1px solid var(--line)',
+                  background: imageTab === 'upload' ? 'rgba(229,177,58,0.12)' : 'var(--card2)',
+                  color: imageTab === 'upload' ? 'var(--gold)' : 'var(--muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '5px',
+                }}
+              >
+                <Upload style={{ width: '12px', height: '12px' }} />
+                Upload Photo
+              </button>
+              <button
+                type="button"
+                onClick={() => setImageTab('url')}
+                style={{
+                  flex: 1,
+                  padding: '7px 10px',
+                  borderRadius: '6px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  border: imageTab === 'url' ? '1px solid var(--gold)' : '1px solid var(--line)',
+                  background: imageTab === 'url' ? 'rgba(229,177,58,0.12)' : 'var(--card2)',
+                  color: imageTab === 'url' ? 'var(--gold)' : 'var(--muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '5px',
+                }}
+              >
+                <LinkIcon style={{ width: '12px', height: '12px' }} />
+                External URL
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setImageTab('library');
+                  loadMediaLibrary();
+                }}
+                style={{
+                  flex: 1,
+                  padding: '7px 10px',
+                  borderRadius: '6px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  border: imageTab === 'library' ? '1px solid var(--gold)' : '1px solid var(--line)',
+                  background: imageTab === 'library' ? 'rgba(229,177,58,0.12)' : 'var(--card2)',
+                  color: imageTab === 'library' ? 'var(--gold)' : 'var(--muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '5px',
+                }}
+              >
+                <FolderOpen style={{ width: '12px', height: '12px' }} />
+                Media Library
+              </button>
+            </div>
+
+            {imageUploadError && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  background: 'rgba(239,68,68,0.1)',
+                  color: '#EF4444',
+                  fontSize: '12px',
+                  marginBottom: '10px',
+                }}
+              >
+                <AlertCircle style={{ width: '14px', height: '14px', flexShrink: 0 }} />
+                <span>{imageUploadError}</span>
+              </div>
+            )}
+
+            {/* TAB 1: File Upload */}
+            {imageTab === 'upload' && (
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="file"
+                  id="menuItemFileInput"
+                  accept="image/jpeg,image/png,image/webp"
+                  disabled={isUploadingImage}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleFileUpload(f);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    background: 'var(--card2)',
+                    border: '1px dashed var(--line)',
+                    borderRadius: '8px',
+                    color: 'var(--muted)',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                  }}
+                />
+                {isUploadingImage && (
+                  <div style={{ fontSize: '11px', color: 'var(--gold)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <RefreshCw style={{ width: '12px', height: '12px', animation: 'spin 1s linear infinite' }} />
+                    Optimizing image (Sharp) & uploading...
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 2: External URL */}
+            {imageTab === 'url' && (
+              <div>
+                <input
+                  type="text"
+                  id="menuItemImageUrl"
+                  placeholder="https://images.unsplash.com/... or https://..."
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    background: 'var(--card2)',
+                    border: '1px solid var(--line)',
+                    borderRadius: '8px',
+                    color: 'var(--cream)',
+                    fontSize: '13px',
+                  }}
+                />
+              </div>
+            )}
+
+            {/* TAB 3: Media Library Grid */}
+            {imageTab === 'library' && (
+              <div
+                style={{
+                  background: 'var(--card2)',
+                  border: '1px solid var(--line)',
+                  borderRadius: '8px',
+                  padding: '10px',
+                  maxHeight: '180px',
+                  overflowY: 'auto',
+                }}
+              >
+                {isLoadingMedia ? (
+                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--muted)', fontSize: '12px' }}>
+                    <RefreshCw style={{ width: '14px', height: '14px', animation: 'spin 1s linear infinite', margin: '0 auto 6px' }} />
+                    Loading restaurant library...
+                  </div>
+                ) : mediaLibrary.length === 0 ? (
+                  <div style={{ padding: '16px', textAlign: 'center', color: 'var(--muted)', fontSize: '12px' }}>
+                    No previously uploaded photos found in library.
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(64px, 1fr))', gap: '8px' }}>
+                    {mediaLibrary.map((m) => {
+                      const isPicked = imageUrl === m.public_url;
+                      return (
+                        <div
+                          key={m._id}
+                          onClick={() => setImageUrl(m.public_url)}
+                          title={m.original_filename || m._id}
+                          style={{
+                            width: '100%',
+                            aspectRatio: '1',
+                            borderRadius: '6px',
+                            overflow: 'hidden',
+                            border: isPicked ? '2px solid var(--gold)' : '1px solid rgba(255,255,255,0.1)',
+                            cursor: 'pointer',
+                            position: 'relative',
+                            background: '#0C0806',
+                          }}
+                        >
+                          <img
+                            src={m.public_url}
+                            alt="Media item"
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                          {isPicked && (
+                            <div
+                              style={{
+                                position: 'absolute',
+                                top: '2px',
+                                right: '2px',
+                                background: 'var(--gold)',
+                                borderRadius: '50%',
+                                width: '14px',
+                                height: '14px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              <CheckCircle style={{ width: '10px', height: '10px', color: '#000' }} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Choice Options & Modifiers Section */}
@@ -753,10 +1069,7 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
             >
               <div>
                 <div style={{ fontSize: '12px', fontWeight: 800, color: '#10B981', textTransform: 'uppercase' }}>
-                  CHOICE OPTIONS &amp; MODIFIERS (E.G. WING SAUCES, FLAVORS)
-                </div>
-                <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
-                  Prompts customer with choice popup when selecting this item.
+                  CHOICE OPTIONS &amp; MODIFIERS
                 </div>
               </div>
               <button
@@ -793,7 +1106,7 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
                       type="text"
                       value={group.name}
                       onChange={(e) => updateModifierGroupName(groupIdx, e.target.value)}
-                      placeholder="Group Title (e.g. Sauce Selection)"
+                      placeholder="Group title"
                       style={{ flex: 1, minWidth: '160px', padding: '6px 8px', fontSize: '12px', fontWeight: 700, borderRadius: '6px', background: 'var(--card)', border: '1px solid var(--line)', color: 'var(--cream)' }}
                     />
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -852,7 +1165,7 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
                           type="text"
                           value={opt.name}
                           onChange={(e) => updateModifierOption(groupIdx, optIdx, 'name', e.target.value)}
-                          placeholder="Option Name (e.g. Buffalo Sauce)"
+                          placeholder="Option name"
                           style={{ flex: 1, padding: '4px 8px', fontSize: '11px', background: 'var(--card2)', border: '1px solid var(--line)', borderRadius: '4px', color: 'var(--cream)' }}
                         />
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -920,16 +1233,13 @@ export const MenuItemModal: React.FC<MenuItemModalProps> = ({
                 + Add Blank Row
               </button>
             </div>
-            <p style={{ fontSize: '11px', color: 'var(--muted)', margin: '0 0 10px 0' }}>
-              Combine multiple raw stock materials to make a single menu item. When an order is served, configured amounts automatically deduct from live inventory.
-            </p>
 
             {/* Live Inventory Stock Search */}
             <div style={{ position: 'relative', marginBottom: '12px' }}>
               <input
                 type="text"
                 id="recipeInventorySearchInput"
-                placeholder="🔍 Search live inventory stock by name or brand (e.g. Al Fakher, Rose Syrup)..."
+                placeholder="🔍 Search live inventory stock by name or brand..."
                 value={inventorySearch}
                 onFocus={() => setShowSearchResults(true)}
                 onChange={(e) => {

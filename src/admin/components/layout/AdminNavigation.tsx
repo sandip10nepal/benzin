@@ -2,7 +2,6 @@ import React from 'react';
 import {
   LayoutGrid,
   TableProperties,
-  Archive,
   Package,
   BookOpen,
   BarChart3,
@@ -23,8 +22,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'kds', label: 'Live Tickets', icon: LayoutGrid },
-  { id: 'tables', label: 'Tables Overview', icon: TableProperties },
-  { id: 'archive', label: 'Archive Tickets', icon: Archive },
+  { id: 'tables', label: 'Restaurant Overview', icon: TableProperties },
   { id: 'inventory', label: 'Inventory Stock', icon: Package },
   { id: 'menu', label: 'Menu Catalog', icon: BookOpen },
   { id: 'sales', label: 'Sales & Tax Ledger', icon: BarChart3 },
